@@ -1,0 +1,6 @@
+{
+  "name": "Student Management System - ប្រព័ន្ធគ្រប់គ្រងសិស្ស",
+  "description": "Student Management Web App with Google Sheets backend via Google Apps Script. Features CRUD, Dashboard, Student Reports with advanced filters & printing, Search & Filter.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

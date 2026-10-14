@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@theme {
+  --font-battambang: 'Kantumruy Pro', 'Battambang', 'Noto Sans Khmer', system-ui, sans-serif;
+  --font-times: 'Times New Roman', Times, 'Liberation Serif', serif;
+  --font-biaukai: 'DFKai-SB', 'BiauKai', 'BiauKai TC', '標楷體', 'Kaiti TC', 'KaiTi', 'STKaiti', 'Noto Serif TC', serif;
+  --font-sans: 'Kantumruy Pro', 'Battambang', 'Noto Sans Khmer', 'Times New Roman', 'DFKai-SB', 'BiauKai', '標楷體', 'Kaiti TC', 'KaiTi', 'Noto Serif TC', system-ui, sans-serif;
+}
+
+/* Master typography stack prioritizing Kantumruy Pro, Battambang, Times New Roman, and 標楷體 */
+:root {
+  --font-sans: 'Kantumruy Pro', 'Battambang', 'Noto Sans Khmer', 'Times New Roman', 'DFKai-SB', 'BiauKai', '標楷體', 'Kaiti TC', 'KaiTi', 'Noto Serif TC', system-ui, sans-serif;
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+/* Language-specific optimization */
+:root[data-lang="km"],
+html[lang="km"],
+.lang-km {
+  font-family: 'Kantumruy Pro', 'Battambang', 'Noto Sans Khmer', 'Times New Roman', 'DFKai-SB', 'BiauKai', '標楷體', 'Kaiti TC', 'KaiTi', system-ui, sans-serif;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+}
+
+:root[data-lang="en"],
+html[lang="en"],
+.lang-en {
+  font-family: 'Times New Roman', 'Kantumruy Pro', 'Battambang', 'DFKai-SB', 'BiauKai', '標楷體', 'Kaiti TC', 'KaiTi', serif;
+  line-height: 1.5;
+}
+
+:root[data-lang="zh-TW"],
+html[lang="zh-TW"],
+.lang-zh {
+  font-family: 'DFKai-SB', 'BiauKai', 'BiauKai TC', '標楷體', 'Kaiti TC', 'KaiTi', 'Noto Serif TC', 'Times New Roman', 'Kantumruy Pro', 'Battambang', serif;
+  line-height: 1.6;
+}
+
+body {
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Ensure Khmer text has sufficient vertical space for vowel marks and subscripts */
+html[lang="km"] input,
+html[lang="km"] select,
+html[lang="km"] textarea,
+html[lang="km"] button {
+  min-height: 2.25rem;
+}
+
+/* Smooth horizontal scrollbar with visible track for mobile tables */
+.table-scroll-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Explicit typography utility classes */
+.font-battambang,
+.font-km {
+  font-family: 'Kantumruy Pro', 'Battambang', 'Noto Sans Khmer', system-ui, sans-serif !important;
+}
+
+.font-times,
+.font-en {
+  font-family: 'Times New Roman', Times, 'Liberation Serif', serif !important;
+}
+
+.font-biaukai,
+.font-kaiti,
+.font-zh {
+  font-family: 'DFKai-SB', 'BiauKai', 'BiauKai TC', '標楷體', 'Kaiti TC', 'KaiTi', 'STKaiti', 'Noto Serif TC', serif !important;
+}
+
+/* Custom scrollbars for clean & modern desktop UX */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Print Media Optimization */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  aside,
+  header,
+  nav,
+  .print\:hidden,
+  button:not(.print-keep),
+  .no-print {
+    display: none !important;
+  }
+
+  .md\:pl-64,
+  .lg\:pl-72 {
+    padding-left: 0 !important;
+  }
+
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}
