@@ -17,6 +17,14 @@ export interface CustomTranslationsStore {
 
 class SchoolMajorService {
   private listeners: Set<() => void> = new Set();
+  private syncRemoteHandler?: ((schools: SchoolMajorEntry[], translations: CustomTranslationsStore) => void) | null;
+
+  /**
+   * Set remote sync handler to sync with Google Sheets
+   */
+  setRemoteSyncHandler(handler: ((schools: SchoolMajorEntry[], translations: CustomTranslationsStore) => void) | null): void {
+    this.syncRemoteHandler = handler;
+  }
 
   /**
    * Subscribe to changes
@@ -60,11 +68,41 @@ class SchoolMajorService {
   }
 
   /**
-   * Save schools data to localStorage
+   * Save schools data to localStorage and optionally sync to remote
    */
-  saveSchools(data: SchoolMajorEntry[]): void {
+  saveSchools(data: SchoolMajorEntry[], skipRemote = false): void {
     localStorage.setItem(STORAGE_KEY_SCHOOLS, JSON.stringify(data));
     this.notify();
+    if (!skipRemote && this.syncRemoteHandler) {
+      try {
+        this.syncRemoteHandler(data, this.getCustomTranslations());
+      } catch (e) {
+        console.warn('Error in syncRemoteHandler:', e);
+      }
+    }
+  }
+
+  /**
+   * Update schools and translations from Google Sheets
+   */
+  setSchoolsFromRemote(remoteSchools: SchoolMajorEntry[], remoteTranslations?: CustomTranslationsStore | null): void {
+    if (!Array.isArray(remoteSchools) || remoteSchools.length === 0) return;
+    const isExcluded = (name: string) => 
+      !name || 
+      name.trim() === '日興國際學校' || 
+      name.trim() === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
+      name.toLowerCase().includes('lising international');
+
+    const filtered = remoteSchools.filter(s => !isExcluded(s.school));
+    if (remoteTranslations) {
+      const existing = this.getCustomTranslations();
+      const merged: CustomTranslationsStore = {
+        schools: { ...existing.schools, ...(remoteTranslations.schools || {}) },
+        majors: { ...existing.majors, ...(remoteTranslations.majors || {}) },
+      };
+      localStorage.setItem(STORAGE_KEY_CUSTOM_TRANS, JSON.stringify(merged));
+    }
+    this.saveSchools(filtered, true);
   }
 
   /**
@@ -386,6 +424,13 @@ class SchoolMajorService {
       store.majors[key] = { ...(store.majors[key] || {}), ...trans };
     }
     localStorage.setItem(STORAGE_KEY_CUSTOM_TRANS, JSON.stringify(store));
+    if (this.syncRemoteHandler) {
+      try {
+        this.syncRemoteHandler(this.getSchools(), store);
+      } catch (e) {
+        console.warn('Error in syncRemoteHandler:', e);
+      }
+    }
   }
 
   /**

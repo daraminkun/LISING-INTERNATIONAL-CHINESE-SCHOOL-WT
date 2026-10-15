@@ -336,6 +336,19 @@ export const GoogleAppsScriptModal: React.FC<GoogleAppsScriptModalProps> = ({
                 )}
               </div>
 
+              {/* Vercel Environment Variable Tip */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 text-xs text-blue-900 space-y-1.5">
+                <div className="flex items-center gap-2 font-bold text-blue-950">
+                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>{language === 'km' ? '⚡ គន្លឹះសំរាប់ Hosting Vercel (Auto-Sync គ្រប់ឧបករណ៍)' : '⚡ Vercel Hosting Auto-Sync'}</span>
+                </div>
+                <p className="text-blue-800 leading-relaxed">
+                  {language === 'km'
+                    ? 'ដើម្បីកុំឱ្យពិបាក Copy/Paste URL នេះនៅលើកុំព្យូទ័រ ឬទូរស័ព្ទផ្សេងៗទៀត លោកអ្នកគ្រាន់តែចូលទៅកាន់ Vercel > Settings > Environment Variables រួចបន្ថែមឈ្មោះ VITE_APPS_SCRIPT_URL ដោយដាក់តម្លៃជា Web App URL នេះ។ នោះគ្រប់ឧបករណ៍ទាំងអស់ដែលបើក Link នឹងភ្ជាប់មក Google Sheets នេះដោយស្វ័យប្រវត្តិតែម្ដង!'
+                    : 'To automatically connect all devices without manual setup, add VITE_APPS_SCRIPT_URL in your Vercel Project Settings > Environment Variables with this Web App URL.'}
+                </p>
+              </div>
+
             </div>
           )}
 

@@ -14,6 +14,7 @@ import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { GoogleAppsScriptModal } from './components/GoogleAppsScriptModal';
 import { UserManagement } from './components/UserManagement';
 import { LoginModal, LoginScreen } from './components/LoginModal';
+import { StudentPortalView } from './components/StudentPortalView';
 import { authService, UserAccount } from './services/authService';
 import { 
   Student, 
@@ -34,6 +35,9 @@ const STORAGE_KEY_STUDENTS = 'sms_students_data_v1';
 const STORAGE_KEY_CONFIG = 'sms_appscript_config_v1';
 const STORAGE_KEY_LANG = 'sms_app_lang_v1';
 
+// Official Master Web App URL for Google Sheets Backend
+export const HARDCODED_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz01aE2jUA4-GgNEmanaWjCKPGXX3ge4A0DA3Y1EEEc7LFjHWQp13JsRd0rE_Uq63FNKQ/exec';
+
 export default function App() {
   // Language state (defaults to Khmer 'km')
   const [language, setLanguage] = useState<Language>(() => {
@@ -43,8 +47,15 @@ export default function App() {
 
   const t = translations[language];
 
-  // Tab navigation
-  const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
+  const isAdmin = currentUser?.role === 'Admin';
+
+  // Tab navigation (Students default to 'student_portal', Admins to 'dashboard')
+  const [currentTab, setCurrentTab] = useState<TabType>(() => {
+    const u = authService.getCurrentUser();
+    return u?.role === 'Admin' ? 'dashboard' : 'student_portal';
+  });
 
   // Students list state
   const [students, setStudents] = useState<Student[]>(() => {
@@ -65,18 +76,26 @@ export default function App() {
     }));
   });
 
-  // Google Apps Script Configuration
+  const defaultEnvUrl = ((import.meta as any).env?.VITE_APPS_SCRIPT_URL as string | undefined)?.trim() || HARDCODED_APPS_SCRIPT_URL;
+
+  // Google Apps Script Configuration (auto-connects with built-in default URL)
   const [appScriptConfig, setAppScriptConfig] = useState<AppScriptConfig>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        const validUrl = (parsed.webAppUrl && parsed.webAppUrl.trim()) ? parsed.webAppUrl.trim() : defaultEnvUrl;
+        return {
+          ...parsed,
+          webAppUrl: validUrl,
+          autoSync: true,
+        };
       } catch (e) {
         console.error('Failed to parse appscript config:', e);
       }
     }
     return {
-      webAppUrl: '',
+      webAppUrl: defaultEnvUrl,
       sheetName: 'Students',
       autoSync: true,
     };
@@ -88,6 +107,7 @@ export default function App() {
   });
   const [isSyncing, setIsSyncing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const lastSyncTimeRef = React.useRef<number>(0);
 
   // Notification Toast state
   const [notification, setNotification] = useState<{
@@ -123,23 +143,118 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-  // Authentication State
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
-  const isAdmin = authService.isAdmin();
-
   // Listen to Auth Changes
   useEffect(() => {
     const unsub = authService.subscribe(() => {
       const u = authService.getCurrentUser();
       setCurrentUser(u);
-      // Restrict access if not admin
-      if (currentTab === 'users' && u?.role !== 'Admin') {
-        setCurrentTab('dashboard');
-        showNotification('error', 'Access Restricted (មិនមានសិទ្ធិចូលប្រើប្រាស់)');
+      if (u?.role === 'Admin') {
+        if (currentTab === 'student_portal') {
+          setCurrentTab('dashboard');
+        }
+      } else {
+        setCurrentTab('student_portal');
       }
     });
     return unsub;
-  }, [currentTab, showNotification]);
+  }, [currentTab]);
+
+  // Central Data Fetcher: Pulls both Students and Schools & Majors from Google Sheets
+  const fetchAllFromSheets = useCallback(async (silent = false) => {
+    if (!appScriptConfig.webAppUrl) return;
+    setIsSyncing(true);
+    setConnectionStatus('syncing');
+    try {
+      const result = await AppsScriptService.fetchAllData(appScriptConfig.webAppUrl);
+      if (Array.isArray(result.students)) {
+        setStudents(result.students);
+      }
+      if (result.schools && result.schools.length > 0) {
+        schoolMajorService.setSchoolsFromRemote(result.schools, result.customTranslations);
+      } else if (result.schools === null && authService.isAdmin() && appScriptConfig.webAppUrl) {
+        // Seed schools once so SchoolsMajors tab is created in Google Sheets
+        AppsScriptService.syncSchools(
+          appScriptConfig.webAppUrl,
+          schoolMajorService.getSchools(),
+          schoolMajorService.getCustomTranslations()
+        ).catch(e => console.warn('Initial school sync warning:', e));
+      }
+      setConnectionStatus('connected');
+      lastSyncTimeRef.current = Date.now();
+      if (!silent) {
+        const studentCount = result.students?.length || 0;
+        const schoolCount = result.schools?.length || 0;
+        showNotification(
+          'success',
+          language === 'km'
+            ? `✨ បានសមកាលកម្មពី Google Sheets (សិស្ស ${studentCount} នាក់, សាលារៀន ${schoolCount})`
+            : `✨ Synced ${studentCount} students and ${schoolCount} schools from Google Sheets!`
+        );
+      }
+    } catch (err: any) {
+      console.warn('Google Sheets fetch warning:', err);
+      setConnectionStatus(appScriptConfig.webAppUrl ? 'connected' : 'error');
+      if (!silent) {
+        showNotification('error', `Sync failed: ${err.message || 'Network error'}`);
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [appScriptConfig.webAppUrl, language, showNotification]);
+
+  // Auto-Fetch on initial load and whenever URL changes
+  useEffect(() => {
+    if (appScriptConfig.webAppUrl) {
+      fetchAllFromSheets(true);
+    } else {
+      setConnectionStatus('disconnected');
+    }
+  }, [appScriptConfig.webAppUrl, fetchAllFromSheets]);
+
+  // Window Focus and Visibility Auto-Sync: When user switches back to this tab/window, refresh immediately
+  useEffect(() => {
+    const handleSyncOnVisible = () => {
+      if (document.visibilityState === 'visible' && appScriptConfig.webAppUrl && appScriptConfig.autoSync) {
+        // Refresh silently if more than 15 seconds since last sync
+        if (Date.now() - lastSyncTimeRef.current > 15000) {
+          fetchAllFromSheets(true);
+        }
+      }
+    };
+    window.addEventListener('focus', handleSyncOnVisible);
+    document.addEventListener('visibilitychange', handleSyncOnVisible);
+    return () => {
+      window.removeEventListener('focus', handleSyncOnVisible);
+      document.removeEventListener('visibilitychange', handleSyncOnVisible);
+    };
+  }, [appScriptConfig.webAppUrl, appScriptConfig.autoSync, fetchAllFromSheets]);
+
+  // Periodic Auto-Sync (Every 20s) for real-time multi-device collaboration
+  useEffect(() => {
+    if (!appScriptConfig.webAppUrl || !appScriptConfig.autoSync) return;
+    const interval = setInterval(() => {
+      if (Date.now() - lastSyncTimeRef.current > 18000) {
+        fetchAllFromSheets(true);
+      }
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [appScriptConfig.webAppUrl, appScriptConfig.autoSync, fetchAllFromSheets]);
+
+  // Auto-push school & major changes to Google Sheets whenever updated
+  useEffect(() => {
+    if (appScriptConfig.webAppUrl) {
+      schoolMajorService.setRemoteSyncHandler((schools, trans) => {
+        AppsScriptService.syncSchools(appScriptConfig.webAppUrl, schools, trans).catch(e => {
+          console.warn('Auto-sync schools to Google Sheets warning:', e);
+        });
+      });
+    } else {
+      schoolMajorService.setRemoteSyncHandler(null);
+    }
+    return () => {
+      schoolMajorService.setRemoteSyncHandler(null);
+    };
+  }, [appScriptConfig.webAppUrl]);
 
   // Mobile Sync: Auto-Connect via URL Query Param (?sheetUrl=...&autoSync=true)
   useEffect(() => {
@@ -158,25 +273,8 @@ export default function App() {
           sheetName: 'Students',
           autoSync: true,
         }));
-        setConnectionStatus('syncing');
 
-        // Test connection & fetch students
-        AppsScriptService.ping(decodedUrl)
-          .then(() => {
-            setConnectionStatus('connected');
-            showNotification('success', '✨ បានភ្ជាប់ Google Sheets ដោយស្វ័យប្រវត្តិតាមរយៈ Quick-Connect!');
-            return AppsScriptService.fetchStudents(decodedUrl);
-          })
-          .then(sheetStudents => {
-            if (sheetStudents && sheetStudents.length > 0) {
-              setStudents(sheetStudents);
-              showNotification('success', `✨ បានសមកាលកម្មទិន្នន័យសិស្ស ${sheetStudents.length} នាក់ពី Google Sheets ជោគជ័យ!`);
-            }
-          })
-          .catch(err => {
-            console.warn('Auto quick-connect sync failed:', err);
-            showNotification('info', `បានរក្សាទុក URL Google Sheets (${err.message})`);
-          });
+        fetchAllFromSheets(false);
 
         // Clean query parameter from URL
         const cleanUrlObj = new URL(window.location.href);
@@ -187,17 +285,11 @@ export default function App() {
     } catch (e) {
       console.warn('Mobile sync url parse error:', e);
     }
-  }, [showNotification]);
+  }, [fetchAllFromSheets]);
 
-  // Persist students to localStorage
+  // Persist students to localStorage (strictly without resurrecting deleted schools!)
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
-    // Auto-sync any custom schools and majors from students into catalog
-    students.forEach(s => {
-      if (s.targetSchool?.trim()) {
-        schoolMajorService.ensureSchoolAndMajor(s.targetSchool, s.major);
-      }
-    });
   }, [students]);
 
   // Persist config to localStorage
@@ -220,17 +312,6 @@ export default function App() {
       return 'km';
     });
   };
-
-  // Check connection on initial load if URL exists
-  useEffect(() => {
-    if (appScriptConfig.webAppUrl) {
-      AppsScriptService.ping(appScriptConfig.webAppUrl)
-        .then(() => setConnectionStatus('connected'))
-        .catch(() => setConnectionStatus('connected')); // Keep connected or fallback
-    } else {
-      setConnectionStatus('disconnected');
-    }
-  }, [appScriptConfig.webAppUrl]);
 
   // Unique list of student IDs for uniqueness validation
   const existingStudentIds = useMemo(() => {
@@ -400,35 +481,28 @@ export default function App() {
     if (!appScriptConfig.webAppUrl) {
       throw new Error('Google Apps Script Web App URL is not set');
     }
-    setConnectionStatus('syncing');
-    try {
-      const sheetStudents = await AppsScriptService.fetchStudents(appScriptConfig.webAppUrl);
-      if (sheetStudents && sheetStudents.length > 0) {
-        setStudents(sheetStudents);
-        showNotification('success', `Pulled ${sheetStudents.length} students from Google Sheets`);
-      } else {
-        showNotification('info', 'Google Sheet is currently empty or has no student rows.');
-      }
-      setConnectionStatus('connected');
-    } catch (err: any) {
-      setConnectionStatus('error');
-      throw err;
-    }
+    await fetchAllFromSheets(false);
   };
 
-  // Manual Push to Google Sheets
+  // Manual Push to Google Sheets (Both Students and Schools & Majors)
   const handlePushToSheets = async () => {
     if (!appScriptConfig.webAppUrl) {
       throw new Error('Google Apps Script Web App URL is not set');
     }
     setConnectionStatus('syncing');
+    setIsSyncing(true);
     try {
-      await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, students);
+      const schools = schoolMajorService.getSchools();
+      const trans = schoolMajorService.getCustomTranslations();
+      await AppsScriptService.syncAllData(appScriptConfig.webAppUrl, students, schools, trans);
       setConnectionStatus('connected');
+      lastSyncTimeRef.current = Date.now();
       showNotification('success', t.syncedWithSheets);
     } catch (err: any) {
       setConnectionStatus('error');
       throw err;
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -438,26 +512,7 @@ export default function App() {
       setIsSettingsModalOpen(true);
       return;
     }
-    setIsSyncing(true);
-    setConnectionStatus('syncing');
-    try {
-      // First try to fetch from sheets, if data exists merge or pull
-      const remoteData = await AppsScriptService.fetchStudents(appScriptConfig.webAppUrl);
-      if (remoteData && remoteData.length > 0) {
-        setStudents(remoteData);
-        showNotification('success', `Synced ${remoteData.length} records with Google Sheets!`);
-      } else {
-        // If sheet is empty, push current local data to it
-        await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, students);
-        showNotification('success', `Uploaded ${students.length} records to Google Sheets!`);
-      }
-      setConnectionStatus('connected');
-    } catch (err: any) {
-      setConnectionStatus('error');
-      showNotification('error', `Sync failed: ${err.message || 'Network error'}`);
-    } finally {
-      setIsSyncing(false);
-    }
+    await fetchAllFromSheets(false);
   };
 
   // Protect Access: Strictly require login before accessing the application
@@ -540,58 +595,73 @@ export default function App() {
             </div>
           )}
 
-          {/* Tab 1: Dashboard View */}
-          {currentTab === 'dashboard' && (
-            <Dashboard
-              students={students}
-              language={language}
-              connectionStatus={connectionStatus}
-              onNavigateToStudents={handleNavigateToStudents}
+          {/* If Student: Show strictly only StudentPortalView */}
+          {!isAdmin ? (
+            <StudentPortalView
               onAddStudent={handleOpenAddStudent}
-              onViewStudent={handleOpenViewStudent}
-              onOpenSettings={() => {
-                if (!authService.isAdmin()) {
-                  showNotification('error', 'ការកំណត់ Google Sheets ត្រូវបានអនុញ្ញាតសម្រាប់តែ Admin ប៉ុណ្ណោះ');
-                  return;
-                }
-                setIsSettingsModalOpen(true);
+              language={language}
+              currentUser={currentUser}
+              onLogout={() => {
+                authService.logout();
+                showNotification('info', 'បានចាកចេញពីប្រព័ន្ធ');
               }}
-              onNavigateToReports={() => setCurrentTab('reports')}
             />
-          )}
+          ) : (
+            <>
+              {/* Tab 1: Dashboard View (Admin Only) */}
+              {currentTab === 'dashboard' && (
+                <Dashboard
+                  students={students}
+                  language={language}
+                  connectionStatus={connectionStatus}
+                  onNavigateToStudents={handleNavigateToStudents}
+                  onAddStudent={handleOpenAddStudent}
+                  onViewStudent={handleOpenViewStudent}
+                  onOpenSettings={() => {
+                    if (!authService.isAdmin()) {
+                      showNotification('error', 'ការកំណត់ Google Sheets ត្រូវបានអនុញ្ញាតសម្រាប់តែ Admin ប៉ុណ្ណោះ');
+                      return;
+                    }
+                    setIsSettingsModalOpen(true);
+                  }}
+                  onNavigateToReports={() => setCurrentTab('reports')}
+                />
+              )}
 
-          {/* Tab 2: Student Table View */}
-          {currentTab === 'students' && (
-            <StudentTable
-              students={students}
-              language={language}
-              filterState={filterState}
-              onFilterChange={setFilterState}
-              onAddStudent={handleOpenAddStudent}
-              onEditStudent={handleOpenEditStudent}
-              onDeleteStudent={handleOpenDeleteStudent}
-              onViewStudent={handleOpenViewStudent}
-              onBulkDelete={handleBulkDelete}
-              isAdmin={isAdmin}
-            />
-          )}
+              {/* Tab 2: Student Table View (Admin Only) */}
+              {currentTab === 'students' && (
+                <StudentTable
+                  students={students}
+                  language={language}
+                  filterState={filterState}
+                  onFilterChange={setFilterState}
+                  onAddStudent={handleOpenAddStudent}
+                  onEditStudent={handleOpenEditStudent}
+                  onDeleteStudent={handleOpenDeleteStudent}
+                  onViewStudent={handleOpenViewStudent}
+                  onBulkDelete={handleBulkDelete}
+                  isAdmin={isAdmin}
+                />
+              )}
 
-          {/* Tab 3: Student Reports View */}
-          {currentTab === 'reports' && (
-            <StudentReport
-              students={students}
-              language={language}
-              onViewStudent={handleOpenViewStudent}
-              isAdmin={isAdmin}
-            />
-          )}
+              {/* Tab 3: Student Reports View (Admin Only) */}
+              {currentTab === 'reports' && (
+                <StudentReport
+                  students={students}
+                  language={language}
+                  onViewStudent={handleOpenViewStudent}
+                  isAdmin={isAdmin}
+                />
+              )}
 
-          {/* Tab 4: User Management View (Admin Only) */}
-          {currentTab === 'users' && (
-            <UserManagement
-              language={language}
-              onNavigateToDashboard={() => setCurrentTab('dashboard')}
-            />
+              {/* Tab 4: User Management View (Admin Only) */}
+              {currentTab === 'users' && (
+                <UserManagement
+                  language={language}
+                  onNavigateToDashboard={() => setCurrentTab('dashboard')}
+                />
+              )}
+            </>
           )}
 
         </main>
@@ -602,18 +672,20 @@ export default function App() {
             <span>
               {t.appName} • {t.appSub}
             </span>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsSettingsModalOpen(true)}
-                className="text-indigo-600 hover:underline font-medium"
-              >
-                {t.setupScript}
-              </button>
-              <span>•</span>
-              <span className="font-mono text-[11px] text-slate-400">
-                {students.length} {t.students}
-              </span>
-            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsSettingsModalOpen(true)}
+                  className="text-indigo-600 hover:underline font-medium"
+                >
+                  {t.setupScript}
+                </button>
+                <span>•</span>
+                <span className="font-mono text-[11px] text-slate-400">
+                  {students.length} {t.students}
+                </span>
+              </div>
+            )}
           </div>
         </footer>
       </div>

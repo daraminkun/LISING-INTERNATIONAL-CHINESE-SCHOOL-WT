@@ -1,23 +1,25 @@
 import { Student } from '../types';
 import { formatDobOnly } from '../utils/ageUtils';
+import { SchoolMajorEntry } from '../constants/studentOptions';
+import { CustomTranslationsStore } from './schoolMajorService';
 
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
- * Google Apps Script Backend for Student Management System
- * ប្រព័ន្ធគ្រប់គ្រងសិស្ស - Google Sheets Backend
+ * Google Apps Script Backend for Student Management System (v2.3)
+ * ប្រព័ន្ធគ្រប់គ្រងសិស្ស & សាលារៀន/ជំនាញ - Google Sheets Backend
  * 
  * Instructions:
  * 1. Open your Google Sheet
  * 2. Click Extensions > Apps Script
  * 3. Replace all code in Code.gs with this script
- * 4. Click "Deploy" > "New deployment"
- * 5. Select type: "Web app"
- * 6. Description: "Student Management API v2"
- * 7. Execute as: "Me"
- * 8. Who has access: "Anyone"
- * 9. Click Deploy, authorize access, and copy the Web App URL!
+ * 4. Click "Deploy" > "Manage deployments" (or "New deployment")
+ * 5. Create new version or edit: "Student & School API v2.3"
+ * 6. Execute as: "Me"
+ * 7. Who has access: "Anyone"
+ * 8. Click Deploy, authorize access, and copy the Web App URL!
  */
 
 const SHEET_NAME = "Students";
+const SCHOOLS_SHEET_NAME = "SchoolsMajors";
 
 const HEADERS = [
   "No", 
@@ -46,6 +48,18 @@ const HEADERS = [
   "Notes"
 ];
 
+const SCHOOL_HEADERS = [
+  "School",
+  "Majors",
+  "AgeRequirementKm",
+  "AgeRequirementEn",
+  "ShortAgeKm",
+  "ShortAgeEn",
+  "TranslationsKm",
+  "TranslationsEn",
+  "Location"
+];
+
 function getOrCreateSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAME);
@@ -53,6 +67,18 @@ function getOrCreateSheet() {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow(HEADERS);
     sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold").setBackground("#EEF2F6");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function getOrCreateSchoolsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SCHOOLS_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SCHOOLS_SHEET_NAME);
+    sheet.appendRow(SCHOOL_HEADERS);
+    sheet.getRange(1, 1, 1, SCHOOL_HEADERS.length).setFontWeight("bold").setBackground("#E0F2FE");
     sheet.setFrozenRows(1);
   }
   return sheet;
@@ -87,11 +113,10 @@ function studentToRow(s) {
   ];
 }
 
-// Handle GET requests (Fetch students or Ping)
+// Handle GET requests (Fetch students, schools or Ping)
 function doGet(e) {
   try {
-    const action = e.parameter.action || "read";
-    const sheet = getOrCreateSheet();
+    const action = (e && e.parameter && e.parameter.action) || "read";
 
     if (action === "ping") {
       return responseJSON({
@@ -101,12 +126,11 @@ function doGet(e) {
       });
     }
 
-    // Read all rows
-    const data = sheet.getDataRange().getValues();
-    if (data.length <= 1) {
-      return responseJSON({ success: true, data: [] });
-    }
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = getOrCreateSheet();
 
+    // Read all student rows
+    const data = sheet.getDataRange().getValues();
     const students = [];
 
     for (let i = 1; i < data.length; i++) {
@@ -183,7 +207,43 @@ function doGet(e) {
       }
     }
 
-    return responseJSON({ success: true, data: students });
+    // Read Schools & Majors if SchoolsMajors sheet exists
+    const schools = [];
+    const customTranslations = { schools: {}, majors: {} };
+    const schoolsSheet = ss.getSheetByName(SCHOOLS_SHEET_NAME);
+    if (schoolsSheet && schoolsSheet.getLastRow() > 1) {
+      const sData = schoolsSheet.getDataRange().getValues();
+      for (let j = 1; j < sData.length; j++) {
+        const sRow = sData[j];
+        const schoolName = String(sRow[0] || "").trim();
+        if (!schoolName) continue;
+        const majorsRaw = String(sRow[1] || "");
+        const majors = majorsRaw.split(/[,،、\n]+/).map(m => m.trim()).filter(Boolean);
+        schools.push({
+          school: schoolName,
+          majors: majors,
+          ageRequirementKm: String(sRow[2] || ""),
+          ageRequirementEn: String(sRow[3] || ""),
+          shortAgeKm: String(sRow[4] || ""),
+          shortAgeEn: String(sRow[5] || ""),
+        });
+        if (sRow[6] || sRow[7] || sRow[8]) {
+          customTranslations.schools[schoolName] = {
+            km: String(sRow[6] || schoolName),
+            en: String(sRow[7] || schoolName),
+            locationKm: String(sRow[8] || "តៃវ៉ាន់"),
+            locationEn: String(sRow[8] || "Taiwan")
+          };
+        }
+      }
+    }
+
+    return responseJSON({ 
+      success: true, 
+      data: students,
+      schools: schools.length > 0 ? schools : null,
+      customTranslations: Object.keys(customTranslations.schools).length > 0 ? customTranslations : null
+    });
 
   } catch (error) {
     return responseJSON({
@@ -193,7 +253,7 @@ function doGet(e) {
   }
 }
 
-// Handle POST requests (Create, Update, Delete, SyncAll)
+// Handle POST requests (Create, Update, Delete, SyncAll, SyncSchools)
 function doPost(e) {
   try {
     let payload = {};
@@ -276,8 +336,49 @@ function doPost(e) {
       });
     }
 
+    // Sync Schools & Majors specifically
+    if (action === "syncSchools") {
+      const schools = payload.schools || [];
+      const customTranslations = payload.customTranslations || { schools: {} };
+      const schoolsSheet = getOrCreateSchoolsSheet();
+
+      if (schoolsSheet.getLastRow() > 1) {
+        schoolsSheet.getRange(2, 1, schoolsSheet.getLastRow() - 1, schoolsSheet.getLastColumn()).clearContent();
+      }
+
+      schoolsSheet.getRange(1, 1, 1, SCHOOL_HEADERS.length).setValues([SCHOOL_HEADERS]);
+
+      if (schools.length > 0) {
+        const sRows = schools.map(s => {
+          const trans = (customTranslations.schools && customTranslations.schools[s.school]) || {};
+          const majorsStr = Array.isArray(s.majors) ? s.majors.join(", ") : (s.majors || "");
+          return [
+            s.school || "",
+            majorsStr,
+            s.ageRequirementKm || "",
+            s.ageRequirementEn || "",
+            s.shortAgeKm || "",
+            s.shortAgeEn || "",
+            trans.km || "",
+            trans.en || "",
+            trans.locationKm || trans.location || ""
+          ];
+        });
+        schoolsSheet.getRange(2, 1, sRows.length, SCHOOL_HEADERS.length).setValues(sRows);
+      }
+
+      return responseJSON({
+        success: true,
+        message: "Synced " + schools.length + " schools & majors successfully"
+      });
+    }
+
     if (action === "syncAll") {
       const students = payload.students || [];
+      const schools = payload.schools;
+      const customTranslations = payload.customTranslations || { schools: {} };
+
+      // 1. Sync students
       if (sheet.getLastRow() > 1) {
         sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
       }
@@ -287,6 +388,34 @@ function doPost(e) {
       if (students.length > 0) {
         const rows = students.map(s => studentToRow(s));
         sheet.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
+      }
+
+      // 2. Sync schools if provided
+      if (Array.isArray(schools)) {
+        const schoolsSheet = getOrCreateSchoolsSheet();
+        if (schoolsSheet.getLastRow() > 1) {
+          schoolsSheet.getRange(2, 1, schoolsSheet.getLastRow() - 1, schoolsSheet.getLastColumn()).clearContent();
+        }
+        schoolsSheet.getRange(1, 1, 1, SCHOOL_HEADERS.length).setValues([SCHOOL_HEADERS]);
+
+        if (schools.length > 0) {
+          const sRows = schools.map(s => {
+            const trans = (customTranslations.schools && customTranslations.schools[s.school]) || {};
+            const majorsStr = Array.isArray(s.majors) ? s.majors.join(", ") : (s.majors || "");
+            return [
+              s.school || "",
+              majorsStr,
+              s.ageRequirementKm || "",
+              s.ageRequirementEn || "",
+              s.shortAgeKm || "",
+              s.shortAgeEn || "",
+              trans.km || "",
+              trans.en || "",
+              trans.locationKm || trans.location || ""
+            ];
+          });
+          schoolsSheet.getRange(2, 1, sRows.length, SCHOOL_HEADERS.length).setValues(sRows);
+        }
       }
 
       return responseJSON({
@@ -310,6 +439,12 @@ function responseJSON(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 `;
+
+export interface RemoteDataResult {
+  students: Student[];
+  schools: SchoolMajorEntry[] | null;
+  customTranslations?: CustomTranslationsStore | null;
+}
 
 export class AppsScriptService {
   private static sendRequest(url: string, payload: any): Promise<any> {
@@ -340,7 +475,10 @@ export class AppsScriptService {
     return data;
   }
 
-  static async fetchStudents(webAppUrl: string): Promise<Student[]> {
+  /**
+   * Fetch both students and schools from Google Sheets
+   */
+  static async fetchAllData(webAppUrl: string): Promise<RemoteDataResult> {
     if (!webAppUrl || !webAppUrl.startsWith('http')) {
       throw new Error('Invalid Google Apps Script URL');
     }
@@ -354,12 +492,23 @@ export class AppsScriptService {
       throw new Error(json.error);
     }
     const rawList: Student[] = json.data || [];
-    return rawList.map(s => ({
+    const formattedStudents = rawList.map(s => ({
       ...s,
       dob: formatDobOnly(s.dob),
       fatherDob: formatDobOnly(s.fatherDob),
-      motherDob: formatDobOnly(s.motherDob)
+      motherDob: formatDobOnly(s.motherDob),
     }));
+
+    return {
+      students: formattedStudents,
+      schools: Array.isArray(json.schools) ? json.schools : null,
+      customTranslations: json.customTranslations || null,
+    };
+  }
+
+  static async fetchStudents(webAppUrl: string): Promise<Student[]> {
+    const data = await this.fetchAllData(webAppUrl);
+    return data.students;
   }
 
   static async createStudent(webAppUrl: string, student: Student): Promise<void> {
@@ -395,6 +544,22 @@ export class AppsScriptService {
     }
   }
 
+  static async syncSchools(
+    webAppUrl: string, 
+    schools: SchoolMajorEntry[], 
+    customTranslations?: CustomTranslationsStore
+  ): Promise<void> {
+    if (!webAppUrl) return;
+    const res = await this.sendRequest(webAppUrl, {
+      action: 'syncSchools',
+      schools,
+      customTranslations,
+    });
+    if (!res.success) {
+      throw new Error(res.error || 'Failed to sync schools to Google Sheets');
+    }
+  }
+
   static async syncAllStudents(webAppUrl: string, students: Student[]): Promise<void> {
     if (!webAppUrl) return;
     const res = await this.sendRequest(webAppUrl, {
@@ -403,6 +568,24 @@ export class AppsScriptService {
     });
     if (!res.success) {
       throw new Error(res.error || 'Failed to bulk sync students to Google Sheets');
+    }
+  }
+
+  static async syncAllData(
+    webAppUrl: string, 
+    students: Student[], 
+    schools: SchoolMajorEntry[], 
+    customTranslations?: CustomTranslationsStore
+  ): Promise<void> {
+    if (!webAppUrl) return;
+    const res = await this.sendRequest(webAppUrl, {
+      action: 'syncAll',
+      students,
+      schools,
+      customTranslations,
+    });
+    if (!res.success) {
+      throw new Error(res.error || 'Failed to bulk sync all data to Google Sheets');
     }
   }
 }
