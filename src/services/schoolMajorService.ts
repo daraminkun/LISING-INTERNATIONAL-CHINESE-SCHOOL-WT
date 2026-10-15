@@ -9,6 +9,8 @@ import { Language } from '../types';
 
 const STORAGE_KEY_SCHOOLS = 'sms_schools_majors_list_v2';
 const STORAGE_KEY_CUSTOM_TRANS = 'sms_custom_translations_v2';
+const STORAGE_KEY_DELETED_SCHOOLS = 'sms_deleted_schools_v3';
+const STORAGE_KEY_DELETED_MAJORS = 'sms_deleted_majors_v3';
 
 export interface CustomTranslationsStore {
   schools: Record<string, Partial<SchoolTranslation>>;
@@ -39,22 +41,89 @@ class SchoolMajorService {
     window.dispatchEvent(new CustomEvent('school_majors_data_updated'));
   }
 
+  getDeletedSchools(): string[] {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_DELETED_SCHOOLS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading deleted schools:', e);
+    }
+    return [];
+  }
+
+  getDeletedMajors(): string[] {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_DELETED_MAJORS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading deleted majors:', e);
+    }
+    return [];
+  }
+
+  isSchoolDeleted(schoolName: string): boolean {
+    if (!schoolName) return false;
+    const name = schoolName.trim().toLowerCase();
+    return this.getDeletedSchools().some(s => s.trim().toLowerCase() === name);
+  }
+
+  isMajorDeleted(schoolName: string, majorName: string): boolean {
+    if (!majorName) return false;
+    const mName = majorName.trim().toLowerCase();
+    const key = `${schoolName.trim()}::${majorName.trim()}`.toLowerCase();
+    return this.getDeletedMajors().some(m => {
+      const lower = m.trim().toLowerCase();
+      return lower === mName || lower === key;
+    });
+  }
+
   /**
    * Get all schools with their majors
    */
   getSchools(): SchoolMajorEntry[] {
-    const isExcluded = (name: string) => 
-      !name || 
-      name.trim() === '日興國際學校' || 
-      name.trim() === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
-      name.toLowerCase().includes('lising international');
+    const deletedSchools = this.getDeletedSchools().map(s => s.trim().toLowerCase());
+    const deletedMajors = this.getDeletedMajors().map(m => m.trim().toLowerCase());
+
+    const isExcluded = (name: string) => {
+      if (!name) return true;
+      const trimmed = name.trim();
+      const lower = trimmed.toLowerCase();
+      return (
+        trimmed === '日興國際學校' || 
+        trimmed === 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' ||
+        trimmed === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
+        lower.includes('lising international') ||
+        deletedSchools.includes(lower)
+      );
+    };
+
+    const filterMajors = (schoolName: string, majors: string[]) => {
+      if (!Array.isArray(majors)) return [];
+      return majors.filter(m => {
+        if (!m || !m.trim()) return false;
+        const mLower = m.trim().toLowerCase();
+        const key = `${schoolName.trim()}::${m.trim()}`.toLowerCase();
+        return !deletedMajors.includes(mLower) && !deletedMajors.includes(key);
+      });
+    };
 
     const saved = localStorage.getItem(STORAGE_KEY_SCHOOLS);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const filtered = parsed.filter(s => !isExcluded(s.school));
+          const filtered = parsed
+            .filter(s => !isExcluded(s.school))
+            .map(s => ({
+              ...s,
+              majors: filterMajors(s.school, s.majors)
+            }));
           if (filtered.length !== parsed.length) {
             localStorage.setItem(STORAGE_KEY_SCHOOLS, JSON.stringify(filtered));
           }
@@ -64,7 +133,13 @@ class SchoolMajorService {
         console.error('Failed to parse stored schools data:', e);
       }
     }
-    return SCHOOL_MAJORS_DATA.filter(s => !isExcluded(s.school));
+
+    return SCHOOL_MAJORS_DATA
+      .filter(s => !isExcluded(s.school))
+      .map(s => ({
+        ...s,
+        majors: filterMajors(s.school, s.majors)
+      }));
   }
 
   /**
@@ -85,15 +160,57 @@ class SchoolMajorService {
   /**
    * Update schools and translations from Google Sheets
    */
-  setSchoolsFromRemote(remoteSchools: SchoolMajorEntry[], remoteTranslations?: CustomTranslationsStore | null): void {
-    if (!Array.isArray(remoteSchools) || remoteSchools.length === 0) return;
-    const isExcluded = (name: string) => 
-      !name || 
-      name.trim() === '日興國際學校' || 
-      name.trim() === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
-      name.toLowerCase().includes('lising international');
+  setSchoolsFromRemote(
+    remoteSchools: SchoolMajorEntry[], 
+    remoteTranslations?: CustomTranslationsStore | null,
+    remoteDeletedSchools?: string[],
+    remoteDeletedMajors?: string[]
+  ): void {
+    if (Array.isArray(remoteDeletedSchools) && remoteDeletedSchools.length > 0) {
+      const cur = this.getDeletedSchools();
+      const merged = Array.from(new Set([...cur, ...remoteDeletedSchools]));
+      localStorage.setItem(STORAGE_KEY_DELETED_SCHOOLS, JSON.stringify(merged));
+    }
+    if (Array.isArray(remoteDeletedMajors) && remoteDeletedMajors.length > 0) {
+      const cur = this.getDeletedMajors();
+      const merged = Array.from(new Set([...cur, ...remoteDeletedMajors]));
+      localStorage.setItem(STORAGE_KEY_DELETED_MAJORS, JSON.stringify(merged));
+    }
 
-    const filtered = remoteSchools.filter(s => !isExcluded(s.school));
+    if (!Array.isArray(remoteSchools) || remoteSchools.length === 0) return;
+    const deletedSchools = this.getDeletedSchools().map(s => s.trim().toLowerCase());
+    const deletedMajors = this.getDeletedMajors().map(m => m.trim().toLowerCase());
+
+    const isExcluded = (name: string) => {
+      if (!name) return true;
+      const trimmed = name.trim();
+      const lower = trimmed.toLowerCase();
+      return (
+        trimmed === '日興國際學校' || 
+        trimmed === 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' ||
+        trimmed === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
+        lower.includes('lising international') ||
+        deletedSchools.includes(lower)
+      );
+    };
+
+    const filterMajors = (schoolName: string, majors: string[]) => {
+      if (!Array.isArray(majors)) return [];
+      return majors.filter(m => {
+        if (!m || !m.trim()) return false;
+        const mLower = m.trim().toLowerCase();
+        const key = `${schoolName.trim()}::${m.trim()}`.toLowerCase();
+        return !deletedMajors.includes(mLower) && !deletedMajors.includes(key);
+      });
+    };
+
+    const filtered = remoteSchools
+      .filter(s => !isExcluded(s.school))
+      .map(s => ({
+        ...s,
+        majors: filterMajors(s.school, s.majors)
+      }));
+
     if (remoteTranslations) {
       const existing = this.getCustomTranslations();
       const merged: CustomTranslationsStore = {
@@ -275,11 +392,20 @@ class SchoolMajorService {
    * Delete a school
    */
   deleteSchool(schoolName: string): { success: boolean; message: string } {
-    const list = this.getSchools();
-    const filtered = list.filter(s => s.school !== schoolName);
-    if (filtered.length === list.length) {
-      return { success: false, message: 'រកមិនឃើញសាលារៀននេះទេ (School not found)' };
+    const trimmed = (schoolName || '').trim();
+    if (!trimmed) {
+      return { success: false, message: 'សូមជ្រើសរើសសាលារៀនដែលត្រូវលុប' };
     }
+
+    // 1. Add to permanent deletedSchools tombstone
+    const deleted = this.getDeletedSchools();
+    if (!deleted.some(s => s.trim().toLowerCase() === trimmed.toLowerCase())) {
+      deleted.push(trimmed);
+      localStorage.setItem(STORAGE_KEY_DELETED_SCHOOLS, JSON.stringify(deleted));
+    }
+
+    const list = this.getSchools();
+    const filtered = list.filter(s => s.school.trim().toLowerCase() !== trimmed.toLowerCase());
     this.saveSchools(filtered);
     return { success: true, message: 'បានលុបសាលារៀនជោគជ័យ (School deleted successfully)' };
   }
@@ -299,6 +425,13 @@ class SchoolMajorService {
     if (!school) {
       return { success: false, message: 'រកមិនឃើញសាលារៀននេះទេ (School not found)' };
     }
+
+    // If previously deleted, un-delete it
+    const deletedMajors = this.getDeletedMajors().filter(
+      m => m.trim().toLowerCase() !== trimmedMajor.toLowerCase() &&
+           m.trim().toLowerCase() !== `${schoolName.trim()}::${trimmedMajor}`.toLowerCase()
+    );
+    localStorage.setItem(STORAGE_KEY_DELETED_MAJORS, JSON.stringify(deletedMajors));
 
     if (school.majors.some(m => m.toLowerCase() === trimmedMajor.toLowerCase())) {
       return { success: false, message: 'ជំនាញនេះមានរួចហើយក្នុងសាលានេះ (Major already exists in this school)' };
@@ -328,8 +461,10 @@ class SchoolMajorService {
     const isExcluded = (name: string) => 
       !name || 
       name.trim() === '日興國際學校' || 
+      name.trim() === 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' ||
       name.trim() === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
-      name.toLowerCase().includes('lising international');
+      name.toLowerCase().includes('lising international') ||
+      this.isSchoolDeleted(name);
 
     if (isExcluded(trimmedSchool)) return;
 
@@ -339,13 +474,17 @@ class SchoolMajorService {
     if (!school) {
       this.addSchool({
         school: trimmedSchool,
-        majors: trimmedMajor ? [trimmedMajor] : [],
+        majors: (trimmedMajor && !this.isMajorDeleted(trimmedSchool, trimmedMajor)) ? [trimmedMajor] : [],
         ageRequirementKm: 'អាយុ ចាប់ពី ១៦ឆ្នាំ ដល់ ២២ឆ្នាំ (សំរាប់ថ្នាក់វិទ្យាល័យ)',
         ageRequirementEn: 'Age 16 to 22 years old (For High School)',
         shortAgeKm: 'អាយុ ១៦-២២ឆ្នាំ (សំរាប់ថ្នាក់វិទ្យាល័យ)',
         shortAgeEn: 'Age 16-22 (High School)',
       });
-    } else if (trimmedMajor && !school.majors.some(m => m.toLowerCase() === trimmedMajor.toLowerCase())) {
+    } else if (
+      trimmedMajor && 
+      !this.isMajorDeleted(school.school, trimmedMajor) && 
+      !school.majors.some(m => m.toLowerCase() === trimmedMajor.toLowerCase())
+    ) {
       this.addMajorToSchool(school.school, trimmedMajor);
     }
   }
@@ -392,12 +531,21 @@ class SchoolMajorService {
       return { success: false, message: 'រកមិនឃើញសាលារៀននេះទេ (School not found)' };
     }
 
-    const filtered = school.majors.filter(m => m !== major);
-    if (filtered.length === school.majors.length) {
-      return { success: false, message: 'រកមិនឃើញជំនាញនេះទេ (Major not found)' };
-    }
-
+    const trimmedMajor = major.trim();
+    const filtered = school.majors.filter(m => m.trim().toLowerCase() !== trimmedMajor.toLowerCase());
     school.majors = filtered;
+
+    // Record in deletedMajors tombstone
+    const deletedMajors = this.getDeletedMajors();
+    const key1 = `${schoolName.trim()}::${trimmedMajor}`;
+    if (!deletedMajors.some(m => m.toLowerCase() === key1.toLowerCase())) {
+      deletedMajors.push(key1);
+    }
+    if (!deletedMajors.some(m => m.toLowerCase() === trimmedMajor.toLowerCase())) {
+      deletedMajors.push(trimmedMajor);
+    }
+    localStorage.setItem(STORAGE_KEY_DELETED_MAJORS, JSON.stringify(deletedMajors));
+
     this.saveSchools(list);
     return { success: true, message: 'បានលុបជំនាញជោគជ័យ (Major deleted successfully)' };
   }

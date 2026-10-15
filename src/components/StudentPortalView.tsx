@@ -66,7 +66,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
 
             <p className="text-sm sm:text-base text-red-100 max-w-xl font-battambang leading-relaxed">
               {language === 'km'
-                ? 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ (日興國際學校) ផ្តល់ឱកាសសិក្សានៅសាធារណរដ្ឋចិន (តៃវ៉ាន់) ទាំងថ្នាក់វិទ្យាល័យ និងថ្នាក់បរិញ្ញាបត្រ។ សូមចុចប៊ូតុងខាងក្រោមដើម្បីបំពេញពាក្យចុះឈ្មោះ។'
+                ? 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ (日興國際學校) ផ្តល់ឱកាសសិក្សានៅសាធារណរដ្ឋចិន (តៃវ៉ាន់) ទាំងថ្នាក់វិទ្យាល័យ និងថ្នាក់បរិញ្ញាបត្រ។ សូមចុចប៊ូតុងខាងក្រោមដើម្បីបំពេញពាក្យចុះឈ្មោះ។'
                 : language === 'zh-TW'
                 ? '日興國際學校提供赴台留學機會（高中職及大專院校）。請點選下方按鈕填寫入學登記資料。'
                 : 'Lising International School provides study abroad opportunities in Taiwan. Please click the button below to complete your registration.'}

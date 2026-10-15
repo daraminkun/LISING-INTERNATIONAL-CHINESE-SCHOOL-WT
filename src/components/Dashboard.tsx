@@ -156,7 +156,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white p-1.5 shadow-2xl ring-4 ring-amber-400/90 ring-offset-2 ring-offset-slate-950 overflow-hidden flex items-center justify-center transition-all duration-300 group-hover:scale-105 group-hover:ring-amber-300">
               <img
                 src="/logo.jpg"
-                alt="Logo សាលារៀនចិនលីស៊ីងអន្តរជាតិ"
+                alt="Logo សាលារៀនចិនលិស៊ីងអន្តរជាតិ"
                 className="w-full h-full object-contain rounded-full"
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
@@ -184,7 +184,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
             {/* 1. Khmer Name (Primary, dignified, bold) */}
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight font-battambang leading-snug drop-shadow-sm">
-              សាលារៀនចិនលីស៊ីងអន្តរជាតិ
+              សាលារៀនចិនលិស៊ីងអន្តរជាតិ
             </h1>
 
             {/* 2. Traditional Chinese Name */}

@@ -99,6 +99,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
     const isExcluded = (name: string) => 
       !name || 
       name.trim() === '日興國際學校' || 
+      name.trim() === 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' ||
       name.trim() === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
       name.toLowerCase().includes('lising international');
 
@@ -500,7 +501,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
               <span>{t.studentReport}</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              សាលារៀនចិនលីស៊ីងអន្តរជាតិ (日興國際學校) • {t.reportSubtitle}
+              សាលារៀនចិនលិស៊ីងអន្តរជាតិ (日興國際學校) • {t.reportSubtitle}
             </p>
           </div>
         </div>

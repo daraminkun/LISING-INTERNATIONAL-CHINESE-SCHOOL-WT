@@ -170,13 +170,20 @@ export default function App() {
         setStudents(result.students);
       }
       if (result.schools && result.schools.length > 0) {
-        schoolMajorService.setSchoolsFromRemote(result.schools, result.customTranslations);
+        schoolMajorService.setSchoolsFromRemote(
+          result.schools, 
+          result.customTranslations,
+          result.deletedSchools,
+          result.deletedMajors
+        );
       } else if (result.schools === null && authService.isAdmin() && appScriptConfig.webAppUrl) {
         // Seed schools once so SchoolsMajors tab is created in Google Sheets
         AppsScriptService.syncSchools(
           appScriptConfig.webAppUrl,
           schoolMajorService.getSchools(),
-          schoolMajorService.getCustomTranslations()
+          schoolMajorService.getCustomTranslations(),
+          schoolMajorService.getDeletedSchools(),
+          schoolMajorService.getDeletedMajors()
         ).catch(e => console.warn('Initial school sync warning:', e));
       }
       setConnectionStatus('connected');
@@ -244,7 +251,13 @@ export default function App() {
   useEffect(() => {
     if (appScriptConfig.webAppUrl) {
       schoolMajorService.setRemoteSyncHandler((schools, trans) => {
-        AppsScriptService.syncSchools(appScriptConfig.webAppUrl, schools, trans).catch(e => {
+        AppsScriptService.syncSchools(
+          appScriptConfig.webAppUrl, 
+          schools, 
+          trans,
+          schoolMajorService.getDeletedSchools(),
+          schoolMajorService.getDeletedMajors()
+        ).catch(e => {
           console.warn('Auto-sync schools to Google Sheets warning:', e);
         });
       });
@@ -494,7 +507,16 @@ export default function App() {
     try {
       const schools = schoolMajorService.getSchools();
       const trans = schoolMajorService.getCustomTranslations();
-      await AppsScriptService.syncAllData(appScriptConfig.webAppUrl, students, schools, trans);
+      const deletedSchools = schoolMajorService.getDeletedSchools();
+      const deletedMajors = schoolMajorService.getDeletedMajors();
+      await AppsScriptService.syncAllData(
+        appScriptConfig.webAppUrl, 
+        students, 
+        schools, 
+        trans, 
+        deletedSchools, 
+        deletedMajors
+      );
       setConnectionStatus('connected');
       lastSyncTimeRef.current = Date.now();
       showNotification('success', t.syncedWithSheets);

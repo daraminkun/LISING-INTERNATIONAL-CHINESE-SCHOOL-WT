@@ -243,7 +243,7 @@ export function generateReportHtml(
       <div style="display: flex; align-items: center; gap: 10px; text-align: left;">
         <img src="/logo.jpg" style="width: 46px; height: 46px; border-radius: 50%; border: 1.5px solid #4f46e5; object-fit: contain;" />
         <div>
-          <div style="font-family: 'Battambang', sans-serif; font-size: 13px; font-weight: bold; color: #1e1b4b; line-height: 1.2;">សាលារៀនចិនលីស៊ីងអន្តរជាតិ</div>
+          <div style="font-family: 'Battambang', sans-serif; font-size: 13px; font-weight: bold; color: #1e1b4b; line-height: 1.2;">សាលារៀនចិនលិស៊ីងអន្តរជាតិ</div>
           <div style="font-size: 11px; font-weight: bold; color: #4338ca; font-family: 'Noto Serif TC', serif; margin-top: 1px;">日興國際學校</div>
           <div style="font-size: 9px; font-weight: bold; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase;">LISING INTERNATIONAL CHINESE SCHOOL</div>
         </div>
@@ -509,7 +509,7 @@ export async function generateHighQualityPDF(
                 </div>
                 <div>
                   <div style="font-family: 'Battambang', sans-serif; font-size: 13px; font-weight: 900; color: #1e1b4b; line-height: 1.2;">
-                    សាលារៀនចិនលីស៊ីងអន្តរជាតិ
+                    សាលារៀនចិនលិស៊ីងអន្តរជាតិ
                   </div>
                   <div style="font-size: 11px; font-weight: bold; color: #4338ca; font-family: 'Noto Serif TC', serif; margin-top: 1px;">
                     日興國際學校

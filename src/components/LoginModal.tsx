@@ -106,7 +106,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             {language === 'km' ? 'ចូលប្រើប្រាស់ប្រព័ន្ធ' : language === 'zh-TW' ? '系統登入' : 'System Login'}
           </h3>
           <p className="text-xs text-red-100 font-medium mt-1">
-            សាលារៀនចិនលីស៊ីងអន្តរជាតិ (日興國際學校)
+            សាលារៀនចិនលិស៊ីងអន្តរជាតិ (日興國際學校)
           </p>
         </div>
 
@@ -284,7 +284,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           <div className="mx-auto w-16 h-16 rounded-2xl bg-white p-1 shadow-xl ring-4 ring-amber-300/60 mb-3.5 flex items-center justify-center overflow-hidden">
             <img 
               src="/logo.jpg" 
-              alt="Logo សាលារៀនចិនលីស៊ីងអន្តរជាតិ" 
+              alt="Logo សាលារៀនចិនលិស៊ីងអន្តរជាតិ" 
               className="w-full h-full object-contain rounded-xl"
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';
@@ -293,7 +293,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
 
           <h1 className="text-lg sm:text-xl font-black tracking-tight leading-snug">
-            {language === 'km' ? 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' : 'Li Hsing International Chinese School'}
+            {language === 'km' ? 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' : 'Li Hsing International Chinese School'}
           </h1>
           <p className="text-xs text-red-100 font-medium mt-0.5 tracking-wide">
             日興國際學校 • Student Information System
@@ -398,7 +398,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
       {/* Footer Branding */}
       <div className="mt-6 text-center text-xs text-slate-400">
-        © 2026 សាលារៀនចិនលីស៊ីងអន្តរជាតិ (日興國際學校). All rights reserved.
+        © 2026 សាលារៀនចិនលិស៊ីងអន្តរជាតិ (日興國際學校). All rights reserved.
       </div>
 
     </div>

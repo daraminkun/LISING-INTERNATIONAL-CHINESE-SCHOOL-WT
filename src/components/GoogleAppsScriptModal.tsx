@@ -652,7 +652,7 @@ export const GoogleAppsScriptModal: React.FC<GoogleAppsScriptModalProps> = ({
                   </button>
 
                   <a
-                    href={`https://t.me/share/url?url=${encodeURIComponent(quickConnectUrl)}&text=${encodeURIComponent('ភ្ជាប់ Google Sheets សម្រាប់ប្រព័ន្ធសិស្ស លីស៊ីង (Quick-Connect)')}`}
+                    href={`https://t.me/share/url?url=${encodeURIComponent(quickConnectUrl)}&text=${encodeURIComponent('ភ្ជាប់ Google Sheets សម្រាប់ប្រព័ន្ធសិស្ស លិស៊ីង (Quick-Connect)')}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold transition-all shadow-xs"

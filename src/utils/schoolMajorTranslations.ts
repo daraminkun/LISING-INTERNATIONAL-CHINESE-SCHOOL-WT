@@ -27,12 +27,22 @@ export interface MajorTranslation {
  * 20 Target Schools in Taiwan with accurate Khmer & English translations
  */
 export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
-  // Lising International Chinese School / សាលារៀនចិនលីស៊ីងអន្តរជាតិ / 日興國際學校
+  // Lising International Chinese School / សាលារៀនចិនលិស៊ីងអន្តរជាតិ / 日興國際學校
   "日興國際學校": {
     zh: "日興國際學校",
     shortZh: "日興國際",
     en: "Lising International Chinese School",
-    km: "សាលារៀនចិនលីស៊ីងអន្តរជាតិ",
+    km: "សាលារៀនចិនលិស៊ីងអន្តរជាតិ",
+    locationEn: "Phnom Penh, Cambodia",
+    locationKm: "រាជធានីភ្នំពេញ ប្រទេសកម្ពុជា",
+    levelEn: "International Chinese School",
+    levelKm: "សាលារៀនចិនអន្តរជាតិ",
+  },
+  "សាលារៀនចិនលិស៊ីងអន្តរជាតិ": {
+    zh: "日興國際學校",
+    shortZh: "日興國際",
+    en: "Lising International Chinese School",
+    km: "សាលារៀនចិនលិស៊ីងអន្តរជាតិ",
     locationEn: "Phnom Penh, Cambodia",
     locationKm: "រាជធានីភ្នំពេញ ប្រទេសកម្ពុជា",
     levelEn: "International Chinese School",
@@ -42,7 +52,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     zh: "日興國際學校",
     shortZh: "日興國際",
     en: "Lising International Chinese School",
-    km: "សាលារៀនចិនលីស៊ីងអន្តរជាតិ",
+    km: "សាលារៀនចិនលិស៊ីងអន្តរជាតិ",
     locationEn: "Phnom Penh, Cambodia",
     locationKm: "រាជធានីភ្នំពេញ ប្រទេសកម្ពុជា",
     levelEn: "International Chinese School",
@@ -52,7 +62,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     zh: "日興國際學校",
     shortZh: "日興國際",
     en: "Lising International Chinese School",
-    km: "សាលារៀនចិនលីស៊ីងអន្តរជាតិ",
+    km: "សាលារៀនចិនលិស៊ីងអន្តរជាតិ",
     locationEn: "Phnom Penh, Cambodia",
     locationKm: "រាជធានីភ្នំពេញ ប្រទេសកម្ពុជា",
     levelEn: "International Chinese School",

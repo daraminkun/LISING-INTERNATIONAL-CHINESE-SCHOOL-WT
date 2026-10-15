@@ -115,6 +115,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
     const isExcluded = (name: string) => 
       !name || 
       name.trim() === '日興國際學校' || 
+      name.trim() === 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' ||
       name.trim() === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
       name.toLowerCase().includes('lising international');
 

@@ -444,6 +444,8 @@ export interface RemoteDataResult {
   students: Student[];
   schools: SchoolMajorEntry[] | null;
   customTranslations?: CustomTranslationsStore | null;
+  deletedSchools?: string[];
+  deletedMajors?: string[];
 }
 
 export class AppsScriptService {
@@ -503,6 +505,8 @@ export class AppsScriptService {
       students: formattedStudents,
       schools: Array.isArray(json.schools) ? json.schools : null,
       customTranslations: json.customTranslations || null,
+      deletedSchools: Array.isArray(json.deletedSchools) ? json.deletedSchools : [],
+      deletedMajors: Array.isArray(json.deletedMajors) ? json.deletedMajors : [],
     };
   }
 
@@ -547,13 +551,17 @@ export class AppsScriptService {
   static async syncSchools(
     webAppUrl: string, 
     schools: SchoolMajorEntry[], 
-    customTranslations?: CustomTranslationsStore
+    customTranslations?: CustomTranslationsStore,
+    deletedSchools?: string[],
+    deletedMajors?: string[]
   ): Promise<void> {
     if (!webAppUrl) return;
     const res = await this.sendRequest(webAppUrl, {
       action: 'syncSchools',
       schools,
       customTranslations,
+      deletedSchools,
+      deletedMajors,
     });
     if (!res.success) {
       throw new Error(res.error || 'Failed to sync schools to Google Sheets');
@@ -575,7 +583,9 @@ export class AppsScriptService {
     webAppUrl: string, 
     students: Student[], 
     schools: SchoolMajorEntry[], 
-    customTranslations?: CustomTranslationsStore
+    customTranslations?: CustomTranslationsStore,
+    deletedSchools?: string[],
+    deletedMajors?: string[]
   ): Promise<void> {
     if (!webAppUrl) return;
     const res = await this.sendRequest(webAppUrl, {
@@ -583,6 +593,8 @@ export class AppsScriptService {
       students,
       schools,
       customTranslations,
+      deletedSchools,
+      deletedMajors,
     });
     if (!res.success) {
       throw new Error(res.error || 'Failed to bulk sync all data to Google Sheets');

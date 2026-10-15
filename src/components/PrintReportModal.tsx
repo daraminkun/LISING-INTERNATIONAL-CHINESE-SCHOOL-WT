@@ -230,7 +230,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                   </div>
                   <div>
                     <div className="font-black text-xs sm:text-sm text-indigo-950 font-battambang leading-tight">
-                      សាលារៀនចិនលីស៊ីងអន្តរជាតិ
+                      សាលារៀនចិនលិស៊ីងអន្តរជាតិ
                     </div>
                     <div className="font-bold text-[11px] text-indigo-900 font-kai">
                       日興國際學校

@@ -176,7 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="w-12 h-12 rounded-full bg-white p-0.5 shadow-md ring-2 ring-amber-300/80 shrink-0 overflow-hidden flex items-center justify-center">
               <img 
                 src="/logo.jpg" 
-                alt="Logo សាលារៀនចិនលីស៊ីងអន្តរជាតិ" 
+                alt="Logo សាលារៀនចិនលិស៊ីងអន្តរជាតិ" 
                 className="w-full h-full object-contain rounded-full"
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
@@ -184,8 +184,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               />
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-sm font-black text-white tracking-tight leading-tight truncate font-battambang" title="សាលារៀនចិនលីស៊ីងអន្តរជាតិ">
-                សាលារៀនចិនលីស៊ីងអន្តរជាតិ
+              <h1 className="text-sm font-black text-white tracking-tight leading-tight truncate font-battambang" title="សាលារៀនចិនលិស៊ីងអន្តរជាតិ">
+                សាលារៀនចិនលិស៊ីងអន្តរជាតិ
               </h1>
               <div className="text-[11px] font-bold text-amber-200 truncate font-kai">
                 日興國際學校
