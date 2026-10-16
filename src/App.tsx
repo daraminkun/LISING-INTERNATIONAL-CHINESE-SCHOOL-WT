@@ -38,6 +38,27 @@ const STORAGE_KEY_LANG = 'sms_app_lang_v1';
 // Official Master Web App URL for Google Sheets Backend
 export const HARDCODED_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz01aE2jUA4-GgNEmanaWjCKPGXX3ge4A0DA3Y1EEEc7LFjHWQp13JsRd0rE_Uq63FNKQ/exec';
 
+/**
+ * Re-sequences student order numbers (លេខរៀង Auto: 1, 2, 3...)
+ * When a student at any index is deleted or loaded with gaps (e.g. starts from 2, or missing 4),
+ * the numbers shift and reorder sequentially (1, 2, 3, 4, 5...).
+ * e.g., If we have 2, 3, 4, 5 -> becomes 1, 2, 3, 4.
+ * e.g., If we have 1, 2, 3, 5 -> becomes 1, 2, 3, 4.
+ */
+export const resequenceStudentsList = (list: Student[]): Student[] => {
+  const sorted = [...list].sort((a, b) => {
+    const numA = parseInt((a.studentId || '').replace(/\D/g, '') || '0', 10);
+    const numB = parseInt((b.studentId || '').replace(/\D/g, '') || '0', 10);
+    if (numA !== numB) return numA - numB;
+    return (a.createdAt || '').localeCompare(b.createdAt || '');
+  });
+
+  return sorted.map((student, index) => ({
+    ...student,
+    studentId: String(index + 1),
+  }));
+};
+
 export default function App() {
   // Language state (defaults to Khmer 'km')
   const [language, setLanguage] = useState<Language>(() => {
@@ -57,7 +78,7 @@ export default function App() {
     return u?.role === 'Admin' ? 'dashboard' : 'student_portal';
   });
 
-  // Students list state
+  // Students list state (strictly re-sequenced 1, 2, 3... with zero gaps)
   const [students, setStudents] = useState<Student[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_STUDENTS);
     let list: Student[] = INITIAL_STUDENTS;
@@ -68,12 +89,13 @@ export default function App() {
         console.error('Failed to parse local students data:', e);
       }
     }
-    return list.map(s => ({
+    const formatted = list.map(s => ({
       ...s,
       dob: formatDobOnly(s.dob),
       fatherDob: formatDobOnly(s.fatherDob),
       motherDob: formatDobOnly(s.motherDob),
     }));
+    return resequenceStudentsList(formatted);
   });
 
   const defaultEnvUrl = ((import.meta as any).env?.VITE_APPS_SCRIPT_URL as string | undefined)?.trim() || HARDCODED_APPS_SCRIPT_URL;
@@ -167,7 +189,18 @@ export default function App() {
     try {
       const result = await AppsScriptService.fetchAllData(appScriptConfig.webAppUrl);
       if (Array.isArray(result.students)) {
-        setStudents(result.students);
+        // Automatically re-sequence so there are never any gaps or starting from 2
+        // e.g. 2, 3, 4, 5... immediately becomes 1, 2, 3, 4...
+        const resequenced = resequenceStudentsList(result.students);
+        setStudents(resequenced);
+
+        // If Google Sheets had gaps (e.g. starts with 2, or missing rows), sync back to Google Sheets!
+        const hasGap = result.students.some((s, idx) => String(s.studentId).trim() !== String(idx + 1));
+        if (hasGap) {
+          AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, resequenced).catch(e => {
+            console.warn('Auto re-sequence sheets sync notice:', e);
+          });
+        }
       }
       if (result.schools && result.schools.length > 0) {
         schoolMajorService.setSchoolsFromRemote(
@@ -370,26 +403,6 @@ export default function App() {
     }
     setCurrentTab('students');
   };
-/**
- * Re-sequences student order numbers (លេខរៀង Auto: 1, 2, 3...)
- * When a student at any index is deleted, the numbers shift and reorder sequentially.
- * e.g., If we have 1, 2, 3, 4, 5:
- * - Deleting #1 causes #2 to become #1, #3 -> #2, #4 -> #3, #5 -> #4.
- * - Deleting #4 causes #5 to become #4 (result: 1, 2, 3, 4).
- */
-const resequenceStudentsList = (list: Student[]): Student[] => {
-  const sorted = [...list].sort((a, b) => {
-    const numA = parseInt((a.studentId || '').replace(/\D/g, '') || '0', 10);
-    const numB = parseInt((b.studentId || '').replace(/\D/g, '') || '0', 10);
-    if (numA !== numB) return numA - numB;
-    return (a.createdAt || '').localeCompare(b.createdAt || '');
-  });
-
-  return sorted.map((student, index) => ({
-    ...student,
-    studentId: String(index + 1),
-  }));
-};
 
   // Save (Create or Update) Student
   const handleSaveStudent = async (studentData: Student, isEdit: boolean) => {
@@ -453,16 +466,15 @@ const resequenceStudentsList = (list: Student[]): Student[] => {
     const targetId = studentToDelete.studentId;
 
     try {
-      // 1. Remove deleted student from local array
-      const remaining = students.filter(s => s.studentId !== targetId);
+      let finalResequenced: Student[] = [];
 
-      // 2. Automatically re-sequence order numbers (លេខរៀង Auto)
-      // ឧទាហរណ៍: ១, ២, ៣, ៤, ៥ -> លុបទី១ -> ២ ក្លាយជា ១, ៣ ក្លាយជា ២...
-      // ឧទាហរណ៍: ១, ២, ៣, ៤, ៥ -> លុបទី៤ -> ៥ ក្លាយជា ៤...
-      const resequenced = resequenceStudentsList(remaining);
+      // 1. Remove deleted student from local array and re-sequence (1, 2, 3...)
+      setStudents(prev => {
+        const remaining = prev.filter(s => s.studentId !== targetId);
+        finalResequenced = resequenceStudentsList(remaining);
+        return finalResequenced;
+      });
 
-      // 3. Update state
-      setStudents(resequenced);
       setIsDeleteModalOpen(false);
       setStudentToDelete(null);
       showNotification('success', t.studentDeletedSuccess);
@@ -473,11 +485,10 @@ const resequenceStudentsList = (list: Student[]): Student[] => {
         setSelectedStudentForDetail(null);
       }
 
-      // 4. Sync to Google Sheets if configured
+      // 2. Sync to Google Sheets if configured
       if (appScriptConfig.webAppUrl) {
         try {
-          // Use syncAllStudents so Google Sheets rows also update to 1, 2, 3, 4...
-          await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, resequenced);
+          await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, finalResequenced);
         } catch (err: any) {
           console.warn('Apps Script sync warning after delete:', err);
           try {
@@ -506,15 +517,18 @@ const resequenceStudentsList = (list: Student[]): Student[] => {
     );
     if (!confirmed) return;
 
-    const remaining = students.filter(s => !studentIds.includes(s.studentId));
-    const resequenced = resequenceStudentsList(remaining);
+    let finalResequenced: Student[] = [];
+    setStudents(prev => {
+      const remaining = prev.filter(s => !studentIds.includes(s.studentId));
+      finalResequenced = resequenceStudentsList(remaining);
+      return finalResequenced;
+    });
 
-    setStudents(resequenced);
     showNotification('success', `${count} students deleted.`);
 
     if (appScriptConfig.webAppUrl) {
       try {
-        await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, resequenced);
+        await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, finalResequenced);
       } catch (err: any) {
         console.warn('Failed bulk sync delete:', err);
       }
