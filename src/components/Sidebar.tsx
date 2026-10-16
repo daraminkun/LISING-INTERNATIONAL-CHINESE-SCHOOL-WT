@@ -283,117 +283,97 @@ export const Sidebar: React.FC<SidebarProps> = ({
           style={{ backgroundColor: '#881337' }}
         >
           
-          {/* Main Navigation Group */}
-          <div>
-            <div className="px-2 mb-2 text-xs font-bold uppercase tracking-wider text-rose-200/90">
-              {isAdmin 
-                ? (language === 'km' ? 'ម៉ឺនុយគ្រប់គ្រង (Admin)' : 'Admin Menu')
-                : (language === 'km' ? 'ម៉ឺនុយសិស្ស (Student)' : 'Student Menu')}
-            </div>
-            <nav className="space-y-1.5">
-              {isAdmin ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleTabSelect('dashboard')}
-                    style={{ backgroundColor: currentTab === 'dashboard' ? '#dc2626' : '#9f1239' }}
-                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
-                      currentTab === 'dashboard'
-                        ? 'border-white/50 text-white shadow-md'
-                        : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <LayoutDashboard className="w-5 h-5 text-white shrink-0" />
-                      <span className="text-white font-semibold">{t.dashboard}</span>
-                    </div>
-                    {currentTab === 'dashboard' && (
-                      <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleTabSelect('students')}
-                    style={{ backgroundColor: currentTab === 'students' ? '#dc2626' : '#9f1239' }}
-                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
-                      currentTab === 'students'
-                        ? 'border-white/50 text-white shadow-md'
-                        : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Users className="w-5 h-5 text-white shrink-0" />
-                      <span className="text-white font-semibold">{t.studentTable}</span>
-                    </div>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full font-black bg-white text-red-900 shadow-xs">
-                      {studentCount}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleTabSelect('reports')}
-                    style={{ backgroundColor: currentTab === 'reports' ? '#dc2626' : '#9f1239' }}
-                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
-                      currentTab === 'reports'
-                        ? 'border-white/50 text-white shadow-md'
-                        : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-white shrink-0" />
-                      <span className="text-white font-semibold">{t.studentReport}</span>
-                    </div>
-                    {currentTab === 'reports' && (
-                      <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleTabSelect('users')}
-                    style={{ backgroundColor: currentTab === 'users' ? '#dc2626' : '#9f1239' }}
-                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
-                      currentTab === 'users'
-                        ? 'border-white/50 text-white shadow-md'
-                        : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <ShieldCheck className="w-5 h-5 text-white shrink-0" />
-                      <span className="text-white font-semibold">
-                        {language === 'km' ? 'អ្នកប្រើប្រាស់ (Users)' : 'Users'}
-                      </span>
-                    </div>
-                    {currentTab === 'users' ? (
-                      <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
-                    ) : (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-400 text-red-950">
-                        Admin
-                      </span>
-                    )}
-                  </button>
-                </>
-              ) : (
-                /* Student Role: ONLY Add Student / Enrollment action is visible */
+          {/* Main Navigation Group (Admin Only) */}
+          {isAdmin && (
+            <div>
+              <div className="px-2 mb-2 text-xs font-bold uppercase tracking-wider text-rose-200/90">
+                {language === 'km' ? 'ម៉ឺនុយគ្រប់គ្រង (Admin)' : 'Admin Menu'}
+              </div>
+              <nav className="space-y-1.5">
                 <button
                   type="button"
-                  onClick={handleAddClick}
-                  style={{ backgroundColor: '#dc2626' }}
-                  className="w-full flex items-center justify-between px-3.5 py-3.5 rounded-xl text-sm font-bold transition-all border border-white/50 text-white shadow-md hover:bg-red-700 active:scale-[0.98]"
+                  onClick={() => handleTabSelect('dashboard')}
+                  style={{ backgroundColor: currentTab === 'dashboard' ? '#dc2626' : '#9f1239' }}
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
+                    currentTab === 'dashboard'
+                      ? 'border-white/50 text-white shadow-md'
+                      : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
+                  }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Plus className="w-5 h-5 text-white shrink-0" />
+                    <LayoutDashboard className="w-5 h-5 text-white shrink-0" />
+                    <span className="text-white font-semibold">{t.dashboard}</span>
+                  </div>
+                  {currentTab === 'dashboard' && (
+                    <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabSelect('students')}
+                  style={{ backgroundColor: currentTab === 'students' ? '#dc2626' : '#9f1239' }}
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
+                    currentTab === 'students'
+                      ? 'border-white/50 text-white shadow-md'
+                      : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users className="w-5 h-5 text-white shrink-0" />
+                    <span className="text-white font-semibold">{t.studentTable}</span>
+                  </div>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full font-black bg-white text-red-900 shadow-xs">
+                    {studentCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabSelect('reports')}
+                  style={{ backgroundColor: currentTab === 'reports' ? '#dc2626' : '#9f1239' }}
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
+                    currentTab === 'reports'
+                      ? 'border-white/50 text-white shadow-md'
+                      : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-white shrink-0" />
+                    <span className="text-white font-semibold">{t.studentReport}</span>
+                  </div>
+                  {currentTab === 'reports' && (
+                    <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabSelect('users')}
+                  style={{ backgroundColor: currentTab === 'users' ? '#dc2626' : '#9f1239' }}
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
+                    currentTab === 'users'
+                      ? 'border-white/50 text-white shadow-md'
+                      : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="w-5 h-5 text-white shrink-0" />
                     <span className="text-white font-semibold">
-                      {language === 'km' ? 'ចុះឈ្មោះចូលរៀន (Add Student)' : 'Add Student Registration'}
+                      {language === 'km' ? 'អ្នកប្រើប្រាស់ (Users)' : 'Users'}
                     </span>
                   </div>
-                  <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
+                  {currentTab === 'users' ? (
+                    <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-400 text-red-950">
+                      Admin
+                    </span>
+                  )}
                 </button>
-              )}
-            </nav>
-          </div>
+              </nav>
+            </div>
+          )}
 
           {/* Database & Google Sheets Status Widget: Admin Only */}
           {isAdmin && (

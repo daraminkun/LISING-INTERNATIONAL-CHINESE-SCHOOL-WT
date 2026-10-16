@@ -293,7 +293,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
 
           <h1 className="text-lg sm:text-xl font-black tracking-tight leading-snug">
-            {language === 'km' ? 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' : 'Li Hsing International Chinese School'}
+            {language === 'km' ? 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' : 'Lising International Chinese School'}
           </h1>
           <p className="text-xs text-red-100 font-medium mt-0.5 tracking-wide">
             日興國際學校 • Student Information System

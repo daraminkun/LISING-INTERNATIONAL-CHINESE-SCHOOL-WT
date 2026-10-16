@@ -159,35 +159,6 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
           </p>
         </div>
       </div>
-
-      {/* Quick Launch CTA Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-            <Building2 className="w-6 h-6 text-amber-400" />
-          </div>
-          <div>
-            <h3 className="font-bold text-sm sm:text-base font-battambang">
-              {language === 'km' 
-                ? 'ត្រៀមខ្លួនចុះឈ្មោះចូលរៀនហើយឬនៅ?' 
-                : 'Ready to submit your enrollment?'}
-            </h3>
-            <p className="text-xs text-slate-300 font-battambang">
-              {language === 'km'
-                ? 'ទិន្នន័យរបស់អ្នកនឹងត្រូវបញ្ជូនទៅកាន់ប្រព័ន្ធគ្រប់គ្រងរបស់សាលាដោយសុវត្ថិភាព។'
-                : 'Your submission will be securely saved and transmitted to school administration.'}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={onAddStudent}
-          className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-colors shadow-xs font-battambang shrink-0"
-        >
-          {language === 'km' ? '+ បើកទម្រង់ចុះឈ្មោះ' : '+ Open Registration Form'}
-        </button>
-      </div>
     </div>
   );
 };
