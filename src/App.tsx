@@ -370,6 +370,26 @@ export default function App() {
     }
     setCurrentTab('students');
   };
+/**
+ * Re-sequences student order numbers (លេខរៀង Auto: 1, 2, 3...)
+ * When a student at any index is deleted, the numbers shift and reorder sequentially.
+ * e.g., If we have 1, 2, 3, 4, 5:
+ * - Deleting #1 causes #2 to become #1, #3 -> #2, #4 -> #3, #5 -> #4.
+ * - Deleting #4 causes #5 to become #4 (result: 1, 2, 3, 4).
+ */
+const resequenceStudentsList = (list: Student[]): Student[] => {
+  const sorted = [...list].sort((a, b) => {
+    const numA = parseInt((a.studentId || '').replace(/\D/g, '') || '0', 10);
+    const numB = parseInt((b.studentId || '').replace(/\D/g, '') || '0', 10);
+    if (numA !== numB) return numA - numB;
+    return (a.createdAt || '').localeCompare(b.createdAt || '');
+  });
+
+  return sorted.map((student, index) => ({
+    ...student,
+    studentId: String(index + 1),
+  }));
+};
 
   // Save (Create or Update) Student
   const handleSaveStudent = async (studentData: Student, isEdit: boolean) => {
@@ -401,8 +421,16 @@ export default function App() {
         }
       }
     } else {
-      // Create new student
-      setStudents(prev => [studentData, ...prev]);
+      // Create new student - append and maintain numeric sorting
+      setStudents(prev => {
+        const nextList = [...prev, studentData];
+        return nextList.sort((a, b) => {
+          const numA = parseInt((a.studentId || '').replace(/\D/g, '') || '0', 10);
+          const numB = parseInt((b.studentId || '').replace(/\D/g, '') || '0', 10);
+          if (numA !== numB) return numA - numB;
+          return (a.createdAt || '').localeCompare(b.createdAt || '');
+        });
+      });
       showNotification('success', t.studentAddedSuccess);
 
       // Sync to Google Sheets in background if URL configured
@@ -417,7 +445,7 @@ export default function App() {
     }
   };
 
-  // Confirm Delete Student
+  // Confirm Delete Student with Auto-resequence (លេខរៀង Auto)
   const handleConfirmDelete = async () => {
     if (!studentToDelete) return;
     setIsDeleting(true);
@@ -425,8 +453,16 @@ export default function App() {
     const targetId = studentToDelete.studentId;
 
     try {
-      // Remove locally
-      setStudents(prev => prev.filter(s => s.studentId !== targetId));
+      // 1. Remove deleted student from local array
+      const remaining = students.filter(s => s.studentId !== targetId);
+
+      // 2. Automatically re-sequence order numbers (លេខរៀង Auto)
+      // ឧទាហរណ៍: ១, ២, ៣, ៤, ៥ -> លុបទី១ -> ២ ក្លាយជា ១, ៣ ក្លាយជា ២...
+      // ឧទាហរណ៍: ១, ២, ៣, ៤, ៥ -> លុបទី៤ -> ៥ ក្លាយជា ៤...
+      const resequenced = resequenceStudentsList(remaining);
+
+      // 3. Update state
+      setStudents(resequenced);
       setIsDeleteModalOpen(false);
       setStudentToDelete(null);
       showNotification('success', t.studentDeletedSuccess);
@@ -437,12 +473,18 @@ export default function App() {
         setSelectedStudentForDetail(null);
       }
 
-      // Sync to Google Sheets if configured
+      // 4. Sync to Google Sheets if configured
       if (appScriptConfig.webAppUrl) {
         try {
-          await AppsScriptService.deleteStudent(appScriptConfig.webAppUrl, targetId);
+          // Use syncAllStudents so Google Sheets rows also update to 1, 2, 3, 4...
+          await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, resequenced);
         } catch (err: any) {
-          console.warn('Apps Script delete sync warning:', err);
+          console.warn('Apps Script sync warning after delete:', err);
+          try {
+            await AppsScriptService.deleteStudent(appScriptConfig.webAppUrl, targetId);
+          } catch (delErr) {
+            console.warn('Apps Script delete fallback warning:', delErr);
+          }
         }
       }
     } catch (err: any) {
@@ -452,7 +494,7 @@ export default function App() {
     }
   };
 
-  // Bulk Delete
+  // Bulk Delete with Auto-resequence (លេខរៀង Auto)
   const handleBulkDelete = async (studentIds: string[]) => {
     const count = studentIds.length;
     if (count === 0) return;
@@ -464,15 +506,33 @@ export default function App() {
     );
     if (!confirmed) return;
 
-    setStudents(prev => prev.filter(s => !studentIds.includes(s.studentId)));
+    const remaining = students.filter(s => !studentIds.includes(s.studentId));
+    const resequenced = resequenceStudentsList(remaining);
+
+    setStudents(resequenced);
     showNotification('success', `${count} students deleted.`);
 
     if (appScriptConfig.webAppUrl) {
       try {
-        const remaining = students.filter(s => !studentIds.includes(s.studentId));
-        await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, remaining);
+        await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, resequenced);
       } catch (err: any) {
         console.warn('Failed bulk sync delete:', err);
+      }
+    }
+  };
+
+  // Manual Re-sequence all student order numbers (Admin Only)
+  const handleResequenceAll = async () => {
+    if (!authService.isAdmin()) return;
+    const resequenced = resequenceStudentsList(students);
+    setStudents(resequenced);
+    showNotification('success', t.resequenceSuccess);
+
+    if (appScriptConfig.webAppUrl) {
+      try {
+        await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, resequenced);
+      } catch (err: any) {
+        console.warn('Failed to sync resequenced students to sheets:', err);
       }
     }
   };
@@ -662,6 +722,7 @@ export default function App() {
                   onDeleteStudent={handleOpenDeleteStudent}
                   onViewStudent={handleOpenViewStudent}
                   onBulkDelete={handleBulkDelete}
+                  onResequenceAll={handleResequenceAll}
                   isAdmin={isAdmin}
                 />
               )}

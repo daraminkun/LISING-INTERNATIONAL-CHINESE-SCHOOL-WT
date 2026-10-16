@@ -25,7 +25,8 @@ import {
   FileSpreadsheet,
   Loader2,
   MapPin,
-  LayoutGrid
+  LayoutGrid,
+  ListOrdered
 } from 'lucide-react';
 import { Student, FilterState, SortConfig, SortField, Language } from '../types';
 import { translations } from '../translations';
@@ -49,6 +50,7 @@ interface StudentTableProps {
   onDeleteStudent: (student: Student) => void;
   onViewStudent: (student: Student) => void;
   onBulkDelete?: (studentIds: string[]) => void;
+  onResequenceAll?: () => void;
   isAdmin?: boolean;
 }
 
@@ -62,6 +64,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   onDeleteStudent,
   onViewStudent,
   onBulkDelete,
+  onResequenceAll,
   isAdmin = authService.isAdmin(),
 }) => {
   const t = translations[language];
@@ -495,6 +498,19 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                   <span>{isExportingPdf ? (language === 'km' ? 'PDF...' : 'PDF...') : 'PDF'}</span>
                 </button>
               </div>
+            )}
+
+            {/* Re-sequence Auto Order Numbers (Admin Only) */}
+            {isAdmin && onResequenceAll && (
+              <button
+                type="button"
+                onClick={onResequenceAll}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 text-slate-700 text-xs font-semibold shadow-2xs transition-all"
+                title={language === 'km' ? 'រៀបចំលេខរៀង (1, 2, 3...) ឡើងវិញតាមលំដាប់' : 'Re-sequence Order Numbers'}
+              >
+                <ListOrdered className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline">{t.resequenceOrderNumbers}</span>
+              </button>
             )}
 
             {/* View Mode Switcher: Table vs Cards (Ideal for Phone / Laptop) */}
