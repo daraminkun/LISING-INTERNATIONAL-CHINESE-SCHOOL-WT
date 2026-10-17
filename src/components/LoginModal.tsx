@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Lock, 
@@ -26,12 +26,24 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onLoginSuccess,
   language,
 }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState(() => authService.getDefaultStudentAccount().username);
+  const [password, setPassword] = useState(() => authService.getDefaultStudentAccount().password);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Pre-fill with student account whenever opened
+  useEffect(() => {
+    if (isOpen) {
+      const studentAcc = authService.getDefaultStudentAccount();
+      setUsername(studentAcc.username);
+      setPassword(studentAcc.password);
+      setErrorMsg(null);
+      setSuccessMsg(null);
+      setShowPassword(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -207,12 +219,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   language,
   onLanguageToggle,
 }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState(() => authService.getDefaultStudentAccount().username);
+  const [password, setPassword] = useState(() => authService.getDefaultStudentAccount().password);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Auto-subscribe to changes in authService (e.g. when Admin updates the student credentials in User Management)
+  useEffect(() => {
+    const updateCreds = () => {
+      const studentAcc = authService.getDefaultStudentAccount();
+      setUsername(prev => (prev.toLowerCase() === 'hdara' ? prev : studentAcc.username));
+      setPassword(prev => (username.toLowerCase() === 'hdara' ? prev : studentAcc.password));
+    };
+    const unsub = authService.subscribe(updateCreds);
+    return unsub;
+  }, [username]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

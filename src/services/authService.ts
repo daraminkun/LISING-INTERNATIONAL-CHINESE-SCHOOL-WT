@@ -146,6 +146,26 @@ class AuthService {
     return this.currentUser?.role === 'User';
   }
 
+  /**
+   * Get the primary Student / User account to pre-fill on login form
+   */
+  public getDefaultStudentAccount(): UserAccount {
+    const studentUser = this.users.find(u => u.role === 'User') 
+      || this.users.find(u => u.username.toLowerCase() === 'student') 
+      || DEFAULT_USERS[1];
+    return studentUser;
+  }
+
+  /**
+   * Get the primary Admin account
+   */
+  public getPrimaryAdminAccount(): UserAccount {
+    const adminUser = this.users.find(u => u.role === 'Admin') 
+      || this.users.find(u => u.username.toLowerCase() === 'hdara') 
+      || DEFAULT_USERS[0];
+    return adminUser;
+  }
+
   // --- Backwards compatibility for Admin PIN actions (Schools / Majors catalog) ---
   public getAdminPin(): string {
     return localStorage.getItem(STORAGE_KEY_ADMIN_PIN) || DEFAULT_PIN;
