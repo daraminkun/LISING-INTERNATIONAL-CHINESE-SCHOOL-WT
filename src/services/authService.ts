@@ -29,9 +29,9 @@ const DEFAULT_PIN = '1234';
 const DEFAULT_USERS: UserAccount[] = [
   {
     id: 'user-admin-1',
-    adminName: 'លោក ហេង តារា (Admin)',
+    adminName: 'លោក ហៀង តារា (Admin)',
     username: 'Hdara',
-    password: 'Hdara1988',
+    password: '8892',
     role: 'Admin',
     createdAt: '2026-01-01T00:00:00.000Z',
   },
