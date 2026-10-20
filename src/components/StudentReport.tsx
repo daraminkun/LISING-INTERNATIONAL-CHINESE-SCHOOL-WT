@@ -17,7 +17,10 @@ import {
   FileCheck,
   Phone,
   Mail,
-  MapPin
+  MapPin,
+  Plus,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { Student, Language, ReportFilterState, SortConfig, SortField } from '../types';
 import { translations } from '../translations';
@@ -31,6 +34,7 @@ import { schoolMajorService } from '../services/schoolMajorService';
 import { PrintReportModal } from './PrintReportModal';
 import { Loader2 } from 'lucide-react';
 import { authService } from '../services/authService';
+import { SchoolMajorManageModal, ManageActionType } from './SchoolMajorManageModal';
 
 interface StudentReportProps {
   students: Student[];
@@ -75,6 +79,17 @@ export const StudentReport: React.FC<StudentReportProps> = ({
     });
     return unsub;
   }, []);
+
+  // School and Major Admin management modal state (Add, Edit, Delete from Filter Options)
+  const [manageModalState, setManageModalState] = useState<{
+    isOpen: boolean;
+    actionType: ManageActionType;
+    selectedSchool?: string;
+    selectedMajor?: string;
+  }>({
+    isOpen: false,
+    actionType: 'add_school',
+  });
 
   // Unique majors for filter dropdown
   const majorList = useMemo(() => {
@@ -610,9 +625,57 @@ export const StudentReport: React.FC<StudentReportProps> = ({
             </select>
           </div>
 
-          {/* 3. Major Filter */}
+          {/* 3. Major Filter with Admin Add, Edit, Delete */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-slate-700 block">{t.major}</label>
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-slate-700 block">{t.major}</label>
+              {isAdmin && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setManageModalState({ 
+                      isOpen: true, 
+                      actionType: 'add_major',
+                      selectedSchool: filters.targetSchool !== 'all' ? filters.targetSchool : undefined 
+                    })}
+                    className="p-1 rounded hover:bg-emerald-100 text-emerald-700 transition-colors cursor-pointer"
+                    title={language === 'km' ? 'បន្ថែមជំនាញថ្មី (Add Major)' : language === 'zh-TW' ? '新增專業科系 (Add Major)' : 'Add Major'}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  {filters.major && filters.major !== 'all' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setManageModalState({ 
+                          isOpen: true, 
+                          actionType: 'edit_major', 
+                          selectedMajor: filters.major,
+                          selectedSchool: filters.targetSchool !== 'all' ? filters.targetSchool : undefined 
+                        })}
+                        className="p-1 rounded hover:bg-blue-100 text-blue-700 transition-colors cursor-pointer"
+                        title={language === 'km' ? `កែប្រែជំនាញ "${filters.major}" (Edit Major)` : language === 'zh-TW' ? `修改專業科系 "${filters.major}" (Edit Major)` : 'Edit Major'}
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setManageModalState({ 
+                          isOpen: true, 
+                          actionType: 'delete_major', 
+                          selectedMajor: filters.major,
+                          selectedSchool: filters.targetSchool !== 'all' ? filters.targetSchool : undefined 
+                        })}
+                        className="p-1 rounded hover:bg-rose-100 text-rose-700 transition-colors cursor-pointer"
+                        title={language === 'km' ? `លុបជំនាញ "${filters.major}" (Delete Major)` : language === 'zh-TW' ? `刪除專業科系 "${filters.major}" (Delete Major)` : 'Delete Major'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
             <select
               value={filters.major || 'all'}
               onChange={e => setFilters(prev => ({ ...prev, major: e.target.value }))}
@@ -629,9 +692,51 @@ export const StudentReport: React.FC<StudentReportProps> = ({
             </select>
           </div>
 
-          {/* 4. Target School Filter */}
+          {/* 4. Target School Filter with Admin Add, Edit, Delete */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-slate-700 block">{t.targetSchool}</label>
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-slate-700 block">{t.targetSchool}</label>
+              {isAdmin && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setManageModalState({ isOpen: true, actionType: 'add_school' })}
+                    className="p-1 rounded hover:bg-emerald-100 text-emerald-700 transition-colors cursor-pointer"
+                    title={language === 'km' ? 'បន្ថែមសាលាថ្មី (Add School)' : language === 'zh-TW' ? '新增學校 (Add School)' : 'Add School'}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  {filters.targetSchool && filters.targetSchool !== 'all' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setManageModalState({ 
+                          isOpen: true, 
+                          actionType: 'edit_school', 
+                          selectedSchool: filters.targetSchool 
+                        })}
+                        className="p-1 rounded hover:bg-blue-100 text-blue-700 transition-colors cursor-pointer"
+                        title={language === 'km' ? `កែប្រែសាលា "${filters.targetSchool}" (Edit School)` : language === 'zh-TW' ? `修改學校 "${filters.targetSchool}" (Edit School)` : 'Edit School'}
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setManageModalState({ 
+                          isOpen: true, 
+                          actionType: 'delete_school', 
+                          selectedSchool: filters.targetSchool 
+                        })}
+                        className="p-1 rounded hover:bg-rose-100 text-rose-700 transition-colors cursor-pointer"
+                        title={language === 'km' ? `លុបសាលា "${filters.targetSchool}" (Delete School)` : language === 'zh-TW' ? `刪除學校 "${filters.targetSchool}" (Delete School)` : 'Delete School'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
             <select
               value={filters.targetSchool || 'all'}
               onChange={e => setFilters(prev => ({ ...prev, targetSchool: e.target.value }))}
@@ -1227,6 +1332,35 @@ export const StudentReport: React.FC<StudentReportProps> = ({
             : 'តារាងរបាយការណ៍សិស្ស (Student Comprehensive Report)'
         }
       />
+
+      {/* School and Major Admin Manage Modal (Add, Edit, Delete triggered from Filter Options) */}
+      {manageModalState.isOpen && (
+        <SchoolMajorManageModal
+          isOpen={manageModalState.isOpen}
+          onClose={() => setManageModalState(prev => ({ ...prev, isOpen: false }))}
+          actionType={manageModalState.actionType}
+          selectedSchool={manageModalState.selectedSchool}
+          selectedMajor={manageModalState.selectedMajor}
+          language={language}
+          onSuccess={(res) => {
+            if (res.action === 'delete') {
+              if (res.type === 'school' && filters.targetSchool === res.value) {
+                setFilters(prev => ({ ...prev, targetSchool: 'all' }));
+              }
+              if (res.type === 'major' && filters.major === res.value) {
+                setFilters(prev => ({ ...prev, major: 'all' }));
+              }
+            } else if (res.action === 'add' || res.action === 'edit') {
+              if (res.type === 'school') {
+                setFilters(prev => ({ ...prev, targetSchool: res.value }));
+              }
+              if (res.type === 'major') {
+                setFilters(prev => ({ ...prev, major: res.value }));
+              }
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -7,7 +7,7 @@ export type UserRole = 'Admin' | 'User';
 
 export interface UserAccount {
   id: string;
-  adminName: string;   // Name / Admin label (e.g. លោក ហៀង តារា, គណនីសិស្ស)
+  adminName: string;   // Name / Admin label (e.g. លោក ហេង តារា, គណនីសិស្ស)
   username: string;
   password: string;
   role: UserRole;
@@ -24,22 +24,22 @@ const STORAGE_KEY_ADMIN_AUTH = 'sms_admin_authenticated_session';
 const DEFAULT_PIN = '1234';
 
 // Default Accounts specified by user:
-// 1. Username: Hdara, Password: 8892 -> Admin
-// 2. Username: lising, Password: lising -> User
+// 1. Username: Hdara, Password: Hdara1988 -> Admin
+// 2. Username: student, Password: student -> User
 const DEFAULT_USERS: UserAccount[] = [
   {
     id: 'user-admin-1',
-    adminName: 'លោក ហៀង តារា (Admin)',
+    adminName: 'លោក ហេង តារា (Admin)',
     username: 'Hdara',
-    password: '8892',
+    password: 'Hdara1988',
     role: 'Admin',
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
     id: 'user-student-2',
     adminName: 'សិស្សចុះឈ្មោះ (Student)',
-    username: 'lising',
-    password: 'lising',
+    username: 'student',
+    password: 'student',
     role: 'User',
     createdAt: '2026-01-02T00:00:00.000Z',
   },
@@ -48,9 +48,27 @@ const DEFAULT_USERS: UserAccount[] = [
 class AuthService {
   private users: UserAccount[] = [];
   private currentUser: UserAccount | null = null;
+  private syncRemoteHandler?: ((users: UserAccount[]) => void) | null;
 
   constructor() {
     this.init();
+  }
+
+  /**
+   * Set remote sync handler to sync accounts with Google Sheets
+   */
+  public setRemoteSyncHandler(handler: ((users: UserAccount[]) => void) | null): void {
+    this.syncRemoteHandler = handler;
+  }
+
+  /**
+   * Update accounts from Google Sheets
+   */
+  public setUsersFromRemote(remoteUsers: UserAccount[]): void {
+    if (!Array.isArray(remoteUsers) || remoteUsers.length === 0) return;
+    this.users = remoteUsers;
+    this.persistUsers(true);
+    this.notify();
   }
 
   private init() {
@@ -63,54 +81,89 @@ class AuthService {
           this.users = parsed;
         } else {
           this.users = [...DEFAULT_USERS];
-          this.persistUsers();
+          this.persistUsers(true);
         }
       } catch {
         this.users = [...DEFAULT_USERS];
-        this.persistUsers();
+        this.persistUsers(true);
       }
     } else {
       this.users = [...DEFAULT_USERS];
-      this.persistUsers();
+      this.persistUsers(true);
     }
 
     // Ensure Hdara and student accounts exist even if modified or cleared
     const hasHdara = this.users.some(u => u.username.toLowerCase() === 'hdara');
     if (!hasHdara) {
       this.users.unshift(DEFAULT_USERS[0]);
-      this.persistUsers();
+      this.persistUsers(true);
     }
     const hasStudent = this.users.some(u => u.username.toLowerCase() === 'student');
     if (!hasStudent) {
       this.users.push(DEFAULT_USERS[1]);
-      this.persistUsers();
+      this.persistUsers(true);
     }
 
-    // Load active session
-    const savedCurrent = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
-    if (savedCurrent) {
+    // Load active session:
+    // If user closed the tab/browser or clicked away without logging out,
+    // sessionStorage is naturally cleared so reopening the link strictly requires entering Username & Password!
+    const sessionUser = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEY_CURRENT_USER) : null;
+    if (sessionUser) {
       try {
-        const parsedCurrent = JSON.parse(savedCurrent);
-        // Validate user still exists
+        const parsedCurrent = JSON.parse(sessionUser);
         const matched = this.users.find(u => u.id === parsedCurrent.id || u.username.toLowerCase() === parsedCurrent.username?.toLowerCase());
         this.currentUser = matched || null;
       } catch {
         this.currentUser = null;
       }
     } else {
-      // Protect Access: Enforce login screen for new sessions and unauthenticated visitors
+      // Protect Access: Strictly enforce Login screen for new sessions and link openings
       this.currentUser = null;
+    }
+
+    // Cross-tab and cross-window sync within the same browser
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', (e) => {
+        if (e.key === STORAGE_KEY_USERS && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              this.users = parsed;
+              this.notify();
+            }
+          } catch {}
+        }
+        if (e.key === STORAGE_KEY_CURRENT_USER) {
+          try {
+            this.currentUser = e.newValue ? JSON.parse(e.newValue) : null;
+            this.notify();
+          } catch {}
+        }
+      });
     }
   }
 
-  private persistUsers() {
+  private persistUsers(skipRemote = false) {
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(this.users));
+    if (!skipRemote && this.syncRemoteHandler) {
+      try {
+        this.syncRemoteHandler(this.users);
+      } catch (e) {
+        console.warn('Error syncing users to remote:', e);
+      }
+    }
   }
 
   private persistCurrentUser() {
     if (this.currentUser) {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(this.currentUser));
+      }
       localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(this.currentUser));
     } else {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem(STORAGE_KEY_CURRENT_USER);
+      }
       localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
     }
   }

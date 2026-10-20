@@ -219,6 +219,17 @@ export default function App() {
           schoolMajorService.getDeletedMajors()
         ).catch(e => console.warn('Initial school sync warning:', e));
       }
+
+      // Sync Users (Accounts, Passwords, Roles) across all devices and browsers
+      if (result.users && result.users.length > 0) {
+        authService.setUsersFromRemote(result.users);
+      } else if (result.users === null && authService.isAdmin() && appScriptConfig.webAppUrl) {
+        // Seed users once so Users tab is created in Google Sheets
+        AppsScriptService.syncUsers(appScriptConfig.webAppUrl, authService.getUsers()).catch(e => {
+          console.warn('Initial users sync warning:', e);
+        });
+      }
+
       setConnectionStatus('connected');
       lastSyncTimeRef.current = Date.now();
       if (!silent) {
@@ -299,6 +310,22 @@ export default function App() {
     }
     return () => {
       schoolMajorService.setRemoteSyncHandler(null);
+    };
+  }, [appScriptConfig.webAppUrl]);
+
+  // Auto-push user accounts (Username, Password, Role) to Google Sheets whenever updated
+  useEffect(() => {
+    if (appScriptConfig.webAppUrl) {
+      authService.setRemoteSyncHandler((users) => {
+        AppsScriptService.syncUsers(appScriptConfig.webAppUrl, users).catch(e => {
+          console.warn('Auto-sync users to Google Sheets warning:', e);
+        });
+      });
+    } else {
+      authService.setRemoteSyncHandler(null);
+    }
+    return () => {
+      authService.setRemoteSyncHandler(null);
     };
   }, [appScriptConfig.webAppUrl]);
 
@@ -617,10 +644,18 @@ export default function App() {
       <LoginScreen
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          showNotification('success', `ចូលប្រព័ន្ធជោគជ័យ: ${user.adminName} (${user.role})`);
+          showNotification(
+            'success',
+            language === 'km'
+              ? `ចូលប្រព័ន្ធជោគជ័យ: ${user.adminName} (${user.role})`
+              : language === 'zh-TW'
+              ? `登入系統成功：${user.adminName} (${user.role})`
+              : `Successfully logged in: ${user.adminName} (${user.role})`
+          );
         }}
         language={language}
         onLanguageToggle={handleLanguageToggle}
+        onSelectLanguage={setLanguage}
       />
     );
   }
@@ -659,7 +694,14 @@ export default function App() {
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onLogout={() => {
           authService.logout();
-          showNotification('info', 'បានចាកចេញពីប្រព័ន្ធ');
+          showNotification(
+            'info',
+            language === 'km'
+              ? 'បានចាកចេញពីប្រព័ន្ធដោយជោគជ័យ'
+              : language === 'zh-TW'
+              ? '已成功登出系統'
+              : 'Successfully logged out'
+          );
         }}
       />
 
@@ -699,7 +741,14 @@ export default function App() {
               currentUser={currentUser}
               onLogout={() => {
                 authService.logout();
-                showNotification('info', 'បានចាកចេញពីប្រព័ន្ធ');
+                showNotification(
+                  'info',
+                  language === 'km'
+                    ? 'បានចាកចេញពីប្រព័ន្ធដោយជោគជ័យ'
+                    : language === 'zh-TW'
+                    ? '已成功登出系統'
+                    : 'Successfully logged out'
+                );
               }}
             />
           ) : (
@@ -756,6 +805,13 @@ export default function App() {
                 <UserManagement
                   language={language}
                   onNavigateToDashboard={() => setCurrentTab('dashboard')}
+                  webAppUrl={appScriptConfig.webAppUrl}
+                  onSyncUsers={async () => {
+                    if (appScriptConfig.webAppUrl) {
+                      await AppsScriptService.syncUsers(appScriptConfig.webAppUrl, authService.getUsers());
+                      await fetchAllFromSheets(true);
+                    }
+                  }}
                 />
               )}
             </>
@@ -848,9 +904,18 @@ export default function App() {
         onClose={() => setIsLoginModalOpen(false)}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          showNotification('success', `ចូលប្រព័ន្ធជោគជ័យ: ${user.adminName} (${user.role})`);
+          showNotification(
+            'success',
+            language === 'km'
+              ? `ចូលប្រព័ន្ធជោគជ័យ: ${user.adminName} (${user.role})`
+              : language === 'zh-TW'
+              ? `登入系統成功：${user.adminName} (${user.role})`
+              : `Successfully logged in: ${user.adminName} (${user.role})`
+          );
         }}
         language={language}
+        onSelectLanguage={setLanguage}
+        onLanguageToggle={handleLanguageToggle}
       />
 
     </div>

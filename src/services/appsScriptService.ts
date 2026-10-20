@@ -2,17 +2,18 @@ import { Student } from '../types';
 import { formatDobOnly } from '../utils/ageUtils';
 import { SchoolMajorEntry } from '../constants/studentOptions';
 import { CustomTranslationsStore } from './schoolMajorService';
+import { UserAccount } from './authService';
 
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
- * Google Apps Script Backend for Student Management System (v2.3)
- * ប្រព័ន្ធគ្រប់គ្រងសិស្ស & សាលារៀន/ជំនាញ - Google Sheets Backend
+ * Google Apps Script Backend for Student Management System (v2.4)
+ * ប្រព័ន្ធគ្រប់គ្រងសិស្ស, សាលារៀន/ជំនាញ & គណនីអ្នកប្រើប្រាស់ - Google Sheets Backend
  * 
  * Instructions:
  * 1. Open your Google Sheet
  * 2. Click Extensions > Apps Script
  * 3. Replace all code in Code.gs with this script
  * 4. Click "Deploy" > "Manage deployments" (or "New deployment")
- * 5. Create new version or edit: "Student & School API v2.3"
+ * 5. Create new version or edit: "Student, School & Auth API v2.4"
  * 6. Execute as: "Me"
  * 7. Who has access: "Anyone"
  * 8. Click Deploy, authorize access, and copy the Web App URL!
@@ -20,6 +21,7 @@ export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
 
 const SHEET_NAME = "Students";
 const SCHOOLS_SHEET_NAME = "SchoolsMajors";
+const USERS_SHEET_NAME = "Users";
 
 const HEADERS = [
   "No", 
@@ -60,6 +62,15 @@ const SCHOOL_HEADERS = [
   "Location"
 ];
 
+const USER_HEADERS = [
+  "Id",
+  "AdminName",
+  "Username",
+  "Password",
+  "Role",
+  "CreatedAt"
+];
+
 function getOrCreateSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAME);
@@ -79,6 +90,18 @@ function getOrCreateSchoolsSheet() {
     sheet = ss.insertSheet(SCHOOLS_SHEET_NAME);
     sheet.appendRow(SCHOOL_HEADERS);
     sheet.getRange(1, 1, 1, SCHOOL_HEADERS.length).setFontWeight("bold").setBackground("#E0F2FE");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function getOrCreateUsersSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(USERS_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(USERS_SHEET_NAME);
+    sheet.appendRow(USER_HEADERS);
+    sheet.getRange(1, 1, 1, USER_HEADERS.length).setFontWeight("bold").setBackground("#FEF3C7");
     sheet.setFrozenRows(1);
   }
   return sheet;
@@ -238,11 +261,33 @@ function doGet(e) {
       }
     }
 
+    // Read Users if Users sheet exists
+    const users = [];
+    const usersSheet = ss.getSheetByName(USERS_SHEET_NAME);
+    if (usersSheet && usersSheet.getLastRow() > 1) {
+      const uData = usersSheet.getDataRange().getValues();
+      for (let k = 1; k < uData.length; k++) {
+        const uRow = uData[k];
+        const uId = String(uRow[0] || "").trim();
+        const uUser = String(uRow[2] || "").trim();
+        if (!uUser) continue;
+        users.push({
+          id: uId || ("user-" + k),
+          adminName: String(uRow[1] || uUser),
+          username: uUser,
+          password: String(uRow[3] || ""),
+          role: String(uRow[4] || "User"),
+          createdAt: String(uRow[5] || new Date().toISOString())
+        });
+      }
+    }
+
     return responseJSON({ 
       success: true, 
       data: students,
       schools: schools.length > 0 ? schools : null,
-      customTranslations: Object.keys(customTranslations.schools).length > 0 ? customTranslations : null
+      customTranslations: Object.keys(customTranslations.schools).length > 0 ? customTranslations : null,
+      users: users.length > 0 ? users : null
     });
 
   } catch (error) {
@@ -424,6 +469,30 @@ function doPost(e) {
       });
     }
 
+    if (action === "syncUsers") {
+      const users = payload.users || [];
+      const usersSheet = getOrCreateUsersSheet();
+      if (usersSheet.getLastRow() > 1) {
+        usersSheet.getRange(2, 1, usersSheet.getLastRow() - 1, usersSheet.getLastColumn()).clearContent();
+      }
+      usersSheet.getRange(1, 1, 1, USER_HEADERS.length).setValues([USER_HEADERS]);
+      if (users.length > 0) {
+        const uRows = users.map(u => [
+          u.id || "",
+          u.adminName || "",
+          u.username || "",
+          u.password || "",
+          u.role || "User",
+          u.createdAt || ""
+        ]);
+        usersSheet.getRange(2, 1, uRows.length, USER_HEADERS.length).setValues(uRows);
+      }
+      return responseJSON({
+        success: true,
+        message: "Synced " + users.length + " users successfully"
+      });
+    }
+
     throw new Error("Unknown action: " + action);
 
   } catch (error) {
@@ -446,6 +515,7 @@ export interface RemoteDataResult {
   customTranslations?: CustomTranslationsStore | null;
   deletedSchools?: string[];
   deletedMajors?: string[];
+  users?: UserAccount[] | null;
 }
 
 export class AppsScriptService {
@@ -478,7 +548,7 @@ export class AppsScriptService {
   }
 
   /**
-   * Fetch both students and schools from Google Sheets
+   * Fetch both students, schools, and users from Google Sheets
    */
   static async fetchAllData(webAppUrl: string): Promise<RemoteDataResult> {
     if (!webAppUrl || !webAppUrl.startsWith('http')) {
@@ -507,6 +577,7 @@ export class AppsScriptService {
       customTranslations: json.customTranslations || null,
       deletedSchools: Array.isArray(json.deletedSchools) ? json.deletedSchools : [],
       deletedMajors: Array.isArray(json.deletedMajors) ? json.deletedMajors : [],
+      users: Array.isArray(json.users) ? json.users : null,
     };
   }
 
@@ -576,6 +647,17 @@ export class AppsScriptService {
     });
     if (!res.success) {
       throw new Error(res.error || 'Failed to bulk sync students to Google Sheets');
+    }
+  }
+
+  static async syncUsers(webAppUrl: string, users: UserAccount[]): Promise<void> {
+    if (!webAppUrl) return;
+    const res = await this.sendRequest(webAppUrl, {
+      action: 'syncUsers',
+      users,
+    });
+    if (!res.success) {
+      throw new Error(res.error || 'Failed to sync users to Google Sheets');
     }
   }
 

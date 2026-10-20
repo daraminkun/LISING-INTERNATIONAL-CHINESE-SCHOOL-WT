@@ -77,6 +77,8 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
               <span>
                 {language === 'km' 
                   ? `គណនីសិស្ស៖ ${currentUser?.username || 'student'} (សិទ្ធិចុះឈ្មោះចូលរៀន)`
+                  : language === 'zh-TW'
+                  ? `學生帳號：${currentUser?.username || 'student'} (入學登記權限)`
                   : `Logged in as: ${currentUser?.username || 'student'} (Student Role)`}
               </span>
             </div>
@@ -103,10 +105,10 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
             <button
               type="button"
               onClick={onLogout}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-red-200 hover:text-white hover:bg-white/10 transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-red-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>{language === 'km' ? 'ចាកចេញពីប្រព័ន្ធ (Logout)' : 'Logout'}</span>
+              <span>{language === 'km' ? 'ចាកចេញពីប្រព័ន្ធ' : language === 'zh-TW' ? '登出系統' : 'Logout'}</span>
             </button>
           </div>
         </div>
@@ -120,11 +122,13 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
             ១
           </div>
           <h2 className="font-bold text-slate-900 text-sm font-battambang">
-            {language === 'km' ? 'បំពេញព័ត៌មានផ្ទាល់ខ្លួន' : 'Personal Information'}
+            {language === 'km' ? 'បំពេញព័ត៌មានផ្ទាល់ខ្លួន' : language === 'zh-TW' ? '填寫個人基本資料' : 'Personal Information'}
           </h2>
           <p className="text-xs text-slate-600 leading-relaxed font-battambang">
             {language === 'km'
               ? 'បញ្ចូលឈ្មោះខ្មែរ ឈ្មោះអង់គ្លេស ឈ្មោះចិន (បើមាន) ភេទ ថ្ងៃខែឆ្នាំកំណើត និងលេខទូរស័ព្ទទំនាក់ទំនង។'
+              : language === 'zh-TW'
+              ? '輸入高棉姓名、英文姓名、中文姓名、性別、出生日期與聯絡電話。'
               : 'Enter your Khmer, English, and Chinese names, gender, date of birth, and phone number.'}
           </p>
         </div>
@@ -135,11 +139,13 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
             ២
           </div>
           <h2 className="font-bold text-slate-900 text-sm font-battambang">
-            {language === 'km' ? 'ព័ត៌មានឳពុកម្តាយ & អាសយដ្ឋាន' : 'Parent & Address Details'}
+            {language === 'km' ? 'ព័ត៌មានឳពុកម្តាយ & អាសយដ្ឋាន' : language === 'zh-TW' ? '父母資料與現居地址' : 'Parent & Address Details'}
           </h2>
           <p className="text-xs text-slate-600 leading-relaxed font-battambang">
             {language === 'km'
               ? 'បំពេញព័ត៌មានឳពុក ព័ត៌មានម្តាយ លេខទូរស័ព្ទ និងអាសយដ្ឋានបច្ចុប្បន្នរបស់សាមីខ្លួន។'
+              : language === 'zh-TW'
+              ? '填寫父親與母親資料、聯絡電話及個人現居地址。'
               : 'Provide father, mother, and guardian contact details and current residential address.'}
           </p>
         </div>
@@ -150,11 +156,13 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
             ៣
           </div>
           <h2 className="font-bold text-slate-900 text-sm font-battambang">
-            {language === 'km' ? 'ជ្រើសរើសសាលា & ជំនាញ' : 'Choose School & Major'}
+            {language === 'km' ? 'ជ្រើសរើសសាលា & ជំនាញ' : language === 'zh-TW' ? '選讀學校與專業科系' : 'Choose School & Major'}
           </h2>
           <p className="text-xs text-slate-600 leading-relaxed font-battambang">
             {language === 'km'
               ? 'ជ្រើសរើសសាលារៀន និងជំនាញដែលអ្នកចង់សិក្សានៅតៃវ៉ាន់ ព្រមទាំងភ្ជាប់ឯកសារចាំបាច់ (សំបុត្រកំណើត អត្តសញ្ញាណប័ណ្ណ...)។'
+              : language === 'zh-TW'
+              ? '選擇赴台就讀之學校與專業科系，並上傳必要附件 (出生證明、身分證等)。'
               : 'Select your preferred school and major in Taiwan, and upload required documents.'}
           </p>
         </div>

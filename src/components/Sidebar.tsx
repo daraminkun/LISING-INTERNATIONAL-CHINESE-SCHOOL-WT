@@ -236,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </span>
                 {!isAdmin && (
                   <span className="text-[10px] text-rose-200 truncate">
-                    (ចុះឈ្មោះ)
+                    {language === 'km' ? '(ចុះឈ្មោះ)' : language === 'zh-TW' ? '(入學登記)' : '(Enrollment)'}
                   </span>
                 )}
               </div>
@@ -248,7 +248,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="button"
               onClick={onOpenLogin}
               className="p-1.5 rounded-lg text-rose-200 hover:text-white hover:bg-white/10 transition-colors"
-              title="ប្តូរគណនី / ចូលប្រព័ន្ធ (Login / Switch User)"
+              title={
+                language === 'km'
+                  ? 'ប្តូរគណនី / ចូលប្រព័ន្ធ (Login / Switch User)'
+                  : language === 'zh-TW'
+                  ? '切換帳號 / 登入系統'
+                  : 'Switch User / Login'
+              }
             >
               <LogIn className="w-4 h-4" />
             </button>
@@ -257,7 +263,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 onClick={onLogout}
                 className="p-1.5 rounded-lg text-rose-300 hover:text-rose-100 hover:bg-rose-950/50 transition-colors"
-                title="ចាកចេញ (Logout)"
+                title={
+                  language === 'km'
+                    ? 'ចាកចេញពីប្រព័ន្ធ'
+                    : language === 'zh-TW'
+                    ? '登出系統'
+                    : 'Sign Out'
+                }
               >
                 <LogOut className="w-4 h-4" />
               </button>

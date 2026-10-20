@@ -47,7 +47,6 @@ import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorT
 import { authService } from '../services/authService';
 import { schoolMajorService } from '../services/schoolMajorService';
 import { AdminPinModal } from './AdminPinModal';
-import { SchoolMajorModal, SchoolMajorModalMode } from './SchoolMajorModal';
 import { downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
 
 interface StudentModalProps {
@@ -243,16 +242,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({
     }
   };
 
-  // School & Major Modal Config
-  const [schoolMajorModalConfig, setSchoolMajorModalConfig] = useState<{
-    isOpen: boolean;
-    mode: SchoolMajorModalMode;
-    targetSchool?: string;
-    targetMajor?: string;
-  }>({
-    isOpen: false,
-    mode: 'add-school',
-  });
 
   // Handle Target School change and auto-filter majors
   const handleSchoolChange = (newSchool: string) => {
@@ -1490,34 +1479,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   translationType="school"
                   getOptionTooltip={(opt) => schoolMajorService.getSchoolAgeRequirement(opt, language)}
                   getOptionBadge={(opt) => schoolMajorService.getSchoolShortAgeBadge(opt, language)}
-                  onAddClick={() => {
-                    ensureAdmin(() => {
-                      setSchoolMajorModalConfig({
-                        isOpen: true,
-                        mode: 'add-school',
-                      });
-                    });
-                  }}
-                  onEditClick={(cur) => {
-                    ensureAdmin(() => {
-                      setSchoolMajorModalConfig({
-                        isOpen: true,
-                        mode: 'edit-school',
-                        targetSchool: cur || targetSchool || dynamicTargetSchools[0],
-                      });
-                    });
-                  }}
-                  onDeleteClick={(cur) => {
-                    ensureAdmin(() => {
-                      setSchoolMajorModalConfig({
-                        isOpen: true,
-                        mode: 'delete-school',
-                        targetSchool: cur || targetSchool || dynamicTargetSchools[0],
-                      });
-                    });
-                  }}
-                  isAdmin={isAdmin}
-                  onAdminToggle={handleAdminToggle}
                 />
 
                 {/* Selected School Translation Preview Card */}
@@ -1603,37 +1564,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   language={language}
                   colorScheme="emerald"
                   translationType="major"
-                  onAddClick={() => {
-                    ensureAdmin(() => {
-                      setSchoolMajorModalConfig({
-                        isOpen: true,
-                        mode: 'add-major',
-                        targetSchool: targetSchool || dynamicTargetSchools[0],
-                      });
-                    });
-                  }}
-                  onEditClick={(cur) => {
-                    ensureAdmin(() => {
-                      setSchoolMajorModalConfig({
-                        isOpen: true,
-                        mode: 'edit-major',
-                        targetSchool: targetSchool || dynamicTargetSchools[0],
-                        targetMajor: cur || major || (schoolSpecificMajors[0] || ''),
-                      });
-                    });
-                  }}
-                  onDeleteClick={(cur) => {
-                    ensureAdmin(() => {
-                      setSchoolMajorModalConfig({
-                        isOpen: true,
-                        mode: 'delete-major',
-                        targetSchool: targetSchool || dynamicTargetSchools[0],
-                        targetMajor: cur || major || (schoolSpecificMajors[0] || ''),
-                      });
-                    });
-                  }}
-                  isAdmin={isAdmin}
-                  onAdminToggle={handleAdminToggle}
                 />
 
                 {/* Selected Major Translation Preview Card */}
@@ -2019,26 +1949,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({
         language={language}
       />
 
-      {/* School & Major CRUD Manage Modal */}
-      <SchoolMajorModal
-        isOpen={schoolMajorModalConfig.isOpen}
-        onClose={() => setSchoolMajorModalConfig(prev => ({ ...prev, isOpen: false }))}
-        mode={schoolMajorModalConfig.mode}
-        targetSchool={schoolMajorModalConfig.targetSchool || targetSchool}
-        targetMajor={schoolMajorModalConfig.targetMajor || major}
-        language={language}
-        onSuccess={(affectedItem) => {
-          if (schoolMajorModalConfig.mode === 'add-school' && affectedItem) {
-            setTargetSchool(affectedItem);
-          } else if (schoolMajorModalConfig.mode === 'add-major' && affectedItem) {
-            setMajor(affectedItem);
-          } else if (schoolMajorModalConfig.mode === 'edit-school' && affectedItem) {
-            setTargetSchool(affectedItem);
-          } else if (schoolMajorModalConfig.mode === 'edit-major' && affectedItem) {
-            setMajor(affectedItem);
-          }
-        }}
-      />
     </>
   );
 };

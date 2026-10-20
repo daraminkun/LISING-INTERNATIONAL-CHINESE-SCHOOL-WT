@@ -118,13 +118,21 @@ class SchoolMajorService {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const filtered = parsed
+          // Automatically merge in any new schools from SCHOOL_MAJORS_DATA that are not deleted
+          const existingNames = new Set(parsed.map((s: any) => (s.school || '').trim().toLowerCase()));
+          const missingDefaults = SCHOOL_MAJORS_DATA.filter(def => {
+            const defName = (def.school || '').trim().toLowerCase();
+            return !existingNames.has(defName) && !isExcluded(def.school);
+          });
+          const combined = missingDefaults.length > 0 ? [...parsed, ...missingDefaults] : parsed;
+
+          const filtered = combined
             .filter(s => !isExcluded(s.school))
             .map(s => ({
               ...s,
               majors: filterMajors(s.school, s.majors)
             }));
-          if (filtered.length !== parsed.length) {
+          if (filtered.length !== parsed.length || missingDefaults.length > 0) {
             localStorage.setItem(STORAGE_KEY_SCHOOLS, JSON.stringify(filtered));
           }
           return filtered;
@@ -247,24 +255,43 @@ class SchoolMajorService {
    */
   getMajorsForSchool(schoolName?: string): string[] {
     if (!schoolName || !schoolName.trim()) return [];
-    const normalized = schoolName.trim();
+    const cleanSpacing = (str: string) => str.replace(/\s+/g, ' ').trim();
+    const normalized = cleanSpacing(schoolName);
     const schools = this.getSchools();
 
-    // 1. Direct match
-    const direct = schools.find(s => s.school === normalized);
+    // 1. Direct or spacing-cleaned match
+    const direct = schools.find(s => cleanSpacing(s.school) === normalized);
     if (direct) return direct.majors;
 
-    // 2. Partial match
-    const partial = schools.find(s => s.school.includes(normalized) || normalized.includes(s.school));
+    // 2. Substring matching
+    const partial = schools.find(s => cleanSpacing(s.school).includes(normalized) || normalized.includes(cleanSpacing(s.school)));
     if (partial) return partial.majors;
 
-    // 3. Normalized key token match (strip geographic prefixes)
+    // 3. Known shortcuts
+    if (normalized.includes('中信')) {
+      const f = schools.find(s => s.school.includes('中信'));
+      if (f) return f.majors;
+    }
+    if (normalized.includes('中華科')) {
+      const f = schools.find(s => s.school.includes('中華'));
+      if (f) return f.majors;
+    }
+    if (normalized.includes('中臺') || normalized.includes('中台')) {
+      const f = schools.find(s => s.school.includes('中臺'));
+      if (f) return f.majors;
+    }
+    if (normalized.includes('立志') || normalized.includes('志高級')) {
+      const f = schools.find(s => s.school.includes('志高級'));
+      if (f) return f.majors;
+    }
+
+    // 4. Normalized key token match (strip geographic prefixes)
     const coreKey = normalized
-      .replace(/(高雄市|臺南市|桃園市|嘉義市|新竹縣|臺中市|新北市|嘉義縣|台灣|宜蘭縣|私立|區|鄉|路|段|號|臺灣大道六段|沙鹿區|湖口鄉|中山路三段|龜山區|萬壽路一段|板橋區|四川路二段58號|大寮區|泰山區|三星鄉|三星路二段)/g, '')
+      .replace(/(高雄市|臺北市|臺南市|桃園市|嘉義市|新竹縣|新竹市|臺中市|新北市|嘉義縣|雲林縣|台灣|宜蘭縣|私立|市立|區|鄉|路|段|號|臺灣大道六段|沙鹿區|湖口鄉|中山路三段|龜山區|萬壽路一段|板橋區|四川路二段58號|大寮區|泰山區|三星鄉|三星路二段|新市區|中華路49號|南港區|研究院路三段|245號|北屯區|廍子路666號|中信金學校財團法人|中華學校財團法人)/g, '')
       .trim();
 
     if (coreKey) {
-      const matched = schools.find(s => s.school.includes(coreKey) || coreKey.includes(s.school.replace(/私立/g, '')));
+      const matched = schools.find(s => cleanSpacing(s.school).includes(coreKey) || coreKey.includes(cleanSpacing(s.school).replace(/私立|市立/g, '')));
       if (matched) return matched.majors;
     }
 
