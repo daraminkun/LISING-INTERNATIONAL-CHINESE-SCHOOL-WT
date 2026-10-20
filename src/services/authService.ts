@@ -24,22 +24,22 @@ const STORAGE_KEY_ADMIN_AUTH = 'sms_admin_authenticated_session';
 const DEFAULT_PIN = '1234';
 
 // Default Accounts specified by user:
-// 1. Username: Hdara, Password: Hdara1988 -> Admin
-// 2. Username: student, Password: student -> User
+// 1. Username: Hdara, Password: 8892 -> Admin
+// 2. Username: lising, Password: lising -> User
 const DEFAULT_USERS: UserAccount[] = [
   {
     id: 'user-admin-1',
-    adminName: 'លោក ហេង តារា (Admin)',
+    adminName: 'លោក ហៀង តារា (Admin)',
     username: 'Hdara',
-    password: 'Hdara1988',
+    password: '8892',
     role: 'Admin',
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
     id: 'user-student-2',
     adminName: 'សិស្សចុះឈ្មោះ (Student)',
-    username: 'student',
-    password: 'student',
+    username: 'lising',
+    password: 'lising',
     role: 'User',
     createdAt: '2026-01-02T00:00:00.000Z',
   },
