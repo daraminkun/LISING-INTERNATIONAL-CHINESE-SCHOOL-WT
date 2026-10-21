@@ -20,7 +20,8 @@ import {
   LogIn,
   LogOut,
   Lock,
-  User as UserIcon
+  User as UserIcon,
+  Building2
 } from 'lucide-react';
 import { TabType, Language, ConnectionStatus } from '../types';
 import { translations } from '../translations';
@@ -380,6 +381,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   ) : (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-400 text-red-950">
                       Admin
+                    </span>
+                  )}
+                </button>
+
+                {/* Tab: Schools & Logo Management (Admin) */}
+                <button
+                  type="button"
+                  onClick={() => handleTabSelect('schools')}
+                  style={{ backgroundColor: currentTab === 'schools' ? '#dc2626' : '#9f1239' }}
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
+                    currentTab === 'schools'
+                      ? 'border-white/50 text-white shadow-md'
+                      : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Building2 className="w-5 h-5 text-white shrink-0" />
+                    <span className="text-white font-semibold">
+                      {language === 'km' 
+                        ? 'គ្រប់គ្រងសាលា & Logo' 
+                        : language === 'zh-TW' 
+                        ? '學校與校徽管理' 
+                        : 'Schools & Logo'}
+                    </span>
+                  </div>
+                  {currentTab === 'schools' ? (
+                    <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-400 text-purple-950">
+                      Logo
                     </span>
                   )}
                 </button>

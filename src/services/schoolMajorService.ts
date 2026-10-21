@@ -118,23 +118,12 @@ class SchoolMajorService {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Automatically merge in any new schools from SCHOOL_MAJORS_DATA that are not deleted
-          const existingNames = new Set(parsed.map((s: any) => (s.school || '').trim().toLowerCase()));
-          const missingDefaults = SCHOOL_MAJORS_DATA.filter(def => {
-            const defName = (def.school || '').trim().toLowerCase();
-            return !existingNames.has(defName) && !isExcluded(def.school);
-          });
-          const combined = missingDefaults.length > 0 ? [...parsed, ...missingDefaults] : parsed;
-
-          const filtered = combined
+          const filtered = parsed
             .filter(s => !isExcluded(s.school))
             .map(s => ({
               ...s,
               majors: filterMajors(s.school, s.majors)
             }));
-          if (filtered.length !== parsed.length || missingDefaults.length > 0) {
-            localStorage.setItem(STORAGE_KEY_SCHOOLS, JSON.stringify(filtered));
-          }
           return filtered;
         }
       } catch (e) {
@@ -343,7 +332,7 @@ class SchoolMajorService {
   /**
    * Add a new school
    */
-  addSchool(entry: SchoolMajorEntry, translations?: { km?: string; en?: string; location?: string }): { success: boolean; message: string } {
+  addSchool(entry: SchoolMajorEntry, translations?: { km?: string; en?: string; location?: string; logoUrl?: string }): { success: boolean; message: string } {
     if (!entry.school || !entry.school.trim()) {
       return { success: false, message: 'សូមបញ្ចូលឈ្មោះសាលា (School name is required)' };
     }
@@ -360,6 +349,7 @@ class SchoolMajorService {
       ageRequirementEn: entry.ageRequirementEn || 'Age 16 to 22 years old (For High School)',
       shortAgeKm: entry.shortAgeKm || 'អាយុ ១៦-២២ឆ្នាំ (សំរាប់ថ្នាក់វិទ្យាល័យ)',
       shortAgeEn: entry.shortAgeEn || 'Age 16-22 (High School)',
+      logoUrl: entry.logoUrl || translations?.logoUrl,
     };
 
     const updated = [newEntry, ...list];
@@ -371,6 +361,7 @@ class SchoolMajorService {
         en: translations.en || trimmed,
         locationKm: translations.location || 'តៃវ៉ាន់ (Taiwan)',
         locationEn: translations.location || 'Taiwan',
+        logoUrl: translations.logoUrl || entry.logoUrl,
       });
     }
 
@@ -380,7 +371,7 @@ class SchoolMajorService {
   /**
    * Update an existing school
    */
-  updateSchool(oldSchoolName: string, updatedEntry: SchoolMajorEntry, translations?: { km?: string; en?: string; location?: string }): { success: boolean; message: string } {
+  updateSchool(oldSchoolName: string, updatedEntry: SchoolMajorEntry, translations?: { km?: string; en?: string; location?: string; logoUrl?: string }): { success: boolean; message: string } {
     const list = this.getSchools();
     const index = list.findIndex(s => s.school === oldSchoolName);
     if (index === -1) {
@@ -392,6 +383,8 @@ class SchoolMajorService {
       return { success: false, message: 'ឈ្មោះសាលានេះមានរួចហើយ (School name already exists)' };
     }
 
+    const resolvedLogo = updatedEntry.logoUrl || translations?.logoUrl || list[index].logoUrl;
+
     list[index] = {
       school: newName,
       majors: updatedEntry.majors.map(m => m.trim()).filter(Boolean),
@@ -399,6 +392,7 @@ class SchoolMajorService {
       ageRequirementEn: updatedEntry.ageRequirementEn || list[index].ageRequirementEn,
       shortAgeKm: updatedEntry.shortAgeKm || list[index].shortAgeKm,
       shortAgeEn: updatedEntry.shortAgeEn || list[index].shortAgeEn,
+      logoUrl: resolvedLogo,
     };
 
     this.saveSchools(list);
@@ -409,6 +403,7 @@ class SchoolMajorService {
         en: translations.en,
         locationKm: translations.location,
         locationEn: translations.location,
+        logoUrl: resolvedLogo,
       });
     }
 

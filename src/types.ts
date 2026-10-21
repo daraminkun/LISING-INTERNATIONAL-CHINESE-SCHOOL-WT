@@ -70,7 +70,7 @@ export interface Student {
   parentDob?: string;          // Backward compatibility
 }
 
-export type TabType = 'dashboard' | 'students' | 'reports' | 'users' | 'student_portal';
+export type TabType = 'dashboard' | 'students' | 'reports' | 'users' | 'schools' | 'student_portal';
 
 export type UserRole = 'Admin' | 'User';
 

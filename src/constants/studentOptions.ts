@@ -32,6 +32,7 @@ export interface SchoolMajorEntry {
   ageRequirementEn: string;
   shortAgeKm: string;
   shortAgeEn: string;
+  logoUrl?: string;
 }
 
 /**

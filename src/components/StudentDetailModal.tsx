@@ -588,13 +588,34 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                     <button
                       type="button"
                       onClick={() => downloadAllDocumentsForStudent(student)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer ml-1"
-                      title={language === 'km' ? 'ទាញយកឯកសារទាំងអស់របស់សិស្សនេះ' : 'Download all student documents'}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer ml-1"
+                      title={language === 'km' ? 'ទាញយកឯកសារទាំងអស់របស់សិស្សនេះ' : language === 'zh-TW' ? '下載此學生所有附件' : 'Download all student documents'}
                     >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>{language === 'km' ? 'ទាញយកទាំងអស់' : 'Download All'}</span>
+                      <Download className="w-4 h-4" />
+                      <span>{language === 'km' ? 'ទាញយកឯកសារទាំងអស់' : language === 'zh-TW' ? '下載全部附件' : 'Download All Files'}</span>
                     </button>
                   )}
+                </div>
+              </div>
+
+              {/* Document Storage Location Notice for Admin */}
+              <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs flex items-start gap-2.5">
+                <Download className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-bold text-blue-950">
+                    {language === 'km' 
+                      ? '📂 ទីតាំងរក្សាទុកឯកសារសិស្ស (Student Document Storage):' 
+                      : language === 'zh-TW'
+                      ? '📂 學生上傳附件儲存位置說明:'
+                      : '📂 Student Uploaded Document Storage:'}
+                  </p>
+                  <p className="text-blue-800 text-[11px] leading-relaxed">
+                    {language === 'km'
+                      ? 'ឯកសារភ្ជាប់ទាំងអស់ដែលសិស្សបាន Upload ត្រូវបានរក្សាទុកយ៉ាងមានសុវត្ថិភាពនៅក្នុងប្រព័ន្ធ។ ខាង Admin អាចចុចប៊ូតុង "ទាញយកឯកសារទាំងអស់" ខាងលើ ឬចុចរូបតំណាងទាញយក 📥 នៅលើទំព័រនីមួយៗខាងក្រោម ដើម្បីទាញយកឯកសារមកទុកលើកុំព្យូទ័រ ឬទូរស័ព្ទបានភ្លាមៗ។'
+                      : language === 'zh-TW'
+                      ? '學生報名時所上傳的所有附件文件皆安全儲存於系統內。管理員可點選上方「下載全部附件」按鈕一次打包儲存，或點選下方個別文件圖示直接檢視與下載至電腦或手機。'
+                      : 'All documents uploaded by students are safely stored in the system. Admins can click "Download All Files" above or click the download icon on each document below to save them directly to your device.'}
+                  </p>
                 </div>
               </div>
 

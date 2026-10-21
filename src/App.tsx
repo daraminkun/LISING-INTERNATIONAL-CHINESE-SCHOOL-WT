@@ -13,6 +13,7 @@ import { StudentDetailModal } from './components/StudentDetailModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { GoogleAppsScriptModal } from './components/GoogleAppsScriptModal';
 import { UserManagement } from './components/UserManagement';
+import { SchoolManagementView } from './components/SchoolManagementView';
 import { LoginModal, LoginScreen } from './components/LoginModal';
 import { StudentPortalView } from './components/StudentPortalView';
 import { authService, UserAccount } from './services/authService';
@@ -192,7 +193,17 @@ export default function App() {
         // Automatically re-sequence so there are never any gaps or starting from 2
         // e.g. 2, 3, 4, 5... immediately becomes 1, 2, 3, 4...
         const resequenced = resequenceStudentsList(result.students);
-        setStudents(resequenced);
+        setStudents(prev => {
+          const prevMap = new Map(prev.map(p => [p.studentId, p]));
+          const merged = resequenced.map(s => {
+            const existing = prevMap.get(s.studentId);
+            return {
+              ...s,
+              documents: s.documents || existing?.documents,
+            };
+          });
+          return merged;
+        });
 
         // If Google Sheets had gaps (e.g. starts with 2, or missing rows), sync back to Google Sheets!
         const hasGap = result.students.some((s, idx) => String(s.studentId).trim() !== String(idx + 1));
@@ -449,7 +460,12 @@ export default function App() {
         setSelectedStudentForDetail(studentData);
       }
 
-      showNotification('success', t.studentUpdatedSuccess);
+      const updateSuccessText = language === 'km'
+        ? 'ជោគជ័យ'
+        : language === 'zh-TW'
+        ? '儲存成功'
+        : 'Successfully';
+      showNotification('success', updateSuccessText);
 
       // Sync to Google Sheets in background if URL configured
       if (appScriptConfig.webAppUrl) {
@@ -471,7 +487,13 @@ export default function App() {
           return (a.createdAt || '').localeCompare(b.createdAt || '');
         });
       });
-      showNotification('success', t.studentAddedSuccess);
+
+      const addSuccessText = language === 'km'
+        ? 'ជោគជ័យ'
+        : language === 'zh-TW'
+        ? '儲存成功'
+        : 'Successfully';
+      showNotification('success', addSuccessText);
 
       // Sync to Google Sheets in background if URL configured
       if (appScriptConfig.webAppUrl) {
@@ -486,6 +508,7 @@ export default function App() {
   };
 
   // Confirm Delete Student with Auto-resequence (លេខរៀង Auto)
+  // FIXED: Synchronously compute remaining and resequenced students to avoid wiping Google Sheets
   const handleConfirmDelete = async () => {
     if (!studentToDelete) return;
     setIsDeleting(true);
@@ -493,18 +516,22 @@ export default function App() {
     const targetId = studentToDelete.studentId;
 
     try {
-      let finalResequenced: Student[] = [];
+      // 1. Calculate remaining and resequence synchronously from current state
+      const remaining = students.filter(s => s.studentId !== targetId);
+      const finalResequenced = resequenceStudentsList(remaining);
 
-      // 1. Remove deleted student from local array and re-sequence (1, 2, 3...)
-      setStudents(prev => {
-        const remaining = prev.filter(s => s.studentId !== targetId);
-        finalResequenced = resequenceStudentsList(remaining);
-        return finalResequenced;
-      });
+      // Immediately update local state
+      setStudents(finalResequenced);
 
       setIsDeleteModalOpen(false);
       setStudentToDelete(null);
-      showNotification('success', t.studentDeletedSuccess);
+
+      const delSuccessText = language === 'km'
+        ? 'ជោគជ័យ (បានលុបសិស្សដោយជោគជ័យ)'
+        : language === 'zh-TW'
+        ? '刪除成功'
+        : 'Deleted successfully';
+      showNotification('success', delSuccessText);
 
       // If viewing details of this deleted student, close details modal
       if (selectedStudentForDetail?.studentId === targetId) {
@@ -515,7 +542,11 @@ export default function App() {
       // 2. Sync to Google Sheets if configured
       if (appScriptConfig.webAppUrl) {
         try {
-          await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, finalResequenced);
+          if (finalResequenced.length > 0) {
+            await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, finalResequenced);
+          } else {
+            await AppsScriptService.deleteStudent(appScriptConfig.webAppUrl, targetId);
+          }
         } catch (err: any) {
           console.warn('Apps Script sync warning after delete:', err);
           try {
@@ -533,6 +564,7 @@ export default function App() {
   };
 
   // Bulk Delete with Auto-resequence (លេខរៀង Auto)
+  // FIXED: Synchronously compute remaining and resequence to prevent wiping
   const handleBulkDelete = async (studentIds: string[]) => {
     const count = studentIds.length;
     if (count === 0) return;
@@ -540,18 +572,22 @@ export default function App() {
     const confirmed = window.confirm(
       language === 'km'
         ? `តើអ្នកពិតជាចង់លុបសិស្សទាំង ${count} នាក់នេះមែនទេ?`
+        : language === 'zh-TW'
+        ? `您確定要刪除這 ${count} 位學生嗎？`
         : `Are you sure you want to delete these ${count} students?`
     );
     if (!confirmed) return;
 
-    let finalResequenced: Student[] = [];
-    setStudents(prev => {
-      const remaining = prev.filter(s => !studentIds.includes(s.studentId));
-      finalResequenced = resequenceStudentsList(remaining);
-      return finalResequenced;
-    });
+    const remaining = students.filter(s => !studentIds.includes(s.studentId));
+    const finalResequenced = resequenceStudentsList(remaining);
+    setStudents(finalResequenced);
 
-    showNotification('success', `${count} students deleted.`);
+    const bulkDelText = language === 'km'
+      ? `ជោគជ័យ (បានលុបសិស្ស ${count} នាក់)`
+      : language === 'zh-TW'
+      ? `刪除成功 (${count} 位學生)`
+      : `Successfully deleted ${count} students.`;
+    showNotification('success', bulkDelText);
 
     if (appScriptConfig.webAppUrl) {
       try {
@@ -770,6 +806,7 @@ export default function App() {
                     setIsSettingsModalOpen(true);
                   }}
                   onNavigateToReports={() => setCurrentTab('reports')}
+                  onNavigateToSchools={() => setCurrentTab('schools')}
                 />
               )}
 
@@ -787,6 +824,7 @@ export default function App() {
                   onBulkDelete={handleBulkDelete}
                   onResequenceAll={handleResequenceAll}
                   isAdmin={isAdmin}
+                  onNavigateToSchools={() => setCurrentTab('schools')}
                 />
               )}
 
@@ -810,6 +848,26 @@ export default function App() {
                     if (appScriptConfig.webAppUrl) {
                       await AppsScriptService.syncUsers(appScriptConfig.webAppUrl, authService.getUsers());
                       await fetchAllFromSheets(true);
+                    }
+                  }}
+                />
+              )}
+
+              {/* Tab 5: School & Logo Management View (Admin Only) */}
+              {currentTab === 'schools' && (
+                <SchoolManagementView
+                  language={language}
+                  onNavigateToDashboard={() => setCurrentTab('dashboard')}
+                  webAppUrl={appScriptConfig.webAppUrl}
+                  onSyncSchools={async () => {
+                    if (appScriptConfig.webAppUrl) {
+                      await AppsScriptService.syncSchools(
+                        appScriptConfig.webAppUrl,
+                        schoolMajorService.getSchools(),
+                        schoolMajorService.getCustomTranslations(),
+                        schoolMajorService.getDeletedSchools(),
+                        schoolMajorService.getDeletedMajors()
+                      );
                     }
                   }}
                 />

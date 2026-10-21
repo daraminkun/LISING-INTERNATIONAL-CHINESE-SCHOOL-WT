@@ -53,6 +53,7 @@ interface StudentTableProps {
   onBulkDelete?: (studentIds: string[]) => void;
   onResequenceAll?: () => void;
   isAdmin?: boolean;
+  onNavigateToSchools?: () => void;
 }
 
 export const StudentTable: React.FC<StudentTableProps> = ({
@@ -67,6 +68,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   onBulkDelete,
   onResequenceAll,
   isAdmin = authService.isAdmin(),
+  onNavigateToSchools,
 }) => {
   const t = translations[language];
 
@@ -555,6 +557,18 @@ export const StudentTable: React.FC<StudentTableProps> = ({
               </button>
             </div>
 
+            {isAdmin && onNavigateToSchools && (
+              <button
+                type="button"
+                onClick={onNavigateToSchools}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs sm:text-sm font-semibold shadow-xs shadow-purple-500/20 transition-all cursor-pointer"
+                title={language === 'km' ? 'គ្រប់គ្រងសាលារៀន & Profile Logo សាលា' : 'Manage Schools & Profile Logo'}
+              >
+                <Building2 className="w-4 h-4 text-purple-200" />
+                <span>{language === 'km' ? 'គ្រប់គ្រងសាលា & Logo' : language === 'zh-TW' ? '學校與校徽管理' : 'Schools & Logo'}</span>
+              </button>
+            )}
+
             <button
               onClick={onAddStudent}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-xs hover:shadow-indigo-500/20 transition-all"
@@ -988,24 +1002,41 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                             </button>
                           </div>
 
-                          {/* Document upload badge */}
-                          <button
-                            type="button"
-                            onClick={() => onViewStudent(student)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-                              docValidation.isValid 
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                                : uploadedCategoryCount > 0 
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
-                                : 'bg-slate-100 text-slate-400 border border-slate-200'
-                            }`}
-                            title={language === 'km' 
-                              ? `បាន ${docValidation.completedCount}/${docValidation.totalRequired} ឯកសារចាំបាច់ (*)` 
-                              : `${docValidation.completedCount}/${docValidation.totalRequired} required documents (*)`}
-                          >
-                            <FileText className="w-3 h-3" />
-                            <span>{docValidation.completedCount}/{docValidation.totalRequired}*</span>
-                          </button>
+                          {/* Document upload badge and direct download */}
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onViewStudent(student)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                                docValidation.isValid 
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                  : uploadedCategoryCount > 0 
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                                  : 'bg-slate-100 text-slate-400 border border-slate-200'
+                              }`}
+                              title={language === 'km' 
+                                ? `បាន ${docValidation.completedCount}/${docValidation.totalRequired} ឯកសារចាំបាច់ (*)` 
+                                : `${docValidation.completedCount}/${docValidation.totalRequired} required documents (*)`}
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span>{docValidation.completedCount}/{docValidation.totalRequired}*</span>
+                            </button>
+
+                            {uploadedCategoryCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadAllDocumentsForStudent(student);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-2xs transition-colors cursor-pointer"
+                                title={language === 'km' ? 'ទាញយកឯកសារទាំងអស់របស់សិស្សនេះ' : language === 'zh-TW' ? '下載此學生所有附件' : 'Download all student documents'}
+                              >
+                                <Download className="w-3 h-3" />
+                                <span>{language === 'km' ? 'ទាញយកឯកសារ' : language === 'zh-TW' ? '下載附件' : 'Download'}</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

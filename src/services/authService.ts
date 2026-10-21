@@ -7,7 +7,7 @@ export type UserRole = 'Admin' | 'User';
 
 export interface UserAccount {
   id: string;
-  adminName: string;   // Name / Admin label (e.g. លោក ហេង តារា, គណនីសិស្ស)
+  adminName: string;   // Name / Admin label (e.g. លោក ហៀង តារា, គណនីសិស្ស)
   username: string;
   password: string;
   role: UserRole;

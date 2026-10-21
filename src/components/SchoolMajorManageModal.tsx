@@ -9,7 +9,9 @@ import {
   Check, 
   AlertCircle, 
   HelpCircle,
-  Clock
+  Clock,
+  UploadCloud,
+  Image as ImageIcon
 } from 'lucide-react';
 import { schoolMajorService } from '../services/schoolMajorService';
 import { SchoolMajorEntry } from '../constants/studentOptions';
@@ -42,6 +44,7 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
   const [schoolNameZh, setSchoolNameZh] = useState('');
   const [schoolNameKm, setSchoolNameKm] = useState('');
   const [schoolNameEn, setSchoolNameEn] = useState('');
+  const [schoolLogoUrl, setSchoolLogoUrl] = useState('');
   const [schoolLocation, setSchoolLocation] = useState('');
   const [ageLevel, setAgeLevel] = useState<'high_school' | 'university' | 'master'>('high_school');
   const [schoolMajorsText, setSchoolMajorsText] = useState('');
@@ -55,6 +58,22 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
   // Status & error
   const [error, setError] = useState('');
   const [allSchools, setAllSchools] = useState<SchoolMajorEntry[]>([]);
+
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      setError(language === 'km' ? 'ទំហំរូបភាពមិនត្រូវលើសពី 3MB ឡើយ' : 'Image size cannot exceed 3MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setSchoolLogoUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -70,6 +89,7 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
           const trans = getSchoolTranslation(schoolObj.school);
           setSchoolNameKm(trans?.km || '');
           setSchoolNameEn(trans?.en || '');
+          setSchoolLogoUrl(schoolObj.logoUrl || trans?.logoUrl || '');
           setSchoolLocation(trans?.locationKm || 'តៃវ៉ាន់');
           setSchoolMajorsText(schoolObj.majors.join(', '));
           
@@ -86,6 +106,7 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
         setSchoolNameZh('');
         setSchoolNameKm('');
         setSchoolNameEn('');
+        setSchoolLogoUrl('');
         setSchoolLocation('តៃវ៉ាន់ (Taiwan)');
         setAgeLevel('high_school');
         setSchoolMajorsText('');
@@ -115,6 +136,7 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
       const trans = getSchoolTranslation(schoolObj.school);
       setSchoolNameKm(trans?.km || '');
       setSchoolNameEn(trans?.en || '');
+      setSchoolLogoUrl(schoolObj.logoUrl || trans?.logoUrl || '');
       setSchoolLocation(trans?.locationKm || 'តៃវ៉ាន់');
       setSchoolMajorsText(schoolObj.majors.join(', '));
       if (schoolObj.ageRequirementEn.includes('25 & under')) {
@@ -167,11 +189,13 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
           ageRequirementEn: ageReqEn,
           shortAgeKm: shortKm,
           shortAgeEn: shortEn,
+          logoUrl: schoolLogoUrl.trim() || undefined,
         },
         {
           km: schoolNameKm.trim() || schoolNameZh.trim(),
           en: schoolNameEn.trim() || schoolNameZh.trim(),
           location: schoolLocation.trim() || 'តៃវ៉ាន់',
+          logoUrl: schoolLogoUrl.trim() || undefined,
         }
       );
 
@@ -218,11 +242,13 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
           ageRequirementEn: ageReqEn,
           shortAgeKm: shortKm,
           shortAgeEn: shortEn,
+          logoUrl: schoolLogoUrl.trim() || undefined,
         },
         {
           km: schoolNameKm.trim() || schoolNameZh.trim(),
           en: schoolNameEn.trim() || schoolNameZh.trim(),
           location: schoolLocation.trim() || 'តៃវ៉ាន់',
+          logoUrl: schoolLogoUrl.trim() || undefined,
         }
       );
 
@@ -387,9 +413,72 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
                 </div>
               )}
 
+              {/* Profile Logo Upload Section (ប៊ូតុង Upload Profile Logo សាលារៀន) */}
+              <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-200/80 space-y-2.5">
+                <label className="block font-bold text-slate-800 text-xs">
+                  {language === 'km' 
+                    ? '🖼️ រូបសញ្ញាសាលារៀន (School Profile Logo):' 
+                    : language === 'zh-TW' 
+                    ? '🖼️ 學校標誌 / 校徽 (School Profile Logo):' 
+                    : '🖼️ School Profile Logo:'}
+                </label>
+                <div className="flex items-center gap-3.5">
+                  {/* Logo Preview */}
+                  <div className="relative w-14 h-14 rounded-xl border-2 border-dashed border-purple-300 bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                    {schoolLogoUrl ? (
+                      <img 
+                        src={schoolLogoUrl} 
+                        alt="School Logo" 
+                        className="w-full h-full object-contain p-1"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-400">
+                        <Building2 className="w-6 h-6 text-purple-400" />
+                        <span className="text-[9px] font-semibold text-slate-400">Logo</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upload & Remove Actions */}
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs">
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        <span>{language === 'km' ? 'Upload Profile Logo សាលារៀន' : language === 'zh-TW' ? '上傳學校校徽' : 'Upload School Logo'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoFileChange}
+                          className="sr-only"
+                        />
+                      </label>
+
+                      {schoolLogoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setSchoolLogoUrl('')}
+                          className="px-2.5 py-1.5 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          {language === 'km' ? 'លុប Logo' : language === 'zh-TW' ? '清除校徽' : 'Remove'}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      {language === 'km' 
+                        ? 'គាំទ្រ PNG, JPG, WebP ឬ SVG (ទំហំក្រោម 3MB) សម្រាប់បង្ហាញលើ Profile សាលា' 
+                        : 'Supports PNG, JPG, WebP or SVG (under 3MB)'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  {language === 'km' ? 'ឈ្មោះសាលារៀន (ភាសាចិន / ឈ្មោះដើម) *:' : 'School Name (Chinese / Original) *:'}
+                  {language === 'km' 
+                    ? 'ឈ្មោះសាលារៀន (ភាសាចិន / ឈ្មោះដើម) *:' 
+                    : language === 'zh-TW'
+                    ? '學校名稱 (中文 / 原校名) *:'
+                    : 'School Name (Chinese / Original) *:'}
                 </label>
                 <input
                   type="text"

@@ -341,8 +341,11 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({
                     }`}
                   >
                     {isSelected && <Check className="w-3 h-3 shrink-0" />}
+                    {trans?.logoUrl && (
+                      <img src={trans.logoUrl} className="w-3.5 h-3.5 rounded-full object-contain shrink-0 bg-white" alt="" />
+                    )}
                     <span>{option}</span>
-                    {translationType && (
+                    {translationType && !trans?.logoUrl && (
                       <Languages className={`w-3 h-3 transition-opacity ${isSelected ? 'text-white/70' : 'text-slate-400 opacity-60 group-hover:opacity-100'}`} />
                     )}
                     {badge && (

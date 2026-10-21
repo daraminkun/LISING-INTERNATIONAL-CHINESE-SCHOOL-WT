@@ -47,7 +47,8 @@ const HEADERS = [
   "TargetSchool", 
   "Major", 
   "CreatedAt", 
-  "Notes"
+  "Notes",
+  "Documents"
 ];
 
 const SCHOOL_HEADERS = [
@@ -59,7 +60,8 @@ const SCHOOL_HEADERS = [
   "ShortAgeEn",
   "TranslationsKm",
   "TranslationsEn",
-  "Location"
+  "Location",
+  "LogoUrl"
 ];
 
 const USER_HEADERS = [
@@ -132,7 +134,8 @@ function studentToRow(s) {
     s.targetSchool || "",
     s.major || "",
     s.createdAt || new Date().toISOString(),
-    s.notes || ""
+    s.notes || "",
+    s.documents ? JSON.stringify(s.documents) : ""
   ];
 }
 
@@ -160,7 +163,18 @@ function doGet(e) {
       const row = data[i];
       if (!row[0]) continue; // skip empty rows
 
-      // New 24-column layout
+      // Parse documents if present
+      let docs = undefined;
+      if (row.length >= 25 && row[24]) {
+        try {
+          const rawDocs = String(row[24]).trim();
+          if (rawDocs.startsWith("{")) {
+            docs = JSON.parse(rawDocs);
+          }
+        } catch (docErr) {}
+      }
+
+      // New 24/25-column layout
       if (row.length >= 22) {
         students.push({
           studentId: String(row[0] || ""),
@@ -187,7 +201,8 @@ function doGet(e) {
           major: String(row[21] || ""),
           createdAt: row[22] ? String(row[22]) : new Date().toISOString(),
           notes: row[23] ? String(row[23]) : "",
-          name: String(row[1] || row[2] || "")
+          name: String(row[1] || row[2] || ""),
+          documents: docs
         });
       } else if (row.length >= 18) {
         // Fallback for previous 20-column layout
@@ -250,12 +265,17 @@ function doGet(e) {
           shortAgeKm: String(sRow[4] || ""),
           shortAgeEn: String(sRow[5] || ""),
         });
-        if (sRow[6] || sRow[7] || sRow[8]) {
+        const logo = String(sRow[9] || "").trim();
+        if (logo) {
+          schools[schools.length - 1].logoUrl = logo;
+        }
+        if (sRow[6] || sRow[7] || sRow[8] || logo) {
           customTranslations.schools[schoolName] = {
             km: String(sRow[6] || schoolName),
             en: String(sRow[7] || schoolName),
             locationKm: String(sRow[8] || "តៃវ៉ាន់"),
-            locationEn: String(sRow[8] || "Taiwan")
+            locationEn: String(sRow[8] || "Taiwan"),
+            logoUrl: logo || undefined
           };
         }
       }
@@ -406,7 +426,8 @@ function doPost(e) {
             s.shortAgeEn || "",
             trans.km || "",
             trans.en || "",
-            trans.locationKm || trans.location || ""
+            trans.locationKm || trans.location || "",
+            s.logoUrl || trans.logoUrl || ""
           ];
         });
         schoolsSheet.getRange(2, 1, sRows.length, SCHOOL_HEADERS.length).setValues(sRows);
@@ -456,7 +477,8 @@ function doPost(e) {
               s.shortAgeEn || "",
               trans.km || "",
               trans.en || "",
-              trans.locationKm || trans.location || ""
+              trans.locationKm || trans.location || "",
+              s.logoUrl || trans.logoUrl || ""
             ];
           });
           schoolsSheet.getRange(2, 1, sRows.length, SCHOOL_HEADERS.length).setValues(sRows);

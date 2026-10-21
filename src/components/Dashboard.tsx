@@ -34,6 +34,7 @@ interface DashboardProps {
   onViewStudent: (student: Student) => void;
   onOpenSettings: () => void;
   onNavigateToReports?: () => void;
+  onNavigateToSchools?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -44,7 +45,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onAddStudent,
   onViewStudent,
   onOpenSettings,
-  onNavigateToReports
+  onNavigateToReports,
+  onNavigateToSchools
 }) => {
   const t = translations[language];
 
@@ -201,6 +203,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Right Side: Action Buttons */}
         <div className="relative z-10 flex flex-wrap items-center gap-2.5 sm:gap-3 shrink-0">
+          {onNavigateToSchools && (
+            <button
+              onClick={onNavigateToSchools}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-purple-600/90 hover:bg-purple-600 text-white font-bold text-xs sm:text-sm border border-purple-400/40 backdrop-blur transition-all shadow-md shadow-purple-500/20 cursor-pointer"
+              title="គ្រប់គ្រងសាលារៀន & Profile Logo"
+            >
+              <Building2 className="w-4 h-4 text-purple-200" />
+              <span>{language === 'km' ? 'គ្រប់គ្រងសាលា & Logo' : language === 'zh-TW' ? '學校與校徽管理' : 'Schools & Logo'}</span>
+            </button>
+          )}
           {onNavigateToReports && (
             <button
               onClick={onNavigateToReports}

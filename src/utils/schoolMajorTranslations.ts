@@ -13,6 +13,7 @@ export interface SchoolTranslation {
   locationKm: string;
   levelEn: string;
   levelKm: string;
+  logoUrl?: string;
 }
 
 export interface MajorTranslation {
@@ -1658,6 +1659,7 @@ export function getSchoolTranslation(name?: string): SchoolTranslation | null {
           locationKm: c.locationKm || "ប្រទេសតៃវ៉ាន់",
           levelEn: c.levelEn || "Institution",
           levelKm: c.levelKm || "គ្រឹះស្ថានអប់រំ",
+          logoUrl: c.logoUrl,
         };
       }
     }
