@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { authService, UserAccount } from '../services/authService';
 import { Language } from '../types';
+import { useInstitution } from '../services/institutionService';
 
 export interface LoginModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onSelectLanguage,
   onLanguageToggle,
 }) => {
+  const institution = useInstitution();
   const [username, setUsername] = useState(() => authService.getDefaultStudentAccount().username);
   const [password, setPassword] = useState(() => authService.getDefaultStudentAccount().password);
   const [showPassword, setShowPassword] = useState(false);
@@ -172,20 +174,23 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           {/* School Badge */}
           <div className="mx-auto w-14 h-14 rounded-2xl bg-white p-1 shadow-lg ring-4 ring-amber-300/60 mb-2.5 flex items-center justify-center overflow-hidden">
             <img 
-              src="/logo.jpg" 
-              alt="Logo" 
+              src={institution.logoUrl || '/logo.jpg'} 
+              alt={institution.nameKm} 
               className="w-full h-full object-contain rounded-xl"
               onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
+                (e.target as HTMLImageElement).src = '/logo.jpg';
               }}
             />
           </div>
 
           <h3 className="text-base sm:text-lg font-black tracking-tight leading-snug">
-            {language === 'km' ? 'ចូលប្រើប្រាស់ប្រព័ន្ធ' : language === 'zh-TW' ? '日興國際學校 • 系統登入' : 'System Login'}
+            {institution.nameKm || 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ'}
           </h3>
-          <p className="text-xs text-red-100 font-medium mt-1">
-            {language === 'zh-TW' ? '學生資訊管理系統 (SIS)' : 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ (日興國際學校)'}
+          <p className="text-xs text-amber-200 font-kai font-bold mt-0.5">
+            {institution.nameZh || '日興國際學校'}
+          </p>
+          <p className="text-[10px] text-red-100 font-medium tracking-wide uppercase mt-0.5">
+            {institution.nameEn || 'LISING INTERNATIONAL CHINESE SCHOOL'}
           </p>
         </div>
 
@@ -365,55 +370,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       <div className="absolute -top-40 -right-40 w-96 h-96 bg-red-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
-
-      {/* Top Mobile Bar (Specially positioned to be 100% visible below phone status bars & LINE app headers) */}
-      <div className="w-full max-w-md mb-3 flex items-center justify-between px-2 relative z-20">
-        <div className="flex items-center gap-2 text-white/90">
-          <div className="w-7 h-7 rounded-lg bg-red-700 flex items-center justify-center p-0.5 shadow-xs border border-white/20">
-            <img src="/logo.jpg" alt="Logo" className="w-full h-full object-contain rounded-md" onError={e => (e.target as HTMLElement).style.display = 'none'} />
-          </div>
-          <span className="text-xs font-bold text-slate-200 truncate max-w-[170px] sm:max-w-none">
-            {language === 'km' ? 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' : language === 'zh-TW' ? '日興國際學校' : 'Lising International School'}
-          </span>
-        </div>
-
-        {/* Top-Right Quick Language Selector (Always visible on all screens & apps) */}
-        <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md p-1 rounded-xl border border-white/20 shadow-md">
-          <button
-            type="button"
-            onClick={() => handleSelectLang('km')}
-            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              language === 'km'
-                ? 'bg-red-700 text-white shadow-xs'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            🇰🇭 ខ្មែរ
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSelectLang('zh-TW')}
-            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              language === 'zh-TW'
-                ? 'bg-red-700 text-white shadow-xs font-biaukai'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            🇹🇼 繁中
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSelectLang('en')}
-            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              language === 'en'
-                ? 'bg-red-700 text-white shadow-xs font-times'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            🇬🇧 EN
-          </button>
-        </div>
-      </div>
 
       {/* Main Login Card */}
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden relative z-10 animate-in fade-in zoom-in-95 duration-200">

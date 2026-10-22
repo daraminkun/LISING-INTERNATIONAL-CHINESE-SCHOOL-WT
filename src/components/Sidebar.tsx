@@ -26,6 +26,7 @@ import {
 import { TabType, Language, ConnectionStatus } from '../types';
 import { translations } from '../translations';
 import { UserAccount } from '../services/authService';
+import { useInstitution } from '../services/institutionService';
 
 interface SidebarProps {
   currentTab: TabType;
@@ -63,6 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout
 }) => {
   const t = translations[language];
+  const institution = useInstitution();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const handleTabSelect = (tab: TabType) => {
@@ -176,25 +178,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-12 h-12 rounded-full bg-white p-0.5 shadow-md ring-2 ring-amber-300/80 shrink-0 overflow-hidden flex items-center justify-center">
               <img 
-                src="/logo.jpg" 
-                alt="Logo សាលារៀនចិនលិស៊ីងអន្តរជាតិ" 
+                src={institution.logoUrl || '/logo.jpg'} 
+                alt={institution.nameKm} 
                 className="w-full h-full object-contain rounded-full"
                 onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
+                  (e.target as HTMLImageElement).src = '/logo.jpg';
                 }}
               />
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-sm font-black text-white tracking-tight leading-tight truncate font-battambang" title="សាលារៀនចិនលិស៊ីងអន្តរជាតិ">
-                សាលារៀនចិនលិស៊ីងអន្តរជាតិ
+              <h1 className="text-sm font-black text-white tracking-tight leading-tight truncate font-battambang" title={institution.nameKm}>
+                {institution.nameKm || 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ'}
               </h1>
               <div className="text-[11px] font-bold text-amber-200 truncate font-kai">
-                日興國際學校
+                {institution.nameZh || '日興國際學校'}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span className="text-[10px] font-medium text-red-100 leading-none truncate uppercase">
-                  Lising Int'l School
+                <span className="text-[10px] font-medium text-red-100 leading-none truncate uppercase font-sans">
+                  {institution.nameEn || "Lising Int'l School"}
                 </span>
               </div>
             </div>

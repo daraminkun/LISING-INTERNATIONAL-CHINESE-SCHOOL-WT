@@ -6,6 +6,7 @@
 import { SchoolMajorEntry, SCHOOL_MAJORS_DATA } from '../constants/studentOptions';
 import { SchoolTranslation, MajorTranslation } from '../utils/schoolMajorTranslations';
 import { Language } from '../types';
+import { dbStorage } from './dbStorage';
 
 const STORAGE_KEY_SCHOOLS = 'sms_schools_majors_list_v2';
 const STORAGE_KEY_CUSTOM_TRANS = 'sms_custom_translations_v2';
@@ -201,12 +202,20 @@ class SchoolMajorService {
       });
     };
 
+    const existingSchools = this.getSchools();
+    const existingMap = new Map(existingSchools.map(s => [s.school.trim().toLowerCase(), s]));
+
     const filtered = remoteSchools
       .filter(s => !isExcluded(s.school))
-      .map(s => ({
-        ...s,
-        majors: filterMajors(s.school, s.majors)
-      }));
+      .map(s => {
+        const existing = existingMap.get(s.school.trim().toLowerCase());
+        const logo = s.logoUrl || existing?.logoUrl || dbStorage.getCachedSchoolLogo(s.school);
+        return {
+          ...s,
+          logoUrl: logo,
+          majors: filterMajors(s.school, s.majors)
+        };
+      });
 
     if (remoteTranslations) {
       const existing = this.getCustomTranslations();

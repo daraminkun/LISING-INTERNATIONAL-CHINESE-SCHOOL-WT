@@ -16,7 +16,9 @@ import {
   TrendingUp,
   Award,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Settings,
+  Edit3
 } from 'lucide-react';
 import { Student, Language, ConnectionStatus } from '../types';
 import { translations } from '../translations';
@@ -24,6 +26,8 @@ import { areAllRequiredDocumentsUploaded, countUploadedCategories } from '../uti
 import { TranslationTooltip } from './TranslationTooltip';
 import { getMajorTranslation, getSchoolTranslation } from '../utils/schoolMajorTranslations';
 import { SchoolMajorAnalytics } from './SchoolMajorAnalytics';
+import { useInstitution } from '../services/institutionService';
+import { InstitutionSettingsModal } from './InstitutionSettingsModal';
 
 interface DashboardProps {
   students: Student[];
@@ -35,6 +39,7 @@ interface DashboardProps {
   onOpenSettings: () => void;
   onNavigateToReports?: () => void;
   onNavigateToSchools?: () => void;
+  onOpenInstitutionSettings?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -46,9 +51,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onViewStudent,
   onOpenSettings,
   onNavigateToReports,
-  onNavigateToSchools
+  onNavigateToSchools,
+  onOpenInstitutionSettings
 }) => {
   const t = translations[language];
+  const institution = useInstitution();
+  const [isLocalInstModalOpen, setIsLocalInstModalOpen] = useState(false);
 
   const total = students.length;
   const maleCount = students.filter(s => s.gender === 'Male').length;
@@ -148,94 +156,121 @@ export const Dashboard: React.FC<DashboardProps> = ({
     <div className="space-y-6 pb-12">
       
       {/* Welcome & Overview Header (Official Institution Header with School Logo) */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden border border-indigo-700/50">
+      <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden border border-indigo-700/50 space-y-6">
         
-        {/* Left Side: Official School Emblem & 3-Language Typography */}
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5 min-w-0">
-          
-          {/* Round Emblem Badge */}
-          <div className="relative group shrink-0">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white p-1.5 shadow-2xl ring-4 ring-amber-400/90 ring-offset-2 ring-offset-slate-950 overflow-hidden flex items-center justify-center transition-all duration-300 group-hover:scale-105 group-hover:ring-amber-300">
-              <img
-                src="/logo.jpg"
-                alt="Logo សាលារៀនចិនលិស៊ីងអន្តរជាតិ"
-                className="w-full h-full object-contain rounded-full"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            </div>
-            <span className="absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md border border-amber-200">
-              LSIS
-            </span>
-          </div>
-
-          {/* School Name Hierarchy in 3 Official Languages */}
-          <div className="space-y-1 min-w-0">
-            {/* Institution Badge + Cloud Status */}
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[11px] font-bold border border-amber-400/30">
-                <Building2 className="w-3.5 h-3.5 text-amber-300" />
-                <span>{language === 'km' ? 'គ្រឹះស្ថានអប់រំផ្លូវការ' : 'Official Educational Institution'}</span>
-              </span>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 text-[11px] font-medium border border-indigo-400/20">
-                <span className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                <span>Google Sheets Cloud Database</span>
+        {/* Tier 1: Official School Emblem & 3-Language Typography (Always full width, never squeezed) */}
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+            
+            {/* Round Emblem Badge with Quick Edit Overlay */}
+            <div 
+              onClick={() => onOpenInstitutionSettings ? onOpenInstitutionSettings() : setIsLocalInstModalOpen(true)}
+              className="relative group shrink-0 cursor-pointer"
+              title={language === 'km' ? 'ចុចទីនេះដើម្បី Upload Logo ឬកែប្រែព័ត៌មានសាលា' : 'Click to upload logo or edit school info'}
+            >
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white p-1.5 shadow-2xl ring-4 ring-amber-400/90 ring-offset-2 ring-offset-slate-950 overflow-hidden flex items-center justify-center transition-all duration-300 group-hover:scale-105 group-hover:ring-amber-300 relative">
+                <img
+                  src={institution.logoUrl || '/logo.jpg'}
+                  alt={institution.nameKm}
+                  className="w-full h-full object-contain rounded-full"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/logo.jpg';
+                  }}
+                />
+                <div className="absolute inset-0 bg-slate-950/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-2xs">
+                  <Edit3 className="w-5 h-5 text-amber-300" />
+                </div>
               </div>
+              <span className="absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-md border border-amber-200">
+                {institution.shortName || 'LSIS'}
+              </span>
             </div>
 
-            {/* 1. Khmer Name (Primary, dignified, bold) */}
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight font-battambang leading-snug drop-shadow-sm">
-              សាលារៀនចិនលិស៊ីងអន្តរជាតិ
-            </h1>
+            {/* School Name Hierarchy in 3 Official Languages */}
+            <div className="space-y-1.5 min-w-0">
+              {/* Institution Badge + Cloud Status */}
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-[11px] sm:text-xs font-bold border border-amber-400/30 whitespace-nowrap shrink-0">
+                  <Building2 className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  <span>{institution.taglineKm || (language === 'km' ? 'គ្រឹះស្ថានអប់រំផ្លូវការ' : 'Official Educational Institution')}</span>
+                </span>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/30 text-indigo-200 text-[11px] sm:text-xs font-medium border border-indigo-400/20 whitespace-nowrap shrink-0">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${connectionStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                  <span>Google Sheets Cloud Database</span>
+                </div>
+              </div>
 
-            {/* 2. Traditional Chinese Name */}
-            <div className="text-base sm:text-lg font-bold text-amber-300 font-kai tracking-widest drop-shadow-xs">
-              日興國際學校
-            </div>
+              {/* 1. Khmer Name (Primary, dignified, bold) */}
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-normal font-battambang leading-snug drop-shadow-sm whitespace-normal">
+                {institution.nameKm || 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ'}
+              </h1>
 
-            {/* 3. English Name */}
-            <div className="text-xs sm:text-sm font-bold text-indigo-200 tracking-wider uppercase font-sans">
-              LISING INTERNATIONAL CHINESE SCHOOL
+              {/* 2. Traditional Chinese Name */}
+              <div className="text-base sm:text-lg lg:text-xl font-bold text-amber-300 font-kai tracking-widest drop-shadow-xs">
+                {institution.nameZh || '日興國際學校'}
+              </div>
+
+              {/* 3. English Name */}
+              <div className="text-xs sm:text-sm font-bold text-indigo-200 tracking-wider uppercase font-sans">
+                {institution.nameEn || 'LISING INTERNATIONAL CHINESE SCHOOL'}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right Side: Action Buttons */}
-        <div className="relative z-10 flex flex-wrap items-center gap-2.5 sm:gap-3 shrink-0">
-          {onNavigateToSchools && (
+        {/* Tier 2: Action Buttons Shelf (Clean horizontal action row) */}
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-white/10">
+          {/* Left Side: Management & Settings */}
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            {/* Setting Button for School Logo & 3-Language Names */}
             <button
-              onClick={onNavigateToSchools}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-purple-600/90 hover:bg-purple-600 text-white font-bold text-xs sm:text-sm border border-purple-400/40 backdrop-blur transition-all shadow-md shadow-purple-500/20 cursor-pointer"
-              title="គ្រប់គ្រងសាលារៀន & Profile Logo"
+              onClick={() => onOpenInstitutionSettings ? onOpenInstitutionSettings() : setIsLocalInstModalOpen(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm border border-amber-300 shadow-md shadow-amber-500/20 cursor-pointer whitespace-nowrap transition-all active:scale-95"
+              title={language === 'km' ? 'កែប្រែព័ត៌មាន និង Upload Logo សាលារៀនចិនលិស៊ីងអន្តរជាតិ' : 'Customize institution logo & 3-language names'}
             >
-              <Building2 className="w-4 h-4 text-purple-200" />
-              <span>{language === 'km' ? 'គ្រប់គ្រងសាលា & Logo' : language === 'zh-TW' ? '學校與校徽管理' : 'Schools & Logo'}</span>
+              <Settings className="w-4 h-4 text-slate-950 shrink-0" />
+              <span>{language === 'km' ? 'Setting ស្ថាប័ន & Logo' : language === 'zh-TW' ? '校徽與校名設定' : 'Institution & Logo'}</span>
             </button>
-          )}
-          {onNavigateToReports && (
+
+            {onNavigateToSchools && (
+              <button
+                onClick={onNavigateToSchools}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm border border-purple-400/40 backdrop-blur transition-all shadow-md shadow-purple-500/20 cursor-pointer whitespace-nowrap"
+                title="គ្រប់គ្រងសាលារៀន & Profile Logo"
+              >
+                <Building2 className="w-4 h-4 text-purple-200 shrink-0" />
+                <span>{language === 'km' ? 'គ្រប់គ្រងសាលា & Logo' : language === 'zh-TW' ? '學校與校徽管理' : 'Schools & Logo'}</span>
+              </button>
+            )}
+
+            {onNavigateToReports && (
+              <button
+                onClick={onNavigateToReports}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 text-white font-semibold text-xs sm:text-sm border border-indigo-400/30 backdrop-blur transition-all shadow-sm hover:shadow-indigo-500/20 whitespace-nowrap"
+              >
+                <FileText className="w-4 h-4 shrink-0" />
+                <span>{t.studentReport}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Right Side: Primary Actions */}
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             <button
-              onClick={onNavigateToReports}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 text-white font-semibold text-xs sm:text-sm border border-indigo-400/30 backdrop-blur transition-all shadow-sm hover:shadow-indigo-500/20"
+              onClick={onAddStudent}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-950 hover:bg-indigo-50 font-bold text-xs sm:text-sm shadow-lg transition-all active:scale-95 whitespace-nowrap"
             >
-              <FileText className="w-4 h-4" />
-              <span>{t.studentReport}</span>
+              <Plus className="w-4 h-4 text-indigo-700 shrink-0" />
+              <span>{t.addStudent}</span>
             </button>
-          )}
-          <button
-            onClick={onAddStudent}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-950 hover:bg-indigo-50 font-bold text-xs sm:text-sm shadow-lg transition-all active:scale-95"
-          >
-            <Plus className="w-4 h-4 text-indigo-700" />
-            <span>{t.addStudent}</span>
-          </button>
-          <button
-            onClick={onOpenSettings}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs sm:text-sm border border-white/20 backdrop-blur transition-all"
-          >
-            <ExternalLink className="w-4 h-4" />
-            <span>{t.setupScript}</span>
-          </button>
+            <button
+              onClick={onOpenSettings}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs sm:text-sm border border-white/20 backdrop-blur transition-all whitespace-nowrap"
+            >
+              <ExternalLink className="w-4 h-4 shrink-0" />
+              <span>{t.setupScript}</span>
+            </button>
+          </div>
         </div>
 
         {/* Decorative lighting aura */}
@@ -766,6 +801,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
         )}
       </div>
 
+      {/* Institution Profile & Logo Settings Modal */}
+      <InstitutionSettingsModal
+        isOpen={isLocalInstModalOpen}
+        onClose={() => setIsLocalInstModalOpen(false)}
+        language={language}
+      />
     </div>
   );
 };

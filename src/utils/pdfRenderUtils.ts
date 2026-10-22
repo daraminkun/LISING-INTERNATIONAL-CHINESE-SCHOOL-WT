@@ -10,6 +10,7 @@ import { Student, Language } from '../types';
 import { areAllRequiredDocumentsUploaded } from './documentUtils';
 import { calculateAge, formatDobOnly } from './ageUtils';
 import { getSchoolTranslation, getMajorTranslation } from './schoolMajorTranslations';
+import { institutionService } from '../services/institutionService';
 
 /**
  * Generate standalone, self-contained HTML for an official printable report
@@ -22,6 +23,11 @@ export function generateReportHtml(
 ): string {
   const isZh = language === 'zh-TW';
   const isEn = language === 'en';
+  const inst = institutionService.getSettings();
+  const schoolLogo = inst.logoUrl || '/logo.jpg';
+  const schoolNameKm = inst.nameKm || 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ';
+  const schoolNameZh = inst.nameZh || '日興國際學校';
+  const schoolNameEn = inst.nameEn || 'LISING INTERNATIONAL CHINESE SCHOOL';
 
   const rowsHtml = students.map((s, idx) => {
     const docVal = areAllRequiredDocumentsUploaded(s.documents);
@@ -241,11 +247,11 @@ export function generateReportHtml(
 
     <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0;">
       <div style="display: flex; align-items: center; gap: 10px; text-align: left;">
-        <img src="/logo.jpg" style="width: 46px; height: 46px; border-radius: 50%; border: 1.5px solid #4f46e5; object-fit: contain;" />
+        <img src="${schoolLogo}" style="width: 46px; height: 46px; border-radius: 50%; border: 1.5px solid #4f46e5; object-fit: contain;" />
         <div>
-          <div style="font-family: 'Battambang', sans-serif; font-size: 13px; font-weight: bold; color: #1e1b4b; line-height: 1.2;">សាលារៀនចិនលិស៊ីងអន្តរជាតិ</div>
-          <div style="font-size: 11px; font-weight: bold; color: #4338ca; font-family: 'Noto Serif TC', serif; margin-top: 1px;">日興國際學校</div>
-          <div style="font-size: 9px; font-weight: bold; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase;">LISING INTERNATIONAL CHINESE SCHOOL</div>
+          <div style="font-family: 'Battambang', sans-serif; font-size: 13px; font-weight: bold; color: #1e1b4b; line-height: 1.2;">${schoolNameKm}</div>
+          <div style="font-size: 11px; font-weight: bold; color: #4338ca; font-family: 'Noto Serif TC', serif; margin-top: 1px;">${schoolNameZh}</div>
+          <div style="font-size: 9px; font-weight: bold; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase;">${schoolNameEn}</div>
         </div>
       </div>
       <div style="text-align: right; font-size: 10px; color: #475569;">

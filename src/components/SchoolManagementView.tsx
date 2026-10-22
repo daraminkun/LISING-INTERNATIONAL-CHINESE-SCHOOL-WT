@@ -13,13 +13,17 @@ import {
   AlertCircle,
   HelpCircle,
   Clock,
-  Sparkles
+  Sparkles,
+  Settings
 } from 'lucide-react';
 import { schoolMajorService } from '../services/schoolMajorService';
 import { SchoolMajorEntry } from '../constants/studentOptions';
 import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
 import { SchoolMajorManageModal, ManageActionType } from './SchoolMajorManageModal';
 import { Language } from '../types';
+import { useInstitution } from '../services/institutionService';
+import { InstitutionSettingsModal } from './InstitutionSettingsModal';
+import { dbStorage } from '../services/dbStorage';
 
 interface SchoolManagementViewProps {
   language: Language;
@@ -34,6 +38,8 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
   webAppUrl,
   onSyncSchools,
 }) => {
+  const institution = useInstitution();
+  const [isInstitutionModalOpen, setIsInstitutionModalOpen] = useState(false);
   const [schools, setSchools] = useState<SchoolMajorEntry[]>(() => schoolMajorService.getSchools());
   const [search, setSearch] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -63,15 +69,18 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 3 * 1024 * 1024) {
-      alert(language === 'km' ? 'ទំហំរូបភាពមិនត្រូវលើសពី 3MB ឡើយ' : 'Image size cannot exceed 3MB');
+    if (file.size > 5 * 1024 * 1024) {
+      alert(language === 'km' ? 'ទំហំរូបភាពមិនត្រូវលើសពី 5MB ឡើយ' : 'Image size cannot exceed 5MB');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result === 'string') {
         const logoDataUrl = reader.result;
+        // Permanently persist logo in IndexedDB
+        await dbStorage.saveSchoolLogo(schoolName, logoDataUrl);
+
         const currentList = schoolMajorService.getSchools();
         const schoolObj = currentList.find(s => s.school === schoolName);
         if (schoolObj) {
@@ -90,7 +99,7 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
             }
           );
           setSchools(schoolMajorService.getSchools());
-          setSyncNotice(language === 'km' ? 'បាន Upload Profile Logo សាលាដោយជោគជ័យ' : 'School logo uploaded successfully');
+          setSyncNotice(language === 'km' ? 'បាន Upload Profile Logo សាលាដោយជោគជ័យ និងរក្សាទុកក្នុង IndexedDB' : 'School logo uploaded & saved permanently');
           setTimeout(() => setSyncNotice(null), 3500);
         }
       }
@@ -99,7 +108,8 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
   };
 
   // Remove logo from a specific school
-  const handleRemoveLogo = (schoolName: string) => {
+  const handleRemoveLogo = async (schoolName: string) => {
+    await dbStorage.deleteSchoolLogo(schoolName);
     const currentList = schoolMajorService.getSchools();
     const schoolObj = currentList.find(s => s.school === schoolName);
     if (schoolObj) {
@@ -253,11 +263,59 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
         </div>
       </div>
 
+      {/* Official Host Institution Card: Lising International Chinese School (សាលារៀនចិនលិស៊ីងអន្តរជាតិ) */}
+      <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 rounded-2xl p-5 sm:p-6 text-white border border-indigo-700/60 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div className="flex items-center gap-4 sm:gap-5 min-w-0">
+          <div className="relative group shrink-0">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white p-1.5 shadow-xl ring-4 ring-amber-400 overflow-hidden flex items-center justify-center">
+              <img
+                src={institution.logoUrl || '/logo.jpg'}
+                alt={institution.nameKm}
+                className="w-full h-full object-contain rounded-full"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/logo.jpg';
+                }}
+              />
+            </div>
+            <span className="absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-950 shadow-xs">
+              {institution.shortName || 'LSIS'}
+            </span>
+          </div>
+
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-bold border border-amber-400/30">
+                <Sparkles className="w-3 h-3" />
+                <span>{language === 'km' ? 'ស្ថាប័នមេ / Host Institution' : 'Host Institution'}</span>
+              </span>
+            </div>
+            <h2 className="text-base sm:text-xl font-black text-white font-battambang leading-tight truncate">
+              {institution.nameKm || 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ'}
+            </h2>
+            <div className="text-xs sm:text-sm font-bold text-amber-300 font-kai">
+              {institution.nameZh || '日興國際學校'}
+            </div>
+            <div className="text-[10px] sm:text-xs font-semibold text-indigo-200 uppercase tracking-wide">
+              {institution.nameEn || 'LISING INTERNATIONAL CHINESE SCHOOL'}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsInstitutionModalOpen(true)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm border border-amber-300 shadow-md shadow-amber-500/20 cursor-pointer whitespace-nowrap transition-all active:scale-95 shrink-0"
+        >
+          <Settings className="w-4 h-4 text-slate-950" />
+          <span>{language === 'km' ? 'កែប្រែស្ថាប័ន & Upload Logo' : language === 'zh-TW' ? '管理校名與上傳校徽' : 'Edit Institution & Logo'}</span>
+        </button>
+      </div>
+
       {/* Schools Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredSchools.map((item, idx) => {
           const trans = getSchoolTranslation(item.school);
-          const logo = item.logoUrl || trans?.logoUrl;
+          const logo = item.logoUrl || trans?.logoUrl || dbStorage.getCachedSchoolLogo(item.school);
 
           return (
             <div
@@ -472,6 +530,17 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
           setSchools(schoolMajorService.getSchools());
           setSyncNotice(language === 'km' ? 'រក្សាទុកទិន្នន័យសាលាជោគជ័យ' : 'Saved successfully');
           setTimeout(() => setSyncNotice(null), 3000);
+        }}
+      />
+
+      {/* Institution Profile & Logo Settings Modal */}
+      <InstitutionSettingsModal
+        isOpen={isInstitutionModalOpen}
+        onClose={() => setIsInstitutionModalOpen(false)}
+        language={language}
+        onSuccess={(msg) => {
+          setSyncNotice(msg);
+          setTimeout(() => setSyncNotice(null), 3500);
         }}
       />
     </div>

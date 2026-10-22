@@ -48,6 +48,7 @@ import { authService } from '../services/authService';
 import { schoolMajorService } from '../services/schoolMajorService';
 import { AdminPinModal } from './AdminPinModal';
 import { downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
+import { dbStorage } from '../services/dbStorage';
 
 interface StudentModalProps {
   isOpen: boolean;
@@ -324,8 +325,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
         setPreviousSchoolAddressKhmer(studentToEdit.previousSchoolAddressKhmer || '');
         setTargetSchool(studentToEdit.targetSchool || '');
         setMajor(studentToEdit.major || '');
-        setNotes(studentToEdit.notes || '');
-        setDocuments(studentToEdit.documents || {});
+        const storedDocs = studentToEdit.studentId ? dbStorage.getCachedDocuments(studentToEdit.studentId) : null;
+        setDocuments((storedDocs && Object.keys(storedDocs).length > 0) ? storedDocs : (studentToEdit.documents || {}));
       } else {
         // Reset form for new student
         setNameKhmer('');

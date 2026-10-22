@@ -36,6 +36,7 @@ import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
 import { TranslationTooltip } from './TranslationTooltip';
 import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
 import { downloadDocumentWithStandardName, downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
+import { dbStorage } from '../services/dbStorage';
 
 interface StudentDetailModalProps {
   student: Student | null;
@@ -83,7 +84,8 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
       })
     : '-';
 
-  const docs = student.documents || {};
+  const storedDocs = student?.studentId ? dbStorage.getCachedDocuments(student.studentId) : null;
+  const docs = (storedDocs && Object.keys(storedDocs).length > 0) ? storedDocs : (student.documents || {});
   const docList = [
     { key: 'idCard' as const, label: t.docIdCard, doc: docs.idCard, required: true },
     { key: 'birthCert' as const, label: t.docBirthCert, doc: docs.birthCert, required: true },

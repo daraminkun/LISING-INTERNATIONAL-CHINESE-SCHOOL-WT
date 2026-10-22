@@ -7,6 +7,7 @@
 import { Student, UploadedDocument, StudentDocuments } from '../types';
 import { getDocPages } from './documentUtils';
 import { formatDobOnly } from './ageUtils';
+import { dbStorage } from '../services/dbStorage';
 
 export const CATEGORY_NAMES: Record<string, { km: string; en: string; short: string }> = {
   idCard: { km: 'អត្តសញ្ញាបណ្ណ', en: 'National_ID_Card', short: 'ID_Card' },
@@ -69,7 +70,20 @@ export function downloadDocumentWithStandardName(
   categoryKey: string,
   pageIndex: number = 0
 ): void {
-  if (!doc.dataUrl) return;
+  let resolvedUrl = doc.dataUrl;
+
+  // If dataUrl was stripped or placeholder, pull from dbStorage
+  if ((!resolvedUrl || resolvedUrl === 'STORED_IN_INDEXEDDB') && student?.studentId) {
+    const fromDb = dbStorage.getCachedDocuments(student.studentId);
+    if (fromDb && (fromDb as any)[categoryKey]) {
+      const pages = getDocPages((fromDb as any)[categoryKey]);
+      if (pages[pageIndex]?.dataUrl) {
+        resolvedUrl = pages[pageIndex].dataUrl;
+      }
+    }
+  }
+
+  if (!resolvedUrl || resolvedUrl === 'STORED_IN_INDEXEDDB') return;
 
   const fileName = generateStandardDocFilename(
     student,
@@ -80,7 +94,7 @@ export function downloadDocumentWithStandardName(
   );
 
   const a = document.createElement('a');
-  a.href = doc.dataUrl;
+  a.href = resolvedUrl;
   a.download = fileName;
   document.body.appendChild(a);
   a.click();
@@ -92,7 +106,15 @@ export function downloadDocumentWithStandardName(
  * along with a student profile summary manifest.
  */
 export async function downloadAllDocumentsForStudent(student: Student): Promise<{ count: number }> {
-  const docs = student.documents || {};
+  // Always retrieve the latest full documents from IndexedDB
+  let docs = student.documents || {};
+  if (student.studentId) {
+    const fromDb = await dbStorage.getStudentDocuments(student.studentId) || dbStorage.getCachedDocuments(student.studentId);
+    if (fromDb && Object.keys(fromDb).length > 0) {
+      docs = fromDb;
+    }
+  }
+
   const categories: (keyof StudentDocuments)[] = [
     'idCard',
     'birthCert',

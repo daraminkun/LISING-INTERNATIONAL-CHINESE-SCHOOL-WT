@@ -16,6 +16,8 @@ import { UserManagement } from './components/UserManagement';
 import { SchoolManagementView } from './components/SchoolManagementView';
 import { LoginModal, LoginScreen } from './components/LoginModal';
 import { StudentPortalView } from './components/StudentPortalView';
+import { InstitutionSettingsModal } from './components/InstitutionSettingsModal';
+import { dbStorage } from './services/dbStorage';
 import { authService, UserAccount } from './services/authService';
 import { 
   Student, 
@@ -197,9 +199,10 @@ export default function App() {
           const prevMap = new Map(prev.map(p => [p.studentId, p]));
           const merged = resequenced.map(s => {
             const existing = prevMap.get(s.studentId);
+            const dbDocs = dbStorage.getCachedDocuments(s.studentId);
             return {
               ...s,
-              documents: s.documents || existing?.documents,
+              documents: existing?.documents || dbDocs || s.documents,
             };
           });
           return merged;
@@ -371,9 +374,71 @@ export default function App() {
     }
   }, [fetchAllFromSheets]);
 
-  // Persist students to localStorage (strictly without resurrecting deleted schools!)
+  // Hydrate students' documents from IndexedDB once dbStorage is ready
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
+    dbStorage.whenReady().then(() => {
+      setStudents(prev => {
+        let changed = false;
+        const hydrated = prev.map(s => {
+          const storedDocs = dbStorage.getCachedDocuments(s.studentId);
+          if (storedDocs && (!s.documents || JSON.stringify(s.documents).includes('STORED_IN_INDEXEDDB'))) {
+            changed = true;
+            return {
+              ...s,
+              documents: storedDocs,
+            };
+          }
+          return s;
+        });
+        return changed ? hydrated : prev;
+      });
+    });
+  }, []);
+
+  // Persist students to IndexedDB (full heavy attachments) and safe localStorage
+  useEffect(() => {
+    // 1. Permanently store all document attachments in IndexedDB
+    students.forEach(s => {
+      if (s.documents && Object.keys(s.documents).length > 0) {
+        dbStorage.saveStudentDocuments(s.studentId, s.documents);
+      }
+    });
+
+    // 2. Safe save to localStorage without hitting 5MB quota
+    try {
+      localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
+    } catch (quotaErr) {
+      console.warn('LocalStorage quota limit reached, saving lightweight student manifest with full IndexedDB storage backup:', quotaErr);
+      try {
+        const lightweight = students.map(s => {
+          if (!s.documents) return s;
+          const lightDocs: any = {};
+          Object.entries(s.documents).forEach(([cat, docPages]) => {
+            if (Array.isArray(docPages)) {
+              lightDocs[cat] = docPages.map(p => ({
+                name: p.name,
+                size: p.size,
+                type: p.type,
+                uploadedAt: p.uploadedAt,
+                dataUrl: 'STORED_IN_INDEXEDDB',
+              }));
+            } else if (docPages && typeof docPages === 'object') {
+              lightDocs[cat] = {
+                name: (docPages as any).name,
+                size: (docPages as any).size,
+                type: (docPages as any).type,
+                uploadedAt: (docPages as any).uploadedAt,
+                dataUrl: 'STORED_IN_INDEXEDDB',
+              };
+            }
+          });
+          return { ...s, documents: lightDocs };
+        });
+        localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(lightweight));
+      } catch (e2) {
+        console.error('Critical localStorage write notice:', e2);
+      }
+    }
   }, [students]);
 
   // Persist config to localStorage
@@ -449,6 +514,11 @@ export default function App() {
       schoolMajorService.ensureSchoolAndMajor(studentData.targetSchool, studentData.major);
     }
 
+    // Persist full documents in IndexedDB permanently
+    if (studentData.documents && Object.keys(studentData.documents).length > 0) {
+      await dbStorage.saveStudentDocuments(studentData.studentId, studentData.documents);
+    }
+
     if (isEdit) {
       // Update in local state
       setStudents(prev =>
@@ -519,6 +589,9 @@ export default function App() {
       // 1. Calculate remaining and resequence synchronously from current state
       const remaining = students.filter(s => s.studentId !== targetId);
       const finalResequenced = resequenceStudentsList(remaining);
+
+      // Delete documents from IndexedDB
+      await dbStorage.deleteStudentDocuments(targetId);
 
       // Immediately update local state
       setStudents(finalResequenced);

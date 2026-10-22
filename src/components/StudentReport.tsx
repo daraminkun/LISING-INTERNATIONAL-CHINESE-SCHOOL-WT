@@ -35,6 +35,7 @@ import { PrintReportModal } from './PrintReportModal';
 import { Loader2 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { SchoolMajorManageModal, ManageActionType } from './SchoolMajorManageModal';
+import { useInstitution } from '../services/institutionService';
 
 interface StudentReportProps {
   students: Student[];
@@ -50,6 +51,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
   isAdmin = authService.isAdmin(),
 }) => {
   const t = translations[language];
+  const institution = useInstitution();
 
   // Report filter state
   const [filters, setFilters] = useState<ReportFilterState>({
@@ -508,7 +510,14 @@ export const StudentReport: React.FC<StudentReportProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs print:hidden">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-white p-0.5 border-2 border-indigo-600 shadow-xs shrink-0 overflow-hidden hidden sm:flex items-center justify-center">
-            <img src="/logo.jpg" alt="Logo" className="w-full h-full object-contain rounded-full" />
+            <img 
+              src={institution.logoUrl || '/logo.jpg'} 
+              alt={institution.nameKm} 
+              className="w-full h-full object-contain rounded-full"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/logo.jpg';
+              }}
+            />
           </div>
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -516,7 +525,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
               <span>{t.studentReport}</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              សាលារៀនចិនលិស៊ីងអន្តរជាតិ (日興國際學校) • {t.reportSubtitle}
+              {institution.nameKm || 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ'} ({institution.nameZh || '日興國際學校'}) • {t.reportSubtitle}
             </p>
           </div>
         </div>

@@ -256,40 +256,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "University / College (Age ≤25)",
     levelKm: "កម្រិតសាកលវិទ្យាល័យ / មហាវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
-  // 18. 輔英科技大學
-  "台灣高雄市大寮區 輔英科技大學": {
-    zh: "台灣高雄市大寮區 輔英科技大學",
-    shortZh: "輔英科大",
-    en: "Fooyin University (Kaohsiung)",
-    km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យា ហ្វូយីន (ក្រុងកៅសុង)",
-    locationEn: "Kaohsiung City, Taiwan",
-    locationKm: "រាជធានីកៅសុង ប្រទេសតៃវ៉ាន់",
-    levelEn: "University / College (Age 26-27)",
-    levelKm: "កម្រិតសាកលវិទ្យាល័យ / មហាវិទ្យាល័យ (អាយុ ២៦-២៧ឆ្នាំ)",
-  },
-  // 19. 黎明技術學院
-  "台灣新北市泰山區 黎明技術學院": {
-    zh: "台灣新北市泰山區 黎明技術學院",
-    shortZh: "黎明學院",
-    en: "Lee-Ming Institute of Technology (New Taipei)",
-    km: "វិទ្យាស្ថានបច្ចេកវិទ្យា លីមីង (ក្រុងញូវតៃប៉ិ)",
-    locationEn: "New Taipei City, Taiwan",
-    locationKm: "ក្រុងញូវតៃប៉ិ ប្រទេសតៃវ៉ាន់",
-    levelEn: "College of Technology (Age 26-27)",
-    levelKm: "កម្រិតវិទ្យាស្ថានបច្ចេកវិទ្យា (អាយុ ២៦-២៧ឆ្នាំ)",
-  },
-  // 20. 聖母醫護管理專科學校
-  "宜蘭縣三星鄉三星路二段 聖母醫護管理專科學校": {
-    zh: "宜蘭縣三星鄉三星路二段 聖母醫護管理專科學校",
-    shortZh: "聖母專校",
-    en: "St. Mary's Junior College of Medicine and Nursing (Yilan)",
-    km: "មហាវិទ្យាល័យវេជ្ជសាស្ត្រ និងគិលានុបដ្ឋាក សាំងម៉ារី (ខេត្តយីឡាន)",
-    locationEn: "Yilan County, Taiwan",
-    locationKm: "ខេត្តយីឡាន ប្រទេសតៃវ៉ាន់",
-    levelEn: "Medical & Nursing College (Age 26-27)",
-    levelKm: "កម្រិតមហាវិទ្យាល័យវេជ្ជសាស្ត្រ & ថែទាំ (អាយុ ២៦-២៧ឆ្នាំ)",
-  },
-  // 21. 三信高級家事商業職業學校
+  // 18. 三信高級家事商業職業學校
   "高雄市私立 三信高級家事商業職業學校": {
     zh: "高雄市私立 三信高級家事商業職業學校",
     shortZh: "三信家商",
@@ -300,7 +267,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 22. 大同高級中學
+  // 19. 大同高級中學
   "臺北市私立 大同高級中學": {
     zh: "臺北市私立 大同高級中學",
     shortZh: "大同高中",
@@ -311,7 +278,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 23. 方曙商工高級中等學校
+  // 20. 方曙商工高級中等學校
   "桃園市私立 方曙商工高級中等學校": {
     zh: "桃園市私立 方曙商工高級中等學校",
     shortZh: "方曙商工",
@@ -322,7 +289,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 24. 永平工商高級中等學校
+  // 21. 永平工商高級中等學校
   "桃園市私立 永平工商高級中等學校": {
     zh: "桃園市私立 永平工商高級中等學校",
     shortZh: "永平工商",
@@ -333,7 +300,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 25. 志高級中學 / 立志中學
+  // 22. 志高級中學 / 立志中學
   "高雄市立 志高級中學": {
     zh: "高雄市立 志高級中學",
     shortZh: "立志中學",
@@ -344,17 +311,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  "高雄市立 立志高級中學": {
-    zh: "高雄市立 立志高級中學",
-    shortZh: "立志中學",
-    en: "Li-Chih Senior High School (Kaohsiung)",
-    km: "វិទ្យាល័យ លីជី (ក្រុងកៅសុង)",
-    locationEn: "Kaohsiung City, Taiwan",
-    locationKm: "រាជធានីកៅសុង ប្រទេសតៃវ៉ាន់",
-    levelEn: "Vocational High School (Age 16-22)",
-    levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
-  },
-  // 26. 仰德高級中學
+  // 23. 仰德高級中學
   "新竹縣私立 仰德高級中學": {
     zh: "新竹縣私立 仰德高級中學",
     shortZh: "仰德高中",
@@ -365,7 +322,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 27. 光啟高級中等學校
+  // 24. 光啟高級中等學校
   "桃園市私立 光啟高級中等學校": {
     zh: "桃園市私立 光啟高級中等學校",
     shortZh: "光啟高中",
@@ -376,7 +333,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 28. 光復高級中學
+  // 25. 光復高級中學
   "新竹市私立 光復高級中學": {
     zh: "新竹市私立 光復高級中學",
     shortZh: "光復高中",
@@ -387,7 +344,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 29. 育達高級中等學校
+  // 26. 育達高級中等學校
   "臺北市私立 育達高級中等學校": {
     zh: "臺北市私立 育達高級中等學校",
     shortZh: "育達高中",
@@ -398,7 +355,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 30. 育德工業家事職業學校
+  // 27. 育德工業家事職業學校
   "臺南市私立 育德工業家事職業學校": {
     zh: "臺南市私立 育德工業家事職業學校",
     shortZh: "育德工家",
@@ -409,7 +366,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 31. 致用高級中學
+  // 28. 致用高級中學
   "臺中市私立 致用高級中學": {
     zh: "臺中市私立 致用高級中學",
     shortZh: "致用高中",
@@ -420,7 +377,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 32. 啟英高級中等學校
+  // 29. 啟英高級中等學校
   "桃園市私立 啟英高級中等學校": {
     zh: "桃園市私立 啟英高級中等學校",
     shortZh: "啟英高中",
@@ -431,7 +388,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 33. 華德高級工業家事職業學校
+  // 30. 華德高級工業家事職業學校
   "高雄市私立 華德高級工業家事職業學校": {
     zh: "高雄市私立 華德高級工業家事職業學校",
     shortZh: "華德工家",
@@ -442,7 +399,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 34. 新光高級中學
+  // 31. 新光高級中學
   "高雄市 新光高級中學": {
     zh: "高雄市 新光高級中學",
     shortZh: "新光高中",
@@ -453,7 +410,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 35. 義峰高級中學
+  // 32. 義峰高級中學
   "雲林縣私立 義峰高級中學": {
     zh: "雲林縣私立 義峰高級中學",
     shortZh: "義峰高中",
@@ -464,7 +421,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 36. 稻江高級商業職業學校
+  // 33. 稻江高級商業職業學校
   "臺北市私立 稻江高級商業職業學校": {
     zh: "臺北市私立 稻江高級商業職業學校",
     shortZh: "稻江高商",
@@ -475,7 +432,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 37. 樹人高級家事商業職業學校
+  // 34. 樹人高級家事商業職業學校
   "新北市私立 樹人高級家事商業職業學校": {
     zh: "新北市私立 樹人高級家事商業職業學校",
     shortZh: "樹人家商",
@@ -486,7 +443,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 38. 樹德高級家事商業職業學校
+  // 35. 樹德高級家事商業職業學校
   "高雄市私立 樹德高級家事商業職業學校": {
     zh: "高雄市私立 樹德高級家事商業職業學校",
     shortZh: "樹德家商",
@@ -497,7 +454,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 39. 豫章高級工商職業學校
+  // 36. 豫章高級工商職業學校
   "新北市私立 豫章高級工商職業學校": {
     zh: "新北市私立 豫章高級工商職業學校",
     shortZh: "豫章工商",
@@ -508,7 +465,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 40. 中信科技大學
+  // 37. 中信科技大學
   "臺南市新市區中華路49號 中信金學校財團法人中信科技大學": {
     zh: "臺南市新市區中華路49號 中信金學校財團法人中信科技大學",
     shortZh: "中信科大",
@@ -529,7 +486,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "University (Age ≤25)",
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
-  // 41. 中華科技大學
+  // 38. 中華科技大學
   "臺北市南港區研究院路三段 245號 中華學校財團法人中華科技大學": {
     zh: "臺北市南港區研究院路三段 245號 中華學校財團法人中華科技大學",
     shortZh: "中華科大",
@@ -550,7 +507,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "University (Age ≤25)",
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
-  // 42. 中臺科技大學
+  // 39. 中臺科技大學
   "臺中市北屯區廍子路666號 中臺科技大學": {
     zh: "臺中市北屯區廍子路666號 中臺科技大學",
     shortZh: "中臺科大",
@@ -571,7 +528,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "University (Age ≤25)",
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
-  // 43. 元培醫事科技大學
+  // 40. 元培醫事科技大學
   "新竹市元培街306號 元培醫事科技大學": {
     zh: "新竹市元培街306號 元培醫事科技大學",
     shortZh: "元培醫事科大",
@@ -592,7 +549,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "University (Age ≤25)",
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
-  // 44. 台南應用科技大學
+  // 41. 台南應用科技大學
   "臺南市永康區中正路529號 台南應用科技大學": {
     zh: "臺南市永康區中正路529號 台南應用科技大學",
     shortZh: "台南應科大",
@@ -613,7 +570,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "University (Age ≤25)",
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
-  // 45. 台鋼科技大學
+  // 42. 台鋼科技大學
   "高雄市路竹區中山路1821號 台鋼學校財團法人台鋼科技大學": {
     zh: "高雄市路竹區中山路1821號 台鋼學校財團法人台鋼科技大學",
     shortZh: "台鋼科大",
@@ -634,7 +591,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "University (Age ≤25)",
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
-  // 46. 正修科技大學
+  // 43. 正修科技大學
   "高雄市鳥松區澄清路840號 正修科技大學": {
     zh: "高雄市鳥松區澄清路840號 正修科技大學",
     shortZh: "正修科大",
@@ -655,7 +612,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "University (Age ≤25)",
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
-  // 47. 吳鳳科技大學
+  // 44. 吳鳳科技大學
   "嘉義縣民雄鄉建國路二段117號 吳鳳科技大學": {
     zh: "嘉義縣民雄鄉建國路二段117號 吳鳳科技大學",
     shortZh: "吳鳳科大",
@@ -676,7 +633,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "University (Age ≤25)",
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
-  // 48. 宏國德霖科技大學
+  // 45. 宏國德霖科技大學
   "臺灣新北市土城區青雲路380巷1號 宏國德霖科技大學": {
     zh: "臺灣新北市土城區青雲路380巷1號 宏國德霖科技大學",
     shortZh: "德霖科大",
