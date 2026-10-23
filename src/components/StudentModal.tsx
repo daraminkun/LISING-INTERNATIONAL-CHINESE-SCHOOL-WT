@@ -58,6 +58,7 @@ interface StudentModalProps {
   existingStudentIds: string[];
   existingStudents?: Student[];
   language: Language;
+  initialSchool?: string;
 }
 
 export const StudentModal: React.FC<StudentModalProps> = ({
@@ -68,6 +69,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
   existingStudentIds,
   existingStudents = [],
   language,
+  initialSchool,
 }) => {
   const t = translations[language];
   const isEdit = !!studentToEdit;
@@ -357,7 +359,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
 
         setPreviousSchoolKhmer('');
         setPreviousSchoolAddressKhmer('');
-        setTargetSchool('');
+        setTargetSchool(initialSchool || '');
         setMajor('');
         setNotes('');
         setDocuments({});
@@ -366,7 +368,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
       setCurrentStep(1);
       setErrors({});
     }
-  }, [isOpen, studentToEdit]);
+  }, [isOpen, studentToEdit, initialSchool]);
 
   if (!isOpen) return null;
 

@@ -23,6 +23,7 @@ import {
 import { AppScriptConfig, ConnectionStatus, Language } from '../types';
 import { translations } from '../translations';
 import { GOOGLE_APPS_SCRIPT_TEMPLATE } from '../services/appsScriptService';
+import { formatNumberByLanguage } from '../utils/numberUtils';
 
 interface GoogleAppsScriptModalProps {
   isOpen: boolean;
@@ -569,29 +570,41 @@ export const GoogleAppsScriptModal: React.FC<GoogleAppsScriptModalProps> = ({
                   {/* Left: Step-by-step Instructions */}
                   <div className="space-y-3 text-xs text-slate-700">
                     <div className="flex items-start gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center shrink-0 mt-0.5">
-                        ១
+                      <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center shrink-0 mt-0.5 font-battambang">
+                        {formatNumberByLanguage(1, language)}
                       </div>
                       <p className="leading-relaxed">
-                        នៅលើកុំព្យូទ័រ សូមចុចបើក <strong>"ភ្ជាប់ Google Sheet"</strong> រួចចូលទៅកាន់ tab <strong>"📱 ភ្ជាប់ទូរស័ព្ទ (Mobile Sync)"</strong>។
+                        {language === 'km' 
+                          ? <>នៅលើកុំព្យូទ័រ សូមចុចបើក <strong>"ភ្ជាប់ Google Sheet"</strong> រួចចូលទៅកាន់ tab <strong>"📱 ភ្ជាប់ទូរស័ព្ទ (Mobile Sync)"</strong>។</>
+                          : language === 'zh-TW'
+                          ? <>在電腦端點選<strong>「連線 Google 試算表」</strong>，切換至<strong>「📱 手機同步 (Mobile Sync)」</strong>分頁。</>
+                          : <>On your computer, click <strong>"Connect Google Sheet"</strong> and go to the <strong>"📱 Mobile Sync"</strong> tab.</>}
                       </p>
                     </div>
 
                     <div className="flex items-start gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center shrink-0 mt-0.5">
-                        ២
+                      <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center shrink-0 mt-0.5 font-battambang">
+                        {formatNumberByLanguage(2, language)}
                       </div>
                       <p className="leading-relaxed">
-                        លើកទូរស័ព្ទដៃ បើកកាមេរ៉ា (Camera) ឬកម្មវិធីស្កេន QR <strong>ស្កេនរូប QR Code</strong> ដែលបង្ហាញនៅខាងស្ដាំនេះ។
+                        {language === 'km'
+                          ? <>លើកទូរស័ព្ទដៃ បើកកាមេរ៉ា (Camera) ឬកម្មវិធីស្កេន QR <strong>ស្កេនរូប QR Code</strong> ដែលបង្ហាញនៅខាងស្ដាំនេះ។</>
+                          : language === 'zh-TW'
+                          ? <>使用手機開啟相機或 QR 掃描工具，<strong>掃描右側的 QR 條碼</strong>。</>
+                          : <>Open your mobile camera or QR scanner and <strong>scan the QR code</strong> on the right.</>}
                       </p>
                     </div>
 
                     <div className="flex items-start gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center shrink-0 mt-0.5">
-                        ៣
+                      <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center shrink-0 mt-0.5 font-battambang">
+                        {formatNumberByLanguage(3, language)}
                       </div>
                       <p className="leading-relaxed">
-                        ចុចលើតំណភ្ជាប់ដែលបង្ហាញលើទូរស័ព្ទ នោះប្រព័ន្ធនឹងបើកកម្មវិធីលើទូរស័ព្ទ ហើយ <strong>Auto-Connect Google Sheet & Sync ទិន្នន័យស្វ័យប្រវត្តិ ១០០% ភ្លាមៗ</strong> ដោយមិនបាច់វាយ URL អ្វីទាំងអស់!
+                        {language === 'km'
+                          ? <>ចុចលើតំណភ្ជាប់ដែលបង្ហាញលើទូរស័ព្ទ នោះប្រព័ន្ធនឹងបើកកម្មវិធីលើទូរស័ព្ទ ហើយ <strong>Auto-Connect Google Sheet & Sync ទិន្នន័យស្វ័យប្រវត្តិ ១០០% ភ្លាមៗ</strong> ដោយមិនបាច់វាយ URL អ្វីទាំងអស់!</>
+                          : language === 'zh-TW'
+                          ? <>點選手機上出現的連結，系統即刻在手機端<strong>全自動連線並同步試算表資料</strong>，無需手動輸入任何網址！</>
+                          : <>Tap the link on your phone to open the portal and <strong>instantly auto-sync with Google Sheets</strong>!</>}
                       </p>
                     </div>
                   </div>

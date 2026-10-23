@@ -28,6 +28,7 @@ import { getMajorTranslation, getSchoolTranslation } from '../utils/schoolMajorT
 import { SchoolMajorAnalytics } from './SchoolMajorAnalytics';
 import { useInstitution } from '../services/institutionService';
 import { InstitutionSettingsModal } from './InstitutionSettingsModal';
+import { formatNumberByLanguage, formatPercentByLanguage } from '../utils/numberUtils';
 
 interface DashboardProps {
   students: Student[];
@@ -293,7 +294,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900">{total}</span>
+            <span className="text-3xl font-extrabold text-slate-900 font-battambang">
+              {formatNumberByLanguage(total, language)}
+            </span>
             <span className="text-xs text-slate-500 font-medium">{t.students}</span>
           </div>
           <div className="mt-2 text-xs text-indigo-600 flex items-center gap-1 font-medium">
@@ -311,9 +314,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900">{maleCount}</span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50">
-              {malePercent}%
+            <span className="text-3xl font-extrabold text-slate-900 font-battambang">
+              {formatNumberByLanguage(maleCount, language)}
+            </span>
+            <span className="text-xs text-slate-500 font-medium">{t.students}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/50 ml-auto">
+              {formatPercentByLanguage(malePercent, language)}
             </span>
           </div>
           <div className="mt-2 w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
@@ -333,9 +339,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900">{femaleCount}</span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/50">
-              {femalePercent}%
+            <span className="text-3xl font-extrabold text-slate-900 font-battambang">
+              {formatNumberByLanguage(femaleCount, language)}
+            </span>
+            <span className="text-xs text-slate-500 font-medium">{t.students}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/50 ml-auto">
+              {formatPercentByLanguage(femalePercent, language)}
             </span>
           </div>
           <div className="mt-2 w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
@@ -349,19 +358,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {/* Uploaded Documents Stats */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">{language === 'km' ? 'សិស្សមានឯកសារ' : 'Students with Docs'}</span>
+            <span className="text-xs font-medium text-slate-500">
+              {language === 'km' ? 'សិស្សមានឯកសារ' : language === 'zh-TW' ? '已備妥證件學生' : 'Students with Docs'}
+            </span>
             <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
               <FileCheck className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900">{studentsWithAnyDocs}</span>
+            <span className="text-3xl font-extrabold text-slate-900 font-battambang">
+              {formatNumberByLanguage(studentsWithAnyDocs, language)}
+            </span>
             <span className="text-xs text-slate-500 font-medium">
-              ({studentsWithAllDocs} {language === 'km' ? 'គ្រប់ ៦ ឯកសារចាំបាច់' : 'full 6/6 required'})
+              ({formatNumberByLanguage(studentsWithAllDocs, language)} {
+                language === 'km' 
+                  ? 'គ្រប់ ៦ ឯកសារចាំបាច់' 
+                  : language === 'zh-TW' 
+                  ? '已備齊 6 項必備文件' 
+                  : 'full 6/6 required'
+              })
             </span>
           </div>
           <div className="mt-2 text-xs text-slate-500 flex items-center gap-1 font-medium">
-            <span>{totalMajors} {t.majors}</span>
+            <span>
+              {formatNumberByLanguage(totalMajors, language)} {t.majors}
+            </span>
           </div>
         </div>
 
@@ -380,13 +401,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <h3 className="text-base font-bold text-slate-900 font-battambang">
                 {language === 'km' ? 'ក្រាហ្វិករបារស្ថិតិចំនួនសិស្ស (Bar Chart)' : 'Student Enrollment Bar Chart'}
               </h3>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                {activeBarList.length} {barChartMode === 'major' ? (language === 'km' ? 'ជំនាញ' : 'majors') : (language === 'km' ? 'សាលារៀន' : 'schools')}
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60 font-battambang">
+                {formatNumberByLanguage(activeBarList.length, language)} {barChartMode === 'major' ? (language === 'km' ? 'ជំនាញ' : language === 'zh-TW' ? '個專業' : 'majors') : (language === 'km' ? 'សាលារៀន' : language === 'zh-TW' ? '所學校' : 'schools')}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
               {language === 'km' 
                 ? 'បង្ហាញការប្រៀបធៀបចំនួនសិស្ស ភាគរយ និងសមាមាត្រភេទ (ប្រុស/ស្រី) យ៉ាងច្បាស់លាស់' 
+                : language === 'zh-TW'
+                ? '清晰視覺化各科系與學校人數、比例及性別分佈'
                 : 'Clear visual comparison of student enrollment, percentages, and gender breakdown'}
             </p>
           </div>
@@ -403,7 +426,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               }`}
             >
               <GraduationCap className="w-3.5 h-3.5" />
-              <span>{language === 'km' ? 'តាមជំនាញ' : 'By Major'}</span>
+              <span>{language === 'km' ? 'តាមជំនាញ' : language === 'zh-TW' ? '依科系專業' : 'By Major'}</span>
             </button>
             <button
               type="button"
@@ -415,7 +438,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               }`}
             >
               <Building2 className="w-3.5 h-3.5" />
-              <span>{language === 'km' ? 'តាមសាលា' : 'By School'}</span>
+              <span>{language === 'km' ? 'តាមសាលា' : language === 'zh-TW' ? '依選讀學校' : 'By School'}</span>
             </button>
           </div>
         </div>
@@ -448,8 +471,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <div className="flex items-center justify-between gap-3 text-xs mb-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       {/* Rank Badge */}
-                      <span className={`w-5 h-5 rounded-md flex items-center justify-center font-black text-[10px] shrink-0 border ${rankColor}`}>
-                        #{idx + 1}
+                      <span className={`w-5 h-5 rounded-md flex items-center justify-center font-black text-[10px] shrink-0 border ${rankColor} font-battambang`}>
+                        #{formatNumberByLanguage(idx + 1, language)}
                       </span>
                       {/* Name in Chinese and Khmer */}
                       <div className="min-w-0 truncate">
@@ -466,16 +489,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                     {/* Stats pill: Count & Percent */}
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md hidden sm:inline-flex items-center gap-1">
-                        <span className="text-blue-600 font-bold">👨 {item.male}</span>
+                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md hidden sm:inline-flex items-center gap-1 font-battambang">
+                        <span className="text-blue-600 font-bold">👨 {formatNumberByLanguage(item.male, language)}</span>
                         <span className="text-slate-300">·</span>
-                        <span className="text-rose-600 font-bold">👩 {item.female}</span>
+                        <span className="text-rose-600 font-bold">👩 {formatNumberByLanguage(item.female, language)}</span>
                       </span>
-                      <span className="font-black text-slate-900 text-xs sm:text-sm">
-                        {item.total} {language === 'km' ? 'នាក់' : 'students'}
+                      <span className="font-black text-slate-900 text-xs sm:text-sm font-battambang">
+                        {formatNumberByLanguage(item.total, language)} {t.students}
                       </span>
-                      <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md text-[11px] border border-indigo-200/60 min-w-[38px] text-center">
-                        {item.percentage}%
+                      <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md text-[11px] border border-indigo-200/60 min-w-[38px] text-center font-battambang">
+                        {formatPercentByLanguage(item.percentage, language)}
                       </span>
                     </div>
                   </div>
@@ -505,14 +528,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>
-                {language === 'km' ? 'ចំណាត់ថ្នាក់លេខ ១៖' : 'Top Enrolled:'}{' '}
-                <strong className="text-slate-800">{activeBarList[0]?.name}</strong> ({activeBarList[0]?.total} {language === 'km' ? 'នាក់' : 'students'})
+                {language === 'km' ? 'ចំណាត់ថ្នាក់លេខ ១៖' : language === 'zh-TW' ? '人數最高：' : 'Top Enrolled:'}{' '}
+                <strong className="text-slate-800">{activeBarList[0]?.name}</strong> ({formatNumberByLanguage(activeBarList[0]?.total, language)} {t.students})
               </span>
             </div>
             <div className="flex items-center gap-3">
               <span>
-                {language === 'km' ? 'មធ្យមភាគក្នុងមួយក្រុម៖' : 'Average per category:'}{' '}
-                <strong className="text-indigo-700">{Math.round(total / activeBarList.length)} នាក់</strong>
+                {language === 'km' ? 'មធ្យមភាគក្នុងមួយក្រុម៖' : language === 'zh-TW' ? '各類別平均人數：' : 'Average per category:'}{' '}
+                <strong className="text-indigo-700 font-battambang">
+                  {formatNumberByLanguage(Math.round(total / activeBarList.length), language)} {t.students}
+                </strong>
               </span>
             </div>
           </div>
@@ -536,8 +561,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <h3 className="font-bold text-slate-900 text-sm sm:text-base">
                 {t.genderDistribution}
               </h3>
-              <span className="text-xs text-slate-400 font-medium">
-                {total} {t.students}
+              <span className="text-xs text-slate-400 font-medium font-battambang">
+                {formatNumberByLanguage(total, language)} {t.students}
               </span>
             </div>
 
@@ -569,8 +594,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <div className="w-3 h-3 rounded-full bg-blue-600" />
                   <span className="text-xs font-semibold text-slate-800">{t.male}</span>
                 </div>
-                <div className="text-xs font-bold text-slate-900">
-                  {maleCount} <span className="text-slate-500 font-normal">({malePercent}%)</span>
+                <div className="text-xs font-bold text-slate-900 font-battambang">
+                  {formatNumberByLanguage(maleCount, language)} <span className="text-slate-500 font-normal">({formatPercentByLanguage(malePercent, language)})</span>
                 </div>
               </div>
 
@@ -579,8 +604,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <div className="w-3 h-3 rounded-full bg-rose-500" />
                   <span className="text-xs font-semibold text-slate-800">{t.female}</span>
                 </div>
-                <div className="text-xs font-bold text-slate-900">
-                  {femaleCount} <span className="text-slate-500 font-normal">({femalePercent}%)</span>
+                <div className="text-xs font-bold text-slate-900 font-battambang">
+                  {formatNumberByLanguage(femaleCount, language)} <span className="text-slate-500 font-normal">({formatPercentByLanguage(femalePercent, language)})</span>
                 </div>
               </div>
 
@@ -590,8 +615,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <div className="w-3 h-3 rounded-full bg-amber-500" />
                     <span className="text-xs font-semibold text-slate-800">{t.other}</span>
                   </div>
-                  <div className="text-xs font-bold text-slate-900">
-                    {otherCount} <span className="text-slate-500 font-normal">({otherPercent}%)</span>
+                  <div className="text-xs font-bold text-slate-900 font-battambang">
+                    {formatNumberByLanguage(otherCount, language)} <span className="text-slate-500 font-normal">({formatPercentByLanguage(otherPercent, language)})</span>
                   </div>
                 </div>
               )}
@@ -612,10 +637,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-                  {language === 'km' ? 'ការបែងចែកតាមជំនាញដែលជ្រើសរើស' : 'Distribution by Chosen Major'}
+                  {language === 'km' ? 'ការបែងចែកតាមជំនាញដែលជ្រើសរើស' : language === 'zh-TW' ? '各專業科系選讀分佈' : 'Distribution by Chosen Major'}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {language === 'km' ? 'ស្ថិតិចំនួនសិស្សតាមជំនាញនីមួយៗ' : 'Student enrollment counts across academic majors'}
+                  {language === 'km' ? 'ស្ថិតិចំនួនសិស្សតាមជំនាញនីមួយៗ' : language === 'zh-TW' ? '各專業科系學生人數統計' : 'Student enrollment counts across academic majors'}
                 </p>
               </div>
               <button
@@ -658,12 +683,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               </span>
                             );
                           })()}
-                          <span className="text-slate-400 font-normal">
-                            ({count} {t.students})
+                          <span className="text-slate-400 font-normal font-battambang">
+                            ({formatNumberByLanguage(count, language)} {t.students})
                           </span>
                         </div>
-                        <span className="font-semibold text-indigo-600">
-                          {percentage}%
+                        <span className="font-semibold text-indigo-600 font-battambang">
+                          {formatPercentByLanguage(percentage, language)}
                         </span>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -679,9 +704,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>{t.majors}: <strong className="text-slate-800">{totalMajors}</strong></span>
-            <span>{language === 'km' ? 'សិស្សសរុប' : 'Total Students'}: <strong className="text-slate-800">{total}</strong></span>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-battambang">
+            <span>{t.majors}: <strong className="text-slate-800">{formatNumberByLanguage(totalMajors, language)}</strong></span>
+            <span>{t.totalStudents}: <strong className="text-slate-800">{formatNumberByLanguage(total, language)}</strong></span>
           </div>
         </div>
 
@@ -695,7 +720,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
               {t.recentStudents}
             </h3>
             <p className="text-xs text-slate-500">
-              {language === 'km' ? 'អត់ទាន់ មានសិស្សចុះឈ្មោះទេ' : 'No students registered yet'}
+              {language === 'km' 
+                ? 'បញ្ជីឈ្មោះសិស្សដែលទើបតែបានចុះឈ្មោះចុងក្រោយ' 
+                : language === 'zh-TW' 
+                ? '最近登記的學生名單' 
+                : 'Recently registered student records'}
             </p>
           </div>
           <button
@@ -741,8 +770,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             ({student.nameLatin})
                           </span>
                         )}
-                        <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                          #{student.studentId}
+                        <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60 font-battambang">
+                          #{formatNumberByLanguage(student.studentId, language)}
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-0.5">
@@ -771,7 +800,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             : 'text-amber-700 bg-amber-50 border-amber-200'
                         }`}>
                           <FileText className="w-3 h-3" />
-                          <span>{val.completedCount}/{val.totalRequired}* {language === 'km' ? 'ឯកសារ' : 'docs'}</span>
+                          <span className="font-battambang">
+                            {formatNumberByLanguage(val.completedCount, language)}/{formatNumberByLanguage(val.totalRequired, language)}* {language === 'km' ? 'ឯកសារ' : language === 'zh-TW' ? '份必備文件' : 'docs'}
+                          </span>
                         </span>
                       </div>
                     </div>

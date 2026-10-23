@@ -66,43 +66,75 @@ class AuthService {
    */
   public setUsersFromRemote(remoteUsers: UserAccount[]): void {
     if (!Array.isArray(remoteUsers) || remoteUsers.length === 0) return;
-    this.users = remoteUsers;
-    this.persistUsers(true);
+    
+    // Deduplicate by username case-insensitively
+    const uniqueMap = new Map<string, UserAccount>();
+    for (const u of remoteUsers) {
+      if (!u || !u.username) continue;
+      const key = u.username.trim().toLowerCase();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, u);
+      }
+    }
+
+    // Ensure Hdara (Admin) exists
+    if (!uniqueMap.has('hdara')) {
+      uniqueMap.set('hdara', DEFAULT_USERS[0]);
+    }
+
+    // Ensure lising (User / Student) exists
+    if (!uniqueMap.has('lising') && !uniqueMap.has('student')) {
+      uniqueMap.set('lising', DEFAULT_USERS[1]);
+    }
+
+    const cleanUsers = Array.from(uniqueMap.values());
+    const hadDuplicates = cleanUsers.length !== remoteUsers.length;
+    this.users = cleanUsers;
+    this.persistUsers(!hadDuplicates);
     this.notify();
   }
 
   private init() {
     // Load users from localStorage
+    let rawList: UserAccount[] = [];
     const savedUsers = localStorage.getItem(STORAGE_KEY_USERS);
     if (savedUsers) {
       try {
         const parsed = JSON.parse(savedUsers);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          this.users = parsed;
+          rawList = parsed;
         } else {
-          this.users = [...DEFAULT_USERS];
-          this.persistUsers(true);
+          rawList = [...DEFAULT_USERS];
         }
       } catch {
-        this.users = [...DEFAULT_USERS];
-        this.persistUsers(true);
+        rawList = [...DEFAULT_USERS];
       }
     } else {
-      this.users = [...DEFAULT_USERS];
-      this.persistUsers(true);
+      rawList = [...DEFAULT_USERS];
     }
 
-    // Ensure Hdara and student accounts exist even if modified or cleared
-    const hasHdara = this.users.some(u => u.username.toLowerCase() === 'hdara');
-    if (!hasHdara) {
-      this.users.unshift(DEFAULT_USERS[0]);
-      this.persistUsers(true);
+    // Deduplicate by username case-insensitively (immediately purges any repeated 'lising' accounts)
+    const uniqueMap = new Map<string, UserAccount>();
+    for (const u of rawList) {
+      if (!u || !u.username) continue;
+      const key = u.username.trim().toLowerCase();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, u);
+      }
     }
-    const hasStudent = this.users.some(u => u.username.toLowerCase() === 'student');
-    if (!hasStudent) {
-      this.users.push(DEFAULT_USERS[1]);
-      this.persistUsers(true);
+
+    // Ensure Hdara (Admin) exists
+    if (!uniqueMap.has('hdara')) {
+      uniqueMap.set('hdara', DEFAULT_USERS[0]);
     }
+
+    // Ensure lising (User / Student) exists
+    if (!uniqueMap.has('lising') && !uniqueMap.has('student')) {
+      uniqueMap.set('lising', DEFAULT_USERS[1]);
+    }
+
+    this.users = Array.from(uniqueMap.values());
+    this.persistUsers(true);
 
     // Load active session:
     // If user closed the tab/browser or clicked away without logging out,

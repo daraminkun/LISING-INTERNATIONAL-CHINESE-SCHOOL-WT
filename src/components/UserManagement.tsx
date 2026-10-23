@@ -24,6 +24,7 @@ import {
 import { authService, UserAccount, UserRole } from '../services/authService';
 import { AppsScriptService } from '../services/appsScriptService';
 import { Language } from '../types';
+import { formatNumberByLanguage } from '../utils/numberUtils';
 
 interface UserManagementProps {
   language: Language;
@@ -422,8 +423,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({
 
                 return (
                   <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3.5 px-4 font-mono text-slate-500">
-                      {idx + 1}
+                    <td className="py-3.5 px-4 font-mono text-slate-500 font-battambang">
+                      {formatNumberByLanguage(idx + 1, language)}
                     </td>
 
                     <td className="py-3.5 px-4">

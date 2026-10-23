@@ -22,6 +22,7 @@ import { schoolMajorService } from '../services/schoolMajorService';
 import { getMajorTranslation, getSchoolTranslation } from '../utils/schoolMajorTranslations';
 import { areAllRequiredDocumentsUploaded } from '../utils/documentUtils';
 import { TranslationTooltip } from './TranslationTooltip';
+import { formatNumberByLanguage, formatPercentByLanguage } from '../utils/numberUtils';
 
 interface SchoolMajorAnalyticsProps {
   students: Student[];
@@ -397,10 +398,12 @@ export const SchoolMajorAnalytics: React.FC<SchoolMajorAnalyticsProps> = ({
         {/* Total Students */}
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
           <div className="flex items-center justify-between text-slate-500 text-[11px] font-medium">
-            <span>{language === 'km' ? 'សរុបសិស្ស' : 'Total Students'}</span>
+            <span>{t.totalStudents}</span>
             <Users className="w-3.5 h-3.5 text-indigo-600" />
           </div>
-          <div className="text-2xl font-black text-slate-900">{totalStudents}</div>
+          <div className="text-2xl font-black text-slate-900 font-battambang">
+            {formatNumberByLanguage(totalStudents, language)}
+          </div>
           <div className="text-[10px] text-slate-400 font-medium">{t.students}</div>
         </div>
 
@@ -410,9 +413,11 @@ export const SchoolMajorAnalytics: React.FC<SchoolMajorAnalyticsProps> = ({
             <span>{t.maleStudents}</span>
             <span className="w-2 h-2 rounded-full bg-blue-600" />
           </div>
-          <div className="text-2xl font-black text-blue-700">{maleCount}</div>
-          <div className="text-[10px] text-blue-500 font-medium">
-            {totalStudents > 0 ? `${Math.round((maleCount / totalStudents) * 100)}%` : '0%'}
+          <div className="text-2xl font-black text-blue-700 font-battambang">
+            {formatNumberByLanguage(maleCount, language)}
+          </div>
+          <div className="text-[10px] text-blue-500 font-medium font-battambang">
+            {totalStudents > 0 ? formatPercentByLanguage(Math.round((maleCount / totalStudents) * 100), language) : '0%'}
           </div>
         </div>
 
@@ -422,47 +427,53 @@ export const SchoolMajorAnalytics: React.FC<SchoolMajorAnalyticsProps> = ({
             <span>{t.femaleStudents}</span>
             <span className="w-2 h-2 rounded-full bg-rose-600" />
           </div>
-          <div className="text-2xl font-black text-rose-700">{femaleCount}</div>
-          <div className="text-[10px] text-rose-500 font-medium">
-            {totalStudents > 0 ? `${Math.round((femaleCount / totalStudents) * 100)}%` : '0%'}
+          <div className="text-2xl font-black text-rose-700 font-battambang">
+            {formatNumberByLanguage(femaleCount, language)}
+          </div>
+          <div className="text-[10px] text-rose-500 font-medium font-battambang">
+            {totalStudents > 0 ? formatPercentByLanguage(Math.round((femaleCount / totalStudents) * 100), language) : '0%'}
           </div>
         </div>
 
         {/* Total Active Majors */}
         <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-100 space-y-1">
           <div className="flex items-center justify-between text-purple-600 text-[11px] font-medium">
-            <span>{language === 'km' ? 'មុខជំនាញ' : 'Active Majors'}</span>
+            <span>{language === 'km' ? 'មុខជំនាញ' : language === 'zh-TW' ? '開辦專業' : 'Active Majors'}</span>
             <GraduationCap className="w-3.5 h-3.5 text-purple-600" />
           </div>
-          <div className="text-2xl font-black text-purple-700">{activeMajorsCount}</div>
-          <div className="text-[10px] text-purple-500 font-medium">
-            {majorsData.length} {language === 'km' ? 'ជំនាញសរុប' : 'total offerings'}
+          <div className="text-2xl font-black text-purple-700 font-battambang">
+            {formatNumberByLanguage(activeMajorsCount, language)}
+          </div>
+          <div className="text-[10px] text-purple-500 font-medium font-battambang">
+            {formatNumberByLanguage(majorsData.length, language)} {language === 'km' ? 'ជំនាញសរុប' : language === 'zh-TW' ? '個專業選項' : 'total offerings'}
           </div>
         </div>
 
         {/* Top Major */}
         <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-100 space-y-1">
           <div className="flex items-center justify-between text-amber-700 text-[11px] font-medium">
-            <span>{language === 'km' ? 'ជំនាញពេញនិយម' : 'Top Major'}</span>
+            <span>{language === 'km' ? 'ជំនាញពេញនិយម' : language === 'zh-TW' ? '最熱門專業' : 'Top Major'}</span>
             <Award className="w-3.5 h-3.5 text-amber-600" />
           </div>
           <div className="text-sm font-bold text-amber-900 truncate" title={topMajor ? topMajor.major : '-'}>
             {topMajor ? topMajor.major : '-'}
           </div>
-          <div className="text-[10px] text-amber-700 font-medium">
-            {topMajor ? `${topMajor.count} ${t.students} (${topMajor.percentage}%)` : '-'}
+          <div className="text-[10px] text-amber-700 font-medium font-battambang">
+            {topMajor ? `${formatNumberByLanguage(topMajor.count, language)} ${t.students} (${formatPercentByLanguage(topMajor.percentage, language)})` : '-'}
           </div>
         </div>
 
         {/* Required Docs Complete Rate */}
         <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100 space-y-1">
           <div className="flex items-center justify-between text-emerald-700 text-[11px] font-medium">
-            <span>{language === 'km' ? 'ឯកសារគ្រប់' : 'Full Docs'}</span>
+            <span>{language === 'km' ? 'ឯកសារគ្រប់' : language === 'zh-TW' ? '證件齊全率' : 'Full Docs'}</span>
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
           </div>
-          <div className="text-2xl font-black text-emerald-700">{completeDocsRate}%</div>
-          <div className="text-[10px] text-emerald-600 font-medium">
-            {completeDocsCount}/{totalStudents} {t.students}
+          <div className="text-2xl font-black text-emerald-700 font-battambang">
+            {formatPercentByLanguage(completeDocsRate, language)}
+          </div>
+          <div className="text-[10px] text-emerald-600 font-medium font-battambang">
+            {formatNumberByLanguage(completeDocsCount, language)}/{formatNumberByLanguage(totalStudents, language)} {t.students}
           </div>
         </div>
       </div>

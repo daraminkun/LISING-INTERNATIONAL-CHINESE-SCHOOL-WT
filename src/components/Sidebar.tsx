@@ -143,6 +143,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
+          {/* Quick School Info CTA */}
+          <button
+            onClick={() => handleTabSelect('school_info')}
+            className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors shadow-xs ${
+              currentTab === 'school_info'
+                ? 'bg-amber-400 text-amber-950 border-amber-300 font-bold'
+                : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+            }`}
+            title={language === 'km' ? 'ព័ត៌មានអំពីសាលារៀន' : language === 'zh-TW' ? '學校資訊' : 'School Info'}
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{language === 'km' ? 'ព័ត៌មានសាលា' : language === 'zh-TW' ? '學校資訊' : 'Schools'}</span>
+          </button>
+
           {/* Quick Add CTA */}
           <button
             onClick={handleAddClick}
@@ -280,8 +294,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Primary Action: Add Student */}
-        <div className="p-4 pb-2" style={{ backgroundColor: '#b91c1c' }}>
+        {/* Primary Action: Add Student & School Info */}
+        <div className="p-4 pb-2 space-y-2" style={{ backgroundColor: '#b91c1c' }}>
           <button
             type="button"
             onClick={handleAddClick}
@@ -289,6 +303,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <Plus className="w-4 h-4 text-red-700 transition-transform group-hover:rotate-90 duration-200" />
             <span>{t.addStudent}</span>
+          </button>
+
+          {/* <<ព័ត៌មានអំពីសាលារៀន>> Button (Under Add Student, for BOTH Admin and Student) */}
+          <button
+            type="button"
+            onClick={() => handleTabSelect('school_info')}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-md group ${
+              currentTab === 'school_info'
+                ? 'bg-amber-400 text-amber-950 ring-2 ring-white shadow-amber-950/30'
+                : 'bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-500 text-white shadow-red-950/30 active:scale-[0.99]'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4 text-white group-hover:scale-110 transition-transform shrink-0" />
+            <span className="truncate">
+              {language === 'km' 
+                ? '<<ព័ត៌មានអំពីសាលារៀន>>' 
+                : language === 'zh-TW' 
+                ? '《學校資訊與最新動態》' 
+                : '<< School Information >>'}
+            </span>
           </button>
         </div>
 
@@ -413,6 +447,96 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   ) : (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-400 text-purple-950">
                       Logo
+                    </span>
+                  )}
+                </button>
+
+                {/* Tab: School Information & Live Updates Directory (Admin) */}
+                <button
+                  type="button"
+                  onClick={() => handleTabSelect('school_info')}
+                  style={{ backgroundColor: currentTab === 'school_info' ? '#dc2626' : '#9f1239' }}
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
+                    currentTab === 'school_info'
+                      ? 'border-white/50 text-white shadow-md'
+                      : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <GraduationCap className="w-5 h-5 text-white shrink-0" />
+                    <span className="text-white font-semibold">
+                      {language === 'km' 
+                        ? 'ព័ត៌មានអំពីសាលារៀន' 
+                        : language === 'zh-TW' 
+                        ? '學校資訊與最新動態' 
+                        : 'School Info & Live'}
+                    </span>
+                  </div>
+                  {currentTab === 'school_info' ? (
+                    <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-400 text-amber-950">
+                      59
+                    </span>
+                  )}
+                </button>
+              </nav>
+            </div>
+          )}
+
+          {/* Student Navigation Group (Student View) */}
+          {!isAdmin && (
+            <div>
+              <div className="px-2 mb-2 text-xs font-bold uppercase tracking-wider text-rose-200/90">
+                {language === 'km' ? 'ម៉ឺនុយសិស្ស (Student Menu)' : language === 'zh-TW' ? '學生專區' : 'Student Menu'}
+              </div>
+              <nav className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleTabSelect('student_portal')}
+                  style={{ backgroundColor: currentTab === 'student_portal' ? '#dc2626' : '#9f1239' }}
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
+                    currentTab === 'student_portal'
+                      ? 'border-white/50 text-white shadow-md'
+                      : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LayoutDashboard className="w-5 h-5 text-white shrink-0" />
+                    <span className="text-white font-semibold">
+                      {language === 'km' ? 'ទំព័រដើមសិស្ស' : language === 'zh-TW' ? '學生首頁' : 'Student Home'}
+                    </span>
+                  </div>
+                  {currentTab === 'student_portal' && (
+                    <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabSelect('school_info')}
+                  style={{ backgroundColor: currentTab === 'school_info' ? '#dc2626' : '#9f1239' }}
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
+                    currentTab === 'school_info'
+                      ? 'border-white/50 text-white shadow-md'
+                      : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <GraduationCap className="w-5 h-5 text-white shrink-0" />
+                    <span className="text-white font-semibold">
+                      {language === 'km' 
+                        ? 'ព័ត៌មានអំពីសាលារៀន' 
+                        : language === 'zh-TW' 
+                        ? '學校資訊與最新動態' 
+                        : 'School Info & Live'}
+                    </span>
+                  </div>
+                  {currentTab === 'school_info' ? (
+                    <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-400 text-amber-950">
+                      59
                     </span>
                   )}
                 </button>

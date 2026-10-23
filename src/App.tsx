@@ -14,6 +14,7 @@ import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { GoogleAppsScriptModal } from './components/GoogleAppsScriptModal';
 import { UserManagement } from './components/UserManagement';
 import { SchoolManagementView } from './components/SchoolManagementView';
+import { SchoolInfoView } from './components/SchoolInfoView';
 import { LoginModal, LoginScreen } from './components/LoginModal';
 import { StudentPortalView } from './components/StudentPortalView';
 import { InstitutionSettingsModal } from './components/InstitutionSettingsModal';
@@ -467,8 +468,12 @@ export default function App() {
     return students.map(s => s.studentId);
   }, [students]);
 
+  // Preselected school state when applying directly from School Information directory
+  const [preselectedSchool, setPreselectedSchool] = useState<string | undefined>(undefined);
+
   // Open Add Student Modal
-  const handleOpenAddStudent = () => {
+  const handleOpenAddStudent = (school?: string) => {
+    setPreselectedSchool(school);
     setStudentToEdit(null);
     setIsStudentModalOpen(true);
   };
@@ -842,10 +847,17 @@ export default function App() {
             </div>
           )}
 
-          {/* If Student: Show strictly only StudentPortalView */}
-          {!isAdmin ? (
+          {/* School Information & Daily Updates View (Accessible to BOTH Admin and Student) */}
+          {currentTab === 'school_info' ? (
+            <SchoolInfoView
+              language={language}
+              onNavigateToAddStudent={(preselected) => handleOpenAddStudent(preselected)}
+              onNavigateToDashboard={() => setCurrentTab(isAdmin ? 'dashboard' : 'student_portal')}
+            />
+          ) : !isAdmin ? (
             <StudentPortalView
               onAddStudent={handleOpenAddStudent}
+              onOpenSchoolInfo={() => setCurrentTab('school_info')}
               language={language}
               currentUser={currentUser}
               onLogout={() => {
@@ -984,6 +996,7 @@ export default function App() {
         existingStudentIds={existingStudentIds}
         existingStudents={students}
         language={language}
+        initialSchool={preselectedSchool}
       />
 
       {/* View Student Details Modal */}

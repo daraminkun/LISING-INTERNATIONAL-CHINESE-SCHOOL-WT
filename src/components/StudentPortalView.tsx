@@ -16,12 +16,14 @@ import {
 import { Language } from '../types';
 import { UserAccount } from '../services/authService';
 import { translations } from '../translations';
+import { formatNumberByLanguage } from '../utils/numberUtils';
 
 interface StudentPortalViewProps {
   onAddStudent: () => void;
   language: Language;
   currentUser: UserAccount | null;
   onLogout: () => void;
+  onOpenSchoolInfo?: () => void;
 }
 
 export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
@@ -29,6 +31,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
   language,
   currentUser,
   onLogout,
+  onOpenSchoolInfo
 }) => {
   const t = translations[language];
 
@@ -66,10 +69,10 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
 
             <p className="text-sm sm:text-base text-red-100 max-w-xl font-battambang leading-relaxed">
               {language === 'km'
-                ? 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ (日興國際學校) ផ្តល់ឱកាសសិក្សានៅសាធារណរដ្ឋចិន (តៃវ៉ាន់) ទាំងថ្នាក់វិទ្យាល័យ និងថ្នាក់បរិញ្ញាបត្រ។ សូមចុចប៊ូតុងខាងក្រោមដើម្បីបំពេញពាក្យចុះឈ្មោះ។'
+                ? 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ (日興國際學校) ផ្តល់ឱកាសសិក្សានៅសាធារណរដ្ឋចិន (តៃវ៉ាន់) ទាំងថ្នាក់វិទ្យាល័យ និងថ្នាក់បរិញ្ញាបត្រ។ សូមចុចប៊ូតុងខាងក្រោមដើម្បីបំពេញពាក្យចុះឈ្មោះ ឬពិនិត្យព័ត៌មានអំពីសាលារៀន។'
                 : language === 'zh-TW'
-                ? '日興國際學校提供赴台留學機會（高中職及大專院校）。請點選下方按鈕填寫入學登記資料。'
-                : 'Lising International School provides study abroad opportunities in Taiwan. Please click the button below to complete your registration.'}
+                ? '日興國際學校提供赴台留學機會（高中職及大專院校）。請點選下方按鈕填寫入學登記資料或查看合作學校簡介。'
+                : 'Lising International School provides study abroad opportunities in Taiwan. Please click the button below to complete your registration or view school details.'}
             </p>
 
             <div className="flex items-center gap-2 pt-1 text-xs text-amber-200 font-medium">
@@ -84,8 +87,8 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
             </div>
           </div>
 
-          {/* Primary Action Button */}
-          <div className="shrink-0 flex flex-col gap-2">
+          {/* Primary Action Buttons */}
+          <div className="shrink-0 flex flex-col gap-2.5">
             <button
               type="button"
               onClick={onAddStudent}
@@ -101,11 +104,30 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
               </span>
               <ArrowRight className="w-4 h-4 text-red-700 transition-transform group-hover:translate-x-1" />
             </button>
+
+            {/* Button: <<ព័ត៌មានអំពីសាលារៀន>> directly under Add Student */}
+            {onOpenSchoolInfo && (
+              <button
+                type="button"
+                onClick={onOpenSchoolInfo}
+                className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl font-black text-sm text-amber-950 bg-amber-400 hover:bg-amber-300 active:scale-[0.98] shadow-lg shadow-black/20 hover:shadow-xl transition-all font-battambang group"
+              >
+                <Building2 className="w-5 h-5 text-amber-900 group-hover:scale-110 transition-transform" />
+                <span>
+                  {language === 'km' 
+                    ? '<<ព័ត៌មានអំពីសាលារៀន>>' 
+                    : language === 'zh-TW' 
+                    ? '《學校資訊與最新動態》' 
+                    : '<< School Information >>'}
+                </span>
+                <ArrowRight className="w-4 h-4 text-amber-900 group-hover:translate-x-1 transition-transform" />
+              </button>
+            )}
             
             <button
               type="button"
               onClick={onLogout}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-red-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-red-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer mt-1"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{language === 'km' ? 'ចាកចេញពីប្រព័ន្ធ' : language === 'zh-TW' ? '登出系統' : 'Logout'}</span>
@@ -118,8 +140,8 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Step 1 */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center font-black text-sm">
-            ១
+          <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center font-black text-base font-battambang">
+            {formatNumberByLanguage(1, language)}
           </div>
           <h2 className="font-bold text-slate-900 text-sm font-battambang">
             {language === 'km' ? 'បំពេញព័ត៌មានផ្ទាល់ខ្លួន' : language === 'zh-TW' ? '填寫個人基本資料' : 'Personal Information'}
@@ -135,8 +157,8 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
 
         {/* Step 2 */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-sm">
-            ២
+          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-base font-battambang">
+            {formatNumberByLanguage(2, language)}
           </div>
           <h2 className="font-bold text-slate-900 text-sm font-battambang">
             {language === 'km' ? 'ព័ត៌មានឳពុកម្តាយ & អាសយដ្ឋាន' : language === 'zh-TW' ? '父母資料與現居地址' : 'Parent & Address Details'}
@@ -152,8 +174,8 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
 
         {/* Step 3 */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-sm">
-            ៣
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-base font-battambang">
+            {formatNumberByLanguage(3, language)}
           </div>
           <h2 className="font-bold text-slate-900 text-sm font-battambang">
             {language === 'km' ? 'ជ្រើសរើសសាលា & ជំនាញ' : language === 'zh-TW' ? '選讀學校與專業科系' : 'Choose School & Major'}
