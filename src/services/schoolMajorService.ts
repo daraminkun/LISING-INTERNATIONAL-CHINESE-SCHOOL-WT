@@ -4,6 +4,7 @@
  */
 
 import { SchoolMajorEntry, SCHOOL_MAJORS_DATA } from '../constants/studentOptions';
+import { AUTHENTIC_SCHOOL_MAJORS } from '../data/detailedSchoolsData';
 import { SchoolTranslation, MajorTranslation } from '../utils/schoolMajorTranslations';
 import { Language } from '../types';
 import { dbStorage } from './dbStorage';
@@ -114,25 +115,61 @@ class SchoolMajorService {
       });
     };
 
+    let baseList: SchoolMajorEntry[] = [];
     const saved = localStorage.getItem(STORAGE_KEY_SCHOOLS);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const filtered = parsed
-            .filter(s => !isExcluded(s.school))
-            .map(s => ({
-              ...s,
-              majors: filterMajors(s.school, s.majors)
-            }));
-          return filtered;
+          baseList = parsed;
         }
       } catch (e) {
         console.error('Failed to parse stored schools data:', e);
       }
     }
+    if (baseList.length === 0) {
+      baseList = [...SCHOOL_MAJORS_DATA];
+    }
 
-    return SCHOOL_MAJORS_DATA
+    // Merge authentic school majors for all 59 partner schools
+    const listMap = new Map<string, SchoolMajorEntry>();
+    baseList.forEach(item => {
+      if (item && item.school) {
+        listMap.set(item.school.trim(), { ...item });
+      }
+    });
+
+    for (const [schName, authMajors] of Object.entries(AUTHENTIC_SCHOOL_MAJORS)) {
+      const existing = listMap.get(schName);
+      const isUniv = schName.includes('大學') || schName.includes('學院');
+      if (!existing) {
+        listMap.set(schName, {
+          school: schName,
+          majors: authMajors,
+          ageRequirementKm: isUniv 
+            ? "អាយុ ២៥ឆ្នាំ ចុះក្រោម (កើតក្រោយថ្ងៃទី ០១ ខែកក្កដា) (សំរាប់ថ្នាក់មហាវិទ្យាល័យ និង សកលវិទ្យាល័យ)" 
+            : "អាយុ ចាប់ពី ១៦ឆ្នាំ ដល់ ២២ឆ្នាំ (សំរាប់ថ្នាក់វិទ្យាល័យ)",
+          ageRequirementEn: isUniv 
+            ? "Age 25 and under (Born after July 1st) for University / College" 
+            : "Age 16 to 22 years old (For High School)",
+          shortAgeKm: isUniv 
+            ? "អាយុ ≤២៥ឆ្នាំ (កើតក្រោយ ១/៧) (សំរាប់ថ្នាក់មហាវិទ្យាល័យ និង សកលវិទ្យាល័យ)" 
+            : "អាយុ ១៦-២២ឆ្នាំ (សំរាប់ថ្នាក់វិទ្យាល័យ)",
+          shortAgeEn: isUniv ? "Age ≤25 (Born after Jul 1)" : "Age 16-22 (High School)"
+        });
+      } else {
+        const currentMajors = existing.majors || [];
+        const isGenericFallback = currentMajors.length === 5 && 
+          currentMajors.includes("資訊工程系") && 
+          currentMajors.includes("餐旅管理系") && 
+          currentMajors.includes("應用外語系");
+        if (currentMajors.length === 0 || isGenericFallback) {
+          existing.majors = authMajors;
+        }
+      }
+    }
+
+    return Array.from(listMap.values())
       .filter(s => !isExcluded(s.school))
       .map(s => ({
         ...s,

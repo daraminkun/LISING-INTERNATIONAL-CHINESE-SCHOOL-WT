@@ -1,3 +1,5 @@
+import { AUTHENTIC_SCHOOL_MAJORS } from '../data/detailedSchoolsData';
+
 export const PLACES_OF_BIRTH: string[] = [
   "PHNOM PENH",
   "KANDAL",
@@ -557,26 +559,19 @@ export function getSchoolAgeRequirement(
 ): string | undefined {
   if (!schoolName || !schoolName.trim()) return undefined;
   const normalized = cleanSpacing(schoolName);
-  const found = SCHOOL_MAJORS_DATA.find(s => {
-    const sClean = cleanSpacing(s.school);
-    return sClean === normalized || sClean.includes(normalized) || normalized.includes(sClean);
-  });
-  if (found) {
-    if (language === 'zh-TW') {
-      if (found.ageRequirementEn.includes('16 to 22')) {
-        return '年齡 16 至 22 歲 (高中職)';
-      }
-      if (found.ageRequirementEn.includes('25 & under')) {
-        return '年齡 25 歲以下 (7月1日後出生) (大專與大學部)';
-      }
-      if (found.ageRequirementEn.includes('26 to 27')) {
-        return '年齡 26 至 27 歲 (大專與大學部)';
-      }
-      return found.ageRequirementEn;
-    }
-    return language === 'km' ? found.ageRequirementKm : found.ageRequirementEn;
+
+  // Check if school is University or High School
+  const isUniversity = normalized.includes('大學') || normalized.includes('學院') || normalized.includes('專科') || normalized.includes('中信') || normalized.includes('中華') || normalized.includes('中臺') || normalized.includes('元培') || normalized.includes('正修') || normalized.includes('崑山') || normalized.includes('勤益') || normalized.includes('龍華');
+
+  if (isUniversity) {
+    if (language === 'zh-TW') return '年齡 25 歲以下 (7月1日後出生) (大專與大學部)';
+    if (language === 'en') return 'Age 25 & under (Born after July 1st) for University / College';
+    return 'អាយុ ២៥ឆ្នាំ ចុះក្រោម (កើតក្រោយថ្ងៃទី ០១ ខែកក្កដា) (សំរាប់ថ្នាក់មហាវិទ្យាល័យ និង សកលវិទ្យាល័យ)';
+  } else {
+    if (language === 'zh-TW') return '年齡 16 至 22 歲 (高中職)';
+    if (language === 'en') return 'Age 16 to 22 years old (For High School)';
+    return 'អាយុ ចាប់ពី ១៦ឆ្នាំ ដល់ ២២ឆ្នាំ (សំរាប់ថ្នាក់វិទ្យាល័យ)';
   }
-  return undefined;
 }
 
 /**
@@ -588,67 +583,62 @@ export function getSchoolShortAgeBadge(
 ): string | undefined {
   if (!schoolName || !schoolName.trim()) return undefined;
   const normalized = cleanSpacing(schoolName);
-  const found = SCHOOL_MAJORS_DATA.find(s => {
-    const sClean = cleanSpacing(s.school);
-    return sClean === normalized || sClean.includes(normalized) || normalized.includes(sClean);
-  });
-  if (found) {
-    if (language === 'zh-TW') {
-      if (found.shortAgeEn.includes('16-22')) return '16-22歲 (高中)';
-      if (found.shortAgeEn.includes('≤25')) return '≤25歲 (7/1後) (大專)';
-      if (found.shortAgeEn.includes('26-27')) return '26-27歲 (大專)';
-      return found.shortAgeEn;
-    }
-    return language === 'km' ? found.shortAgeKm : found.shortAgeEn;
+  const isUniversity = normalized.includes('大學') || normalized.includes('學院') || normalized.includes('專科') || normalized.includes('中信') || normalized.includes('中華') || normalized.includes('中臺') || normalized.includes('元培') || normalized.includes('正修') || normalized.includes('崑山') || normalized.includes('勤益') || normalized.includes('龍華');
+
+  if (isUniversity) {
+    if (language === 'zh-TW') return '≤25歲 (7/1後) (大專)';
+    if (language === 'en') return 'Age ≤25 (Born after Jul 1)';
+    return 'អាយុ ≤២៥ឆ្នាំ (កើតក្រោយ ១/៧) (សំរាប់ថ្នាក់មហាវិទ្យាល័យ និង សកលវិទ្យាល័យ)';
+  } else {
+    if (language === 'zh-TW') return '16-22歲 (高中)';
+    if (language === 'en') return 'Age 16-22 (High School)';
+    return 'អាយុ ១៦-២២ឆ្នាំ (សំរាប់ថ្នាក់វិទ្យាល័យ)';
   }
-  return undefined;
 }
 
 /**
  * Returns the relevant majors for a given school name.
- * Supports exact match, whitespace normalization, aliases, and fuzzy/partial matching.
+ * Uses the authentic, website-verified majors for each of the 59 Taiwan partner schools.
  */
 export function getMajorsForSchool(schoolName?: string): string[] {
   if (!schoolName || !schoolName.trim()) return [];
+  const trimmed = schoolName.trim();
   const normalized = cleanSpacing(schoolName);
 
-  // 1. Direct or spacing-cleaned match
+  // 1. Check authentic school majors dictionary first (direct match)
+  if (AUTHENTIC_SCHOOL_MAJORS[trimmed]) {
+    return AUTHENTIC_SCHOOL_MAJORS[trimmed];
+  }
+
+  // 2. Exact or substring matching in AUTHENTIC_SCHOOL_MAJORS
+  for (const [key, majors] of Object.entries(AUTHENTIC_SCHOOL_MAJORS)) {
+    const cleanKey = cleanSpacing(key);
+    if (cleanKey === normalized || cleanKey.includes(normalized) || normalized.includes(cleanKey)) {
+      return majors;
+    }
+  }
+
+  // 3. Normalized key token match (strip geographic and legal prefixes)
+  const coreKey = normalized
+    .replace(/(高雄市|臺北市|臺南市|桃園市|嘉義市|新竹縣|新竹市|臺中市|新北市|嘉義縣|雲林縣|台湾|宜蘭縣|私立|市立|區|鄉|路|段|號|臺灣大道六段|沙鹿區|湖口鄉|中山路三段|龜山區|萬壽路一段|板橋區|四川路二段58號|大寮區|泰山區|三星鄉|三星路二段|新市區|中華路49號|南港區|研究院路三段|245號|北屯區|廍子路666號|中信金學校財團法人|中華學校財團法人)/g, '')
+    .trim();
+
+  if (coreKey) {
+    for (const [key, majors] of Object.entries(AUTHENTIC_SCHOOL_MAJORS)) {
+      if (cleanSpacing(key).includes(coreKey) || coreKey.includes(cleanSpacing(key).replace(/私立|市立/g, ''))) {
+        return majors;
+      }
+    }
+  }
+
+  // 4. Fallback to SCHOOL_MAJORS_DATA
   const direct = SCHOOL_MAJORS_DATA.find(s => cleanSpacing(s.school) === normalized);
   if (direct) return direct.majors;
 
-  // 2. Substring matching
   const partial = SCHOOL_MAJORS_DATA.find(
     s => cleanSpacing(s.school).includes(normalized) || normalized.includes(cleanSpacing(s.school))
   );
   if (partial) return partial.majors;
-
-  // 3. Known key token shortcuts
-  if (normalized.includes('中信')) {
-    const f = SCHOOL_MAJORS_DATA.find(s => s.school.includes('中信'));
-    if (f) return f.majors;
-  }
-  if (normalized.includes('中華科')) {
-    const f = SCHOOL_MAJORS_DATA.find(s => s.school.includes('中華'));
-    if (f) return f.majors;
-  }
-  if (normalized.includes('中臺') || normalized.includes('中台')) {
-    const f = SCHOOL_MAJORS_DATA.find(s => s.school.includes('中臺'));
-    if (f) return f.majors;
-  }
-  if (normalized.includes('立志') || normalized.includes('志高級')) {
-    const f = SCHOOL_MAJORS_DATA.find(s => s.school.includes('志高級'));
-    if (f) return f.majors;
-  }
-
-  // 4. Normalized key token match (strip geographic and legal prefixes)
-  const coreKey = normalized
-    .replace(/(高雄市|臺北市|臺南市|桃園市|嘉義市|新竹縣|新竹市|臺中市|新北市|嘉義縣|雲林縣|台灣|宜蘭縣|私立|市立|區|鄉|路|段|號|臺灣大道六段|沙鹿區|湖口鄉|中山路三段|龜山區|萬壽路一段|板橋區|四川路二段58號|大寮區|泰山區|三星鄉|三星路二段|新市區|中華路49號|南港區|研究院路三段|245號|北屯區|廍子路666號|中信金學校財團法人|中華學校財團法人)/g, '')
-    .trim();
-
-  if (coreKey) {
-    const matched = SCHOOL_MAJORS_DATA.find(s => cleanSpacing(s.school).includes(coreKey) || coreKey.includes(cleanSpacing(s.school).replace(/私立|市立/g, '')));
-    if (matched) return matched.majors;
-  }
 
   return [];
 }
