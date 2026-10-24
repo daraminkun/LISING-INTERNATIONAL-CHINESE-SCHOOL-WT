@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Download, FileText, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Download, FileText, ExternalLink, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { UploadedDocument, Language } from '../types';
+import { isValidDataUrl } from '../utils/cloudDocSyncUtils';
+import { formatDocFileSize } from '../utils/documentUtils';
 
 interface DocumentPreviewModalProps {
   isOpen: boolean;
@@ -37,8 +39,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const currentDoc = pages[currentPageIndex] || document;
   if (!currentDoc) return null;
 
-  const isImage = currentDoc.type?.startsWith('image/') || currentDoc.dataUrl?.startsWith('data:image/');
-  const isPdf = currentDoc.type?.includes('pdf') || currentDoc.name?.toLowerCase().endsWith('.pdf');
+  const hasValidUrl = isValidDataUrl(currentDoc.dataUrl);
+  const isImage = (currentDoc.type?.startsWith('image/') || currentDoc.dataUrl?.startsWith('data:image/')) && hasValidUrl;
+  const isPdf = (currentDoc.type?.includes('pdf') || currentDoc.name?.toLowerCase().endsWith('.pdf')) && hasValidUrl;
   const totalPages = pages.length;
 
   const handlePrev = () => {
@@ -86,7 +89,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {currentDoc.dataUrl && (
+            {hasValidUrl && (
               <a
                 href={currentDoc.dataUrl}
                 download={currentDoc.name}
@@ -151,13 +154,13 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
         {/* Content Viewer */}
         <div className="flex-1 overflow-auto p-4 sm:p-6 bg-slate-900/5 flex items-center justify-center min-h-[350px]">
-          {isImage && currentDoc.dataUrl ? (
+          {isImage ? (
             <img 
               src={currentDoc.dataUrl} 
               alt={`${title} - Page ${currentPageIndex + 1}`}
               className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-sm border border-slate-200" 
             />
-          ) : isPdf && currentDoc.dataUrl ? (
+          ) : isPdf ? (
             <div className="w-full h-[60vh] flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 p-6 text-center shadow-xs">
               <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-3">
                 <FileText className="w-8 h-8" />
@@ -190,20 +193,43 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </a>
               </div>
             </div>
-          ) : (
+          ) : hasValidUrl ? (
             <div className="text-center p-8 bg-white rounded-xl border border-slate-200 shadow-xs max-w-sm">
               <FileText className="w-12 h-12 text-slate-400 mx-auto mb-2" />
               <p className="text-sm font-semibold text-slate-800">{currentDoc.name}</p>
-              {currentDoc.dataUrl && (
-                <a
-                  href={currentDoc.dataUrl}
-                  download={currentDoc.name}
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-medium"
-                >
-                  <Download className="w-4 h-4" />
-                  {language === 'km' ? 'ទាញយកឯកសារ' : 'Download File'}
-                </a>
-              )}
+              <a
+                href={currentDoc.dataUrl}
+                download={currentDoc.name}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-medium"
+              >
+                <Download className="w-4 h-4" />
+                {language === 'km' ? 'ទាញយកឯកសារ' : 'Download File'}
+              </a>
+            </div>
+          ) : (
+            <div className="text-center p-7 bg-white rounded-2xl border border-emerald-200 shadow-xs max-w-md space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+                <span>✓ {language === 'km' ? 'បាន Upload រួចរាល់' : language === 'zh-TW' ? '已上傳登記' : 'Uploaded & Verified'}</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-slate-900 break-all">{currentDoc.name}</p>
+                {currentDoc.size ? (
+                  <p className="text-xs text-slate-500 font-medium">
+                    {language === 'km' ? 'ទំហំឯកសារ៖ ' : 'File Size: '}
+                    {formatDocFileSize(currentDoc.size)}
+                  </p>
+                ) : null}
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {language === 'km'
+                  ? 'ឯកសារនេះមានទំហំធំ ហើយត្រូវបានកត់ត្រាទុកឈ្មោះក្នុង Google Sheets រួចរាល់។ ដើម្បីរក្សាទុកឯកសារ PDF/រូបភាពទំហំធំគ្រប់ទំព័រលើ Cloud ពេញលេញ សូមធ្វើបច្ចុប្បន្នភាព Google Apps Script ទៅកាន់ជំនាន់ v3.0 នៅក្នុងផ្ទាំងកំណត់។'
+                  : language === 'zh-TW'
+                  ? '此大型檔案已成功登記於 Google Sheets 雲端紀錄。如需跨裝置完整預覽與下載大型 PDF 原檔，請於設定頁面更新 Google Apps Script 至 v3.0 版本。'
+                  : 'This large document is registered in Google Sheets. To store and download multi-MB PDFs across devices, update Google Apps Script to v3.0 in Settings.'}
+              </p>
             </div>
           )}
         </div>

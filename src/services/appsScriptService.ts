@@ -1,54 +1,77 @@
-import { Student } from '../types';
+import { Student, StudentDocuments } from '../types';
 import { formatDobOnly } from '../utils/ageUtils';
 import { SchoolMajorEntry } from '../constants/studentOptions';
 import { CustomTranslationsStore } from './schoolMajorService';
 import { UserAccount } from './authService';
+import {
+  packStudentForSheets,
+  unpackStudentFromSheets,
+  splitStudentDocsIntoChunks,
+  reassembleChunksToStudentDocs,
+  getStableStudentCloudKey,
+  StudentDocChunkRow,
+} from '../utils/cloudDocSyncUtils';
+import { getEffectiveStudentDocuments } from '../utils/documentUtils';
+import { dbStorage } from './dbStorage';
 
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
- * Google Apps Script Backend for Student Management System (v2.4)
- * ប្រព័ន្ធគ្រប់គ្រងសិស្ស, សាលារៀន/ជំនាញ & គណនីអ្នកប្រើប្រាស់ - Google Sheets Backend
- * 
+ * Google Apps Script Backend for Student Management System (v3.0)
+ * ប្រព័ន្ធគ្រប់គ្រងសិស្ស, ឯកសារភ្ជាប់, សាលារៀន/ជំនាញ & គណនីអ្នកប្រើប្រាស់ - Google Sheets Cloud Backend
+ *
  * Instructions:
  * 1. Open your Google Sheet
  * 2. Click Extensions > Apps Script
  * 3. Replace all code in Code.gs with this script
  * 4. Click "Deploy" > "Manage deployments" (or "New deployment")
- * 5. Create new version or edit: "Student, School & Auth API v2.4"
+ * 5. Create new version or edit: "Student, Docs, School & Auth API v3.0"
  * 6. Execute as: "Me"
  * 7. Who has access: "Anyone"
  * 8. Click Deploy, authorize access, and copy the Web App URL!
  */
 
 const SHEET_NAME = "Students";
+const DOCS_SHEET_NAME = "StudentDocs";
 const SCHOOLS_SHEET_NAME = "SchoolsMajors";
 const USERS_SHEET_NAME = "Users";
 
 const HEADERS = [
-  "No", 
-  "NameKhmer", 
-  "NameLatin", 
-  "NameChinese", 
-  "Gender", 
-  "DOB", 
-  "PlaceOfBirth", 
-  "IdCardNumber", 
-  "PassportNumber", 
-  "Phone", 
-  "CurrentAddress", 
-  "FatherNameEnglish", 
-  "FatherNameChinese", 
-  "FatherDob", 
-  "FatherPhone", 
-  "MotherNameEnglish", 
-  "MotherNameChinese", 
-  "MotherDob", 
-  "MotherPhone", 
-  "PreviousSchoolKhmer", 
-  "TargetSchool", 
-  "Major", 
-  "CreatedAt", 
+  "No",
+  "NameKhmer",
+  "NameLatin",
+  "NameChinese",
+  "Gender",
+  "DOB",
+  "PlaceOfBirth",
+  "IdCardNumber",
+  "PassportNumber",
+  "Phone",
+  "CurrentAddress",
+  "FatherNameEnglish",
+  "FatherNameChinese",
+  "FatherDob",
+  "FatherPhone",
+  "MotherNameEnglish",
+  "MotherNameChinese",
+  "MotherDob",
+  "MotherPhone",
+  "PreviousSchoolKhmer",
+  "TargetSchool",
+  "Major",
+  "CreatedAt",
   "Notes",
   "Documents"
+];
+
+const DOC_HEADERS = [
+  "DocKey",
+  "StudentKey",
+  "StudentId",
+  "Category",
+  "PageIndex",
+  "ChunkIndex",
+  "TotalChunks",
+  "MetaJSON",
+  "DataChunk"
 ];
 
 const SCHOOL_HEADERS = [
@@ -85,6 +108,18 @@ function getOrCreateSheet() {
   return sheet;
 }
 
+function getOrCreateDocsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(DOCS_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(DOCS_SHEET_NAME);
+    sheet.appendRow(DOC_HEADERS);
+    sheet.getRange(1, 1, 1, DOC_HEADERS.length).setFontWeight("bold").setBackground("#ECFDF5");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
 function getOrCreateSchoolsSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SCHOOLS_SHEET_NAME);
@@ -109,7 +144,14 @@ function getOrCreateUsersSheet() {
   return sheet;
 }
 
+function safeCellText(val, maxLen) {
+  const str = String(val || "");
+  return str.length <= (maxLen || 48500) ? str : str.substring(0, maxLen || 48500);
+}
+
 function studentToRow(s) {
+  const rawDocsStr = s.documents ? JSON.stringify(s.documents) : "";
+  const safeDocsStr = rawDocsStr.length <= 48000 ? rawDocsStr : "";
   return [
     s.studentId || "",
     s.nameKhmer || s.name || "",
@@ -134,12 +176,12 @@ function studentToRow(s) {
     s.targetSchool || "",
     s.major || "",
     s.createdAt || new Date().toISOString(),
-    s.notes || "",
-    s.documents ? JSON.stringify(s.documents) : ""
+    safeCellText(s.notes, 48500),
+    safeDocsStr
   ];
 }
 
-// Handle GET requests (Fetch students, schools or Ping)
+// Handle GET requests (Fetch students, full doc chunks, schools, users, or Ping)
 function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) || "read";
@@ -147,8 +189,45 @@ function doGet(e) {
     if (action === "ping") {
       return responseJSON({
         success: true,
-        message: "Google Apps Script is online and connected!",
+        apiVersion: "3.0",
+        message: "Google Apps Script v3.0 is online and connected!",
         timestamp: new Date().toISOString()
+      });
+    }
+
+    if (action === "getStudentDocs") {
+      const targetKey = String((e.parameter && e.parameter.studentKey) || "").trim();
+      const targetId = String((e.parameter && e.parameter.studentId) || "").trim();
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const docsSheet = ss.getSheetByName(DOCS_SHEET_NAME);
+      const chunks = [];
+
+      if (docsSheet && docsSheet.getLastRow() > 1) {
+        const dRows = docsSheet.getDataRange().getValues();
+        for (let r = 1; r < dRows.length; r++) {
+          const row = dRows[r];
+          const rowStudentKey = String(row[1] || "").trim();
+          const rowStudentId = String(row[2] || "").trim();
+          if ((targetKey && rowStudentKey === targetKey) || (!targetKey && targetId && rowStudentId === targetId)) {
+            chunks.push({
+              docKey: String(row[0] || ""),
+              studentKey: rowStudentKey,
+              studentId: rowStudentId,
+              category: String(row[3] || ""),
+              pageIndex: Number(row[4] || 0),
+              chunkIndex: Number(row[5] || 0),
+              totalChunks: Number(row[6] || 1),
+              metaJson: String(row[7] || ""),
+              dataChunk: String(row[8] || "")
+            });
+          }
+        }
+      }
+
+      return responseJSON({
+        success: true,
+        apiVersion: "3.0",
+        chunks: chunks
       });
     }
 
@@ -161,9 +240,8 @@ function doGet(e) {
 
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
-      if (!row[0]) continue; // skip empty rows
+      if (!row[0]) continue;
 
-      // Parse documents if present
       let docs = undefined;
       if (row.length >= 25 && row[24]) {
         try {
@@ -174,7 +252,6 @@ function doGet(e) {
         } catch (docErr) {}
       }
 
-      // New 24/25-column layout
       if (row.length >= 22) {
         students.push({
           studentId: String(row[0] || ""),
@@ -205,7 +282,6 @@ function doGet(e) {
           documents: docs
         });
       } else if (row.length >= 18) {
-        // Fallback for previous 20-column layout
         students.push({
           studentId: String(row[0] || ""),
           nameKhmer: String(row[1] || ""),
@@ -229,7 +305,6 @@ function doGet(e) {
           name: String(row[1] || row[2] || "")
         });
       } else {
-        // Fallback for minimal legacy format
         students.push({
           studentId: String(row[0] || ""),
           nameKhmer: String(row[1] || ""),
@@ -256,7 +331,7 @@ function doGet(e) {
         const schoolName = String(sRow[0] || "").trim();
         if (!schoolName) continue;
         const majorsRaw = String(sRow[1] || "");
-        const majors = majorsRaw.split(/[,،、\n]+/).map(m => m.trim()).filter(Boolean);
+        const majors = majorsRaw.split(/[,،、\\n]+/).map(m => m.trim()).filter(Boolean);
         schools.push({
           school: schoolName,
           majors: majors,
@@ -302,8 +377,9 @@ function doGet(e) {
       }
     }
 
-    return responseJSON({ 
-      success: true, 
+    return responseJSON({
+      success: true,
+      apiVersion: "3.0",
       data: students,
       schools: schools.length > 0 ? schools : null,
       customTranslations: Object.keys(customTranslations.schools).length > 0 ? customTranslations : null,
@@ -318,7 +394,7 @@ function doGet(e) {
   }
 }
 
-// Handle POST requests (Create, Update, Delete, SyncAll, SyncSchools)
+// Handle POST requests (Create, Update, Delete, SaveStudentDocs, SyncAll, SyncSchools, SyncUsers)
 function doPost(e) {
   try {
     let payload = {};
@@ -334,17 +410,31 @@ function doPost(e) {
       const s = payload.student;
       if (!s) throw new Error("Missing student data");
 
+      // Ensure header row has 25 columns
+      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+
+      // Auto-resolve order number collision if two students submit concurrently
+      let maxId = 0;
+      let collision = false;
       for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]).trim() === String(s.studentId).trim()) {
-          throw new Error("Student with order number " + s.studentId + " already exists");
+        const existingId = String(data[i][0] || "").trim();
+        const num = parseInt(existingId.replace(/\\D/g, "") || "0", 10);
+        if (num > maxId) maxId = num;
+        if (existingId === String(s.studentId).trim()) {
+          collision = true;
         }
+      }
+      if (collision) {
+        s.studentId = String(maxId + 1);
       }
 
       sheet.appendRow(studentToRow(s));
 
       return responseJSON({
         success: true,
+        apiVersion: "3.0",
         message: "Student created successfully",
+        studentId: s.studentId,
         student: s
       });
     }
@@ -355,29 +445,88 @@ function doPost(e) {
         throw new Error("Missing student information");
       }
 
-      let found = false;
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][0]).trim() === String(s.studentId).trim()) {
-          const rowIdx = i + 1;
-          const updatedRow = studentToRow(s);
-          sheet.getRange(rowIdx, 1, 1, updatedRow.length).setValues([updatedRow]);
-          found = true;
-          break;
+      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+
+      let targetRowIdx = -1;
+      // Match by CreatedAt first if available, then fallback to studentId
+      if (s.createdAt) {
+        for (let i = 1; i < data.length; i++) {
+          if (data[i].length >= 23 && String(data[i][22] || "").trim() === String(s.createdAt).trim()) {
+            targetRowIdx = i + 1;
+            break;
+          }
+        }
+      }
+      if (targetRowIdx === -1) {
+        for (let i = 1; i < data.length; i++) {
+          if (String(data[i][0]).trim() === String(s.studentId).trim()) {
+            targetRowIdx = i + 1;
+            break;
+          }
         }
       }
 
-      if (!found) {
-        throw new Error("Student order number not found: " + s.studentId);
+      if (targetRowIdx === -1) {
+        sheet.appendRow(studentToRow(s));
+      } else {
+        const updatedRow = studentToRow(s);
+        sheet.getRange(targetRowIdx, 1, 1, updatedRow.length).setValues([updatedRow]);
       }
 
       return responseJSON({
         success: true,
+        apiVersion: "3.0",
         message: "Student updated successfully"
+      });
+    }
+
+    if (action === "saveStudentDocs") {
+      const studentKey = String(payload.studentKey || "").trim();
+      const chunks = payload.chunks || [];
+      if (!studentKey) throw new Error("Missing studentKey");
+
+      const docsSheet = getOrCreateDocsSheet();
+      const dData = docsSheet.getDataRange().getValues();
+      const keptRows = [];
+      for (let i = 1; i < dData.length; i++) {
+        if (String(dData[i][1] || "").trim() !== studentKey) {
+          keptRows.push(dData[i]);
+        }
+      }
+
+      for (let c = 0; c < chunks.length; c++) {
+        const ch = chunks[c];
+        keptRows.push([
+          String(ch.docKey || ""),
+          studentKey,
+          String(ch.studentId || ""),
+          String(ch.category || ""),
+          Number(ch.pageIndex || 0),
+          Number(ch.chunkIndex || 0),
+          Number(ch.totalChunks || 1),
+          safeCellText(ch.metaJson, 10000),
+          safeCellText(ch.dataChunk, 45000)
+        ]);
+      }
+
+      if (docsSheet.getLastRow() > 1) {
+        docsSheet.getRange(2, 1, docsSheet.getLastRow() - 1, docsSheet.getLastColumn()).clearContent();
+      }
+      docsSheet.getRange(1, 1, 1, DOC_HEADERS.length).setValues([DOC_HEADERS]);
+      if (keptRows.length > 0) {
+        docsSheet.getRange(2, 1, keptRows.length, DOC_HEADERS.length).setValues(keptRows);
+      }
+
+      return responseJSON({
+        success: true,
+        apiVersion: "3.0",
+        message: "Saved " + chunks.length + " document chunks"
       });
     }
 
     if (action === "delete") {
       const studentId = payload.studentId;
+      const studentKey = String(payload.studentKey || "").trim();
       if (!studentId) {
         throw new Error("Missing studentId parameter");
       }
@@ -391,17 +540,31 @@ function doPost(e) {
         }
       }
 
+      // Also clean up StudentDocs chunks if present
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const docsSheet = ss.getSheetByName(DOCS_SHEET_NAME);
+      if (docsSheet && docsSheet.getLastRow() > 1) {
+        const dData = docsSheet.getDataRange().getValues();
+        for (let r = dData.length - 1; r >= 1; r--) {
+          const rKey = String(dData[r][1] || "").trim();
+          const rId = String(dData[r][2] || "").trim();
+          if ((studentKey && rKey === studentKey) || (!studentKey && rId === String(studentId).trim())) {
+            docsSheet.deleteRow(r + 1);
+          }
+        }
+      }
+
       if (!found) {
         throw new Error("Student order number not found: " + studentId);
       }
 
       return responseJSON({
         success: true,
+        apiVersion: "3.0",
         message: "Student deleted successfully"
       });
     }
 
-    // Sync Schools & Majors specifically
     if (action === "syncSchools") {
       const schools = payload.schools || [];
       const customTranslations = payload.customTranslations || { schools: {} };
@@ -437,6 +600,7 @@ function doPost(e) {
 
       return responseJSON({
         success: true,
+        apiVersion: "3.0",
         message: "Synced " + schools.length + " schools & majors successfully"
       });
     }
@@ -446,7 +610,6 @@ function doPost(e) {
       const schools = payload.schools;
       const customTranslations = payload.customTranslations || { schools: {} };
 
-      // 1. Sync students
       if (sheet.getLastRow() > 1) {
         sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
       }
@@ -458,7 +621,6 @@ function doPost(e) {
         sheet.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
       }
 
-      // 2. Sync schools if provided
       if (Array.isArray(schools)) {
         const schoolsSheet = getOrCreateSchoolsSheet();
         if (schoolsSheet.getLastRow() > 1) {
@@ -491,6 +653,7 @@ function doPost(e) {
 
       return responseJSON({
         success: true,
+        apiVersion: "3.0",
         message: "Synced " + students.length + " students successfully"
       });
     }
@@ -515,6 +678,7 @@ function doPost(e) {
       }
       return responseJSON({
         success: true,
+        apiVersion: "3.0",
         message: "Synced " + users.length + " users successfully"
       });
     }
@@ -542,9 +706,12 @@ export interface RemoteDataResult {
   deletedSchools?: string[];
   deletedMajors?: string[];
   users?: UserAccount[] | null;
+  apiVersion?: string;
 }
 
 export class AppsScriptService {
+  private static serverApiVersionMap = new Map<string, string>();
+
   private static sendRequest(url: string, payload: any): Promise<any> {
     return fetch(url, {
       method: 'POST',
@@ -560,7 +727,11 @@ export class AppsScriptService {
     });
   }
 
-  static async ping(webAppUrl: string): Promise<{ success: boolean; message?: string }> {
+  static getServerApiVersion(webAppUrl: string): string {
+    return this.serverApiVersionMap.get(webAppUrl) || '2.0';
+  }
+
+  static async ping(webAppUrl: string): Promise<{ success: boolean; message?: string; apiVersion?: string }> {
     if (!webAppUrl || !webAppUrl.startsWith('http')) {
       throw new Error('Invalid URL');
     }
@@ -570,11 +741,14 @@ export class AppsScriptService {
       throw new Error(`Status ${res.status}`);
     }
     const data = await res.json();
+    if (data?.apiVersion) {
+      this.serverApiVersionMap.set(webAppUrl, String(data.apiVersion));
+    }
     return data;
   }
 
   /**
-   * Fetch both students, schools, and users from Google Sheets
+   * Fetch students (automatically unpacking embedded cloud document envelopes), schools, and users
    */
   static async fetchAllData(webAppUrl: string): Promise<RemoteDataResult> {
     if (!webAppUrl || !webAppUrl.startsWith('http')) {
@@ -589,13 +763,23 @@ export class AppsScriptService {
     if (!json.success && json.error) {
       throw new Error(json.error);
     }
+
+    const detectedVersion = json.apiVersion ? String(json.apiVersion) : '2.0';
+    this.serverApiVersionMap.set(webAppUrl, detectedVersion);
+
     const rawList: Student[] = json.data || [];
-    const formattedStudents = rawList.map(s => ({
-      ...s,
-      dob: formatDobOnly(s.dob),
-      fatherDob: formatDobOnly(s.fatherDob),
-      motherDob: formatDobOnly(s.motherDob),
-    }));
+    const formattedStudents = rawList.map(raw => {
+      const unpacked = unpackStudentFromSheets(raw);
+      if (unpacked.documents && Object.keys(unpacked.documents).length > 0) {
+        dbStorage.saveStudentDocumentsForStudent(unpacked, unpacked.documents, true).catch(() => {});
+      }
+      return {
+        ...unpacked,
+        dob: formatDobOnly(unpacked.dob),
+        fatherDob: formatDobOnly(unpacked.fatherDob),
+        motherDob: formatDobOnly(unpacked.motherDob),
+      };
+    });
 
     return {
       students: formattedStudents,
@@ -604,6 +788,7 @@ export class AppsScriptService {
       deletedSchools: Array.isArray(json.deletedSchools) ? json.deletedSchools : [],
       deletedMajors: Array.isArray(json.deletedMajors) ? json.deletedMajors : [],
       users: Array.isArray(json.users) ? json.users : null,
+      apiVersion: detectedVersion,
     };
   }
 
@@ -612,33 +797,149 @@ export class AppsScriptService {
     return data.students;
   }
 
-  static async createStudent(webAppUrl: string, student: Student): Promise<void> {
-    if (!webAppUrl) return;
-    const res = await this.sendRequest(webAppUrl, {
-      action: 'create',
-      student,
+  /**
+   * Uploads full-resolution / multi-MB PDF document chunks when backend runs Code.gs v3.0+
+   */
+  static async saveStudentFullDocs(webAppUrl: string, student: Student): Promise<void> {
+    if (!webAppUrl || this.getServerApiVersion(webAppUrl) !== '3.0') return;
+    const effectiveDocs = getEffectiveStudentDocuments(student) || student.documents;
+    if (!effectiveDocs || Object.keys(effectiveDocs).length === 0) return;
+
+    const chunks = splitStudentDocsIntoChunks({ ...student, documents: effectiveDocs });
+    if (chunks.length === 0) return;
+
+    const studentKey = getStableStudentCloudKey(student);
+    await this.sendRequest(webAppUrl, {
+      action: 'saveStudentDocs',
+      studentKey,
+      chunks,
     });
+  }
+
+  /**
+   * Fetches full-resolution / multi-MB PDF document chunks on demand when backend runs Code.gs v3.0+
+   */
+  static async fetchStudentFullDocs(
+    webAppUrl: string,
+    student: Pick<Student, 'studentId' | 'createdAt' | 'nameKhmer' | 'phone'>
+  ): Promise<StudentDocuments | null> {
+    if (!webAppUrl || this.getServerApiVersion(webAppUrl) !== '3.0') return null;
+    try {
+      const studentKey = getStableStudentCloudKey(student);
+      const query = `${webAppUrl}${webAppUrl.includes('?') ? '&' : '?'}action=getStudentDocs&studentKey=${encodeURIComponent(
+        studentKey
+      )}&studentId=${encodeURIComponent(student.studentId || '')}&t=${Date.now()}`;
+      const res = await fetch(query, { method: 'GET' });
+      if (!res.ok) return null;
+      const json = await res.json();
+      if (!json.success || !Array.isArray(json.chunks) || json.chunks.length === 0) {
+        return null;
+      }
+      const docs = reassembleChunksToStudentDocs(json.chunks as StudentDocChunkRow[]);
+      if (docs && Object.keys(docs).length > 0) {
+        await dbStorage.saveStudentDocumentsForStudent(student, docs, false);
+        return docs;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  static async createStudent(webAppUrl: string, student: Student): Promise<Student> {
+    if (!webAppUrl) return student;
+
+    const hydrated: Student = {
+      ...student,
+      documents: getEffectiveStudentDocuments(student) || student.documents,
+    };
+
+    let packed = await packStudentForSheets(hydrated);
+    let res = await this.sendRequest(webAppUrl, {
+      action: 'create',
+      student: packed,
+    });
+
+    // Automatic order-number collision recovery on legacy v2.0 Apps Script
+    if (!res.success && String(res.error || '').toLowerCase().includes('already exists')) {
+      const latest = await this.fetchAllData(webAppUrl);
+      const maxNum = latest.students.reduce((max, item) => {
+        const n = parseInt((item.studentId || '').replace(/\D/g, '') || '0', 10);
+        return n > max ? n : max;
+      }, 0);
+      const nextId = String(maxNum + 1);
+      const reassigned: Student = { ...hydrated, studentId: nextId };
+      packed = await packStudentForSheets(reassigned);
+      res = await this.sendRequest(webAppUrl, {
+        action: 'create',
+        student: packed,
+      });
+      if (res.success) {
+        await dbStorage.saveStudentDocumentsForStudent(reassigned, reassigned.documents || {}, true);
+        if (this.getServerApiVersion(webAppUrl) === '3.0') {
+          this.saveStudentFullDocs(webAppUrl, reassigned).catch(() => {});
+        }
+        return reassigned;
+      }
+    }
+
     if (!res.success) {
       throw new Error(res.error || 'Failed to create student in Google Sheets');
     }
+
+    const finalId = res.studentId ? String(res.studentId) : hydrated.studentId;
+    const finalStudent: Student = { ...hydrated, studentId: finalId };
+
+    if (res.apiVersion) {
+      this.serverApiVersionMap.set(webAppUrl, String(res.apiVersion));
+    }
+    if (this.getServerApiVersion(webAppUrl) === '3.0') {
+      this.saveStudentFullDocs(webAppUrl, finalStudent).catch(() => {});
+    }
+
+    return finalStudent;
   }
 
   static async updateStudent(webAppUrl: string, student: Student): Promise<void> {
     if (!webAppUrl) return;
-    const res = await this.sendRequest(webAppUrl, {
+
+    const hydrated: Student = {
+      ...student,
+      documents: getEffectiveStudentDocuments(student) || student.documents,
+    };
+
+    const packed = await packStudentForSheets(hydrated);
+    let res = await this.sendRequest(webAppUrl, {
       action: 'update',
-      student,
+      student: packed,
     });
+
+    if (!res.success && String(res.error || '').toLowerCase().includes('not found')) {
+      res = await this.sendRequest(webAppUrl, {
+        action: 'create',
+        student: packed,
+      });
+    }
+
     if (!res.success) {
       throw new Error(res.error || 'Failed to update student in Google Sheets');
     }
+
+    if (res.apiVersion) {
+      this.serverApiVersionMap.set(webAppUrl, String(res.apiVersion));
+    }
+    if (this.getServerApiVersion(webAppUrl) === '3.0') {
+      this.saveStudentFullDocs(webAppUrl, hydrated).catch(() => {});
+    }
   }
 
-  static async deleteStudent(webAppUrl: string, studentId: string): Promise<void> {
+  static async deleteStudent(webAppUrl: string, studentId: string, student?: Student): Promise<void> {
     if (!webAppUrl) return;
+    const studentKey = student ? getStableStudentCloudKey(student) : undefined;
     const res = await this.sendRequest(webAppUrl, {
       action: 'delete',
       studentId,
+      studentKey,
     });
     if (!res.success) {
       throw new Error(res.error || 'Failed to delete student from Google Sheets');
@@ -673,8 +974,8 @@ export class AppsScriptService {
   }
 
   static async syncSchools(
-    webAppUrl: string, 
-    schools: SchoolMajorEntry[], 
+    webAppUrl: string,
+    schools: SchoolMajorEntry[],
     customTranslations?: CustomTranslationsStore,
     deletedSchools?: string[],
     deletedMajors?: string[]
@@ -695,9 +996,17 @@ export class AppsScriptService {
 
   static async syncAllStudents(webAppUrl: string, students: Student[]): Promise<void> {
     if (!webAppUrl) return;
+    const packedStudents = await Promise.all(
+      students.map(s =>
+        packStudentForSheets({
+          ...s,
+          documents: getEffectiveStudentDocuments(s) || s.documents,
+        })
+      )
+    );
     const res = await this.sendRequest(webAppUrl, {
       action: 'syncAll',
-      students,
+      students: packedStudents,
     });
     if (!res.success) {
       throw new Error(res.error || 'Failed to bulk sync students to Google Sheets');
@@ -716,18 +1025,26 @@ export class AppsScriptService {
   }
 
   static async syncAllData(
-    webAppUrl: string, 
-    students: Student[], 
-    schools: SchoolMajorEntry[], 
+    webAppUrl: string,
+    students: Student[],
+    schools: SchoolMajorEntry[],
     customTranslations?: CustomTranslationsStore,
     deletedSchools?: string[],
     deletedMajors?: string[]
   ): Promise<void> {
     if (!webAppUrl) return;
     const { safeSchools, safeTranslations } = this.sanitizeSchoolsForSheets(schools, customTranslations);
+    const packedStudents = await Promise.all(
+      students.map(s =>
+        packStudentForSheets({
+          ...s,
+          documents: getEffectiveStudentDocuments(s) || s.documents,
+        })
+      )
+    );
     const res = await this.sendRequest(webAppUrl, {
       action: 'syncAll',
-      students,
+      students: packedStudents,
       schools: safeSchools,
       customTranslations: safeTranslations,
       deletedSchools,

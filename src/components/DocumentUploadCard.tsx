@@ -8,11 +8,13 @@ import {
   Download, 
   AlertCircle,
   Plus,
-  Files
+  Files,
+  Loader2
 } from 'lucide-react';
 import { UploadedDocument, Language } from '../types';
 import { getDocPages, formatDocSize } from '../utils/documentUtils';
 import { generateStandardDocFilename, downloadDocumentWithStandardName } from '../utils/documentDownloadUtils';
+import { compressUploadedDocumentFile, isValidDataUrl } from '../utils/cloudDocSyncUtils';
 
 interface DocumentUploadCardProps {
   id: string;
@@ -51,6 +53,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const pages = getDocPages(document);
@@ -58,7 +61,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
   const isMaxReached = pages.length >= maxPages;
   const isError = showRequiredError && !isUploaded;
 
-  const handleProcessFiles = (fileList: FileList | File[]) => {
+  const handleProcessFiles = async (fileList: FileList | File[]) => {
     setErrorMsg(null);
     const files = Array.from(fileList);
     if (files.length === 0) return;
@@ -74,49 +77,45 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
       setErrorMsg(language === 'km' ? `ជ្រើសរើសបានត្រឹម ${remainingSlots} ទំព័របន្ថែមទៀត (អតិបរមា ${maxPages})` : `Only ${remainingSlots} slots remaining (Max ${maxPages})`);
     }
 
-    // Check size on all files (8MB limit per file)
+    // Check size on all files (15MB limit per file so high-res phone photos compress cleanly)
     for (const f of filesToProcess) {
-      if (f.size > 8 * 1024 * 1024) {
-        setErrorMsg(language === 'km' ? `ឯកសារ "${f.name}" ធំពេក (អតិបរមា 8MB ក្នុងមួយឯកសារ)` : `File "${f.name}" is too large (Max 8MB per file)`);
+      if (f.size > 15 * 1024 * 1024) {
+        setErrorMsg(language === 'km' ? `ឯកសារ "${f.name}" ធំពេក (អតិបរមា 15MB ក្នុងមួយឯកសារ)` : `File "${f.name}" is too large (Max 15MB per file)`);
         return;
       }
     }
 
-    // Read all files asynchronously
-    const targetCat = categoryKey || id.replace('doc-', '').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    const readers = filesToProcess.map((file, idx) => {
-      return new Promise<UploadedDocument>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
+    setIsProcessing(true);
+    try {
+      const targetCat = categoryKey || id.replace('doc-', '').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      const newPages = await Promise.all(
+        filesToProcess.map(async (file, idx): Promise<UploadedDocument> => {
+          const { dataUrl, mimeType } = await compressUploadedDocumentFile(file, 1600, 0.84);
           const stdName = generateStandardDocFilename(
             { studentId, nameKhmer: studentName },
             targetCat,
             pages.length + idx,
             file.name,
-            file.type
+            mimeType || file.type
           );
-          resolve({
+          return {
             name: stdName,
             size: file.size,
-            type: file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
-            dataUrl: e.target?.result as string,
+            type: mimeType || file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+            dataUrl,
             uploadedAt: new Date().toISOString(),
             pageNumber: pages.length + idx + 1,
-          });
-        };
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsDataURL(file);
-      });
-    });
+          };
+        })
+      );
 
-    Promise.all(readers)
-      .then(newPages => {
-        const updated = [...pages, ...newPages];
-        onUploadPages(updated);
-      })
-      .catch(() => {
-        setErrorMsg(language === 'km' ? 'មានបញ្ហាក្នុងការអានឯកសារ' : 'Failed to process files');
-      });
+      const updated = [...pages, ...newPages];
+      onUploadPages(updated);
+    } catch {
+      setErrorMsg(language === 'km' ? 'មានបញ្ហាក្នុងការអានឯកសារ' : 'Failed to process files');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -245,7 +244,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
                       </span>
 
                       {/* Thumbnail or icon */}
-                      {isImage && p.dataUrl ? (
+                      {isImage && isValidDataUrl(p.dataUrl) ? (
                         <img 
                           src={p.dataUrl} 
                           alt={`Page ${idx + 1}`} 
@@ -274,7 +273,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
 
                     {/* Actions per page */}
                     <div className="flex items-center gap-0.5 shrink-0">
-                      {onPreview && p.dataUrl && (
+                      {onPreview && (
                         <button
                           type="button"
                           onClick={() => onPreview(p, title, idx, pages)}
@@ -284,7 +283,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
                           <Eye className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      {p.dataUrl && (
+                      {isValidDataUrl(p.dataUrl) && (
                         <button
                           type="button"
                           onClick={() => {
@@ -341,16 +340,27 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
         ) : (
           /* Empty state - Click or Drag & Drop */
           <div 
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => !isProcessing && fileInputRef.current?.click()}
             className="cursor-pointer py-3.5 px-3 rounded-lg border border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50/60 hover:bg-indigo-50/40 text-center transition-colors flex flex-col items-center justify-center gap-1"
           >
-            <Upload className="w-4 h-4 text-slate-400" />
-            <p className="text-[11px] font-semibold text-slate-700">
-              {language === 'km' ? `ចុច ឬអូសទម្លាក់ឯកសារ (១ ដល់ ${maxPages} ទំព័រ)` : `Click or drop files (1 to ${maxPages} pages)`}
-            </p>
-            <span className="text-[10px] text-slate-400">
-              {language === 'km' ? 'JPG, PNG, WEBP ឬ PDF (អតិបរមា 8MB)' : 'JPG, PNG, WEBP or PDF (Max 8MB)'}
-            </span>
+            {isProcessing ? (
+              <>
+                <Loader2 className="w-4 h-4 text-indigo-600 animate-spin" />
+                <p className="text-[11px] font-semibold text-indigo-700">
+                  {language === 'km' ? 'កំពុងរៀបចំឯកសារ...' : 'Processing files...'}
+                </p>
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4 text-slate-400" />
+                <p className="text-[11px] font-semibold text-slate-700">
+                  {language === 'km' ? `ចុច ឬអូសទម្លាក់ឯកសារ (១ ដល់ ${maxPages} ទំព័រ)` : `Click or drop files (1 to ${maxPages} pages)`}
+                </p>
+                <span className="text-[10px] text-slate-400">
+                  {language === 'km' ? 'JPG, PNG, WEBP ឬ PDF (អតិបរមា 15MB)' : 'JPG, PNG, WEBP or PDF (Max 15MB)'}
+                </span>
+              </>
+            )}
           </div>
         )}
 

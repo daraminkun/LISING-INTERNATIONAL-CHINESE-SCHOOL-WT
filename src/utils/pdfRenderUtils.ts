@@ -7,7 +7,7 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Student, Language } from '../types';
-import { areAllRequiredDocumentsUploaded } from './documentUtils';
+import { areAllRequiredDocumentsUploaded, getEffectiveStudentDocuments } from './documentUtils';
 import { calculateAge, formatDobOnly } from './ageUtils';
 import { getSchoolTranslation, getMajorTranslation } from './schoolMajorTranslations';
 import { institutionService } from '../services/institutionService';
@@ -30,7 +30,7 @@ export function generateReportHtml(
   const schoolNameEn = inst.nameEn || 'LISING INTERNATIONAL CHINESE SCHOOL';
 
   const rowsHtml = students.map((s, idx) => {
-    const docVal = areAllRequiredDocumentsUploaded(s.documents);
+    const docVal = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
     const docCount = `${docVal.completedCount}/${docVal.totalRequired}`;
     const studentAge = s.age || calculateAge(s.dob);
     const ageStr = studentAge ? `${studentAge}` : '-';
@@ -415,7 +415,7 @@ export async function generateHighQualityPDF(
 
       const rowsHtml = pageStudents.map((s, idx) => {
         const globalIdx = pageIdx * ROWS_PER_PAGE + idx + 1;
-        const docVal = areAllRequiredDocumentsUploaded(s.documents);
+        const docVal = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
         const docCount = `${docVal.completedCount}/${docVal.totalRequired}`;
         const studentAge = s.age || calculateAge(s.dob);
         const ageStr = studentAge ? `${studentAge} ឆ្នាំ` : '-';

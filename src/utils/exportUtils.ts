@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { Student, Language } from '../types';
-import { areAllRequiredDocumentsUploaded } from './documentUtils';
+import { areAllRequiredDocumentsUploaded, getEffectiveStudentDocuments } from './documentUtils';
+import { stripCloudEnvelopeFromNotes } from './cloudDocSyncUtils';
 import { calculateAge, formatDobOnly } from './ageUtils';
 import { generateHighQualityPDF } from './pdfRenderUtils';
 
@@ -41,10 +42,10 @@ export function getExportColumns(language: Language = 'km'): ExportColumn[] {
       { header: '選讀學校 (Target School)', accessor: s => s.targetSchool || '' },
       { header: '選讀專業 (Major)', accessor: s => s.major || '' },
       { header: '必要附件數量 (Attached Docs)', accessor: s => {
-        const val = areAllRequiredDocumentsUploaded(s.documents);
+        const val = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
         return `${val.completedCount}/${val.totalRequired}`;
       }},
-      { header: '備註 (Notes)', accessor: s => s.notes || '' },
+      { header: '備註 (Notes)', accessor: s => stripCloudEnvelopeFromNotes(s.notes) },
       { header: '登記日期 (Created At)', accessor: s => (s.createdAt ? s.createdAt.split('T')[0] : '') },
     ];
   }
@@ -80,10 +81,10 @@ export function getExportColumns(language: Language = 'km'): ExportColumn[] {
       { header: 'Target School', accessor: s => s.targetSchool || '' },
       { header: 'Major', accessor: s => s.major || '' },
       { header: 'Required Docs (*)', accessor: s => {
-        const val = areAllRequiredDocumentsUploaded(s.documents);
+        const val = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
         return `${val.completedCount}/${val.totalRequired}`;
       }},
-      { header: 'Notes', accessor: s => s.notes || '' },
+      { header: 'Notes', accessor: s => stripCloudEnvelopeFromNotes(s.notes) },
       { header: 'Created Date', accessor: s => (s.createdAt ? s.createdAt.split('T')[0] : '') },
     ];
   }
@@ -119,10 +120,10 @@ export function getExportColumns(language: Language = 'km'): ExportColumn[] {
     { header: 'សាលាដែលជ្រើសរើស (Target School)', accessor: s => s.targetSchool || '' },
     { header: 'ជំនាញដែលជ្រើសរើស (Major)', accessor: s => s.major || '' },
     { header: 'ចំនួនឯកសារភ្ជាប់ (Attached Docs)', accessor: s => {
-      const val = areAllRequiredDocumentsUploaded(s.documents);
+      const val = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
       return `${val.completedCount}/${val.totalRequired}`;
     }},
-    { header: 'កំណត់សម្គាល់ (Notes)', accessor: s => s.notes || '' },
+    { header: 'កំណត់សម្គាល់ (Notes)', accessor: s => stripCloudEnvelopeFromNotes(s.notes) },
     { header: 'កាលបរិច្ឆេទចុះឈ្មោះ (Created At)', accessor: s => (s.createdAt ? s.createdAt.split('T')[0] : '') },
   ];
 }

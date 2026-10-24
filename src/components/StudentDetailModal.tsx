@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Phone, 
@@ -30,13 +30,15 @@ import {
   getDocPages, 
   areAllRequiredDocumentsUploaded, 
   countUploadedCategories, 
-  formatDocFileSize 
+  formatDocFileSize,
+  getEffectiveStudentDocuments
 } from '../utils/documentUtils';
+import { isValidDataUrl } from '../utils/cloudDocSyncUtils';
 import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
 import { TranslationTooltip } from './TranslationTooltip';
 import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
 import { downloadDocumentWithStandardName, downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
-import { dbStorage } from '../services/dbStorage';
+import { AppsScriptService } from '../services/appsScriptService';
 
 interface StudentDetailModalProps {
   student: Student | null;
@@ -45,6 +47,7 @@ interface StudentDetailModalProps {
   onEdit: (student: Student) => void;
   onDelete: (student: Student) => void;
   language: Language;
+  webAppUrl?: string;
 }
 
 export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
@@ -54,6 +57,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   onEdit,
   onDelete,
   language,
+  webAppUrl,
 }) => {
   const t = translations[language];
   const [copied, setCopied] = useState<string | null>(null);
@@ -63,6 +67,28 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
     pageIndex?: number;
     allPages?: UploadedDocument[];
   } | null>(null);
+
+  const [, setDocsVersion] = useState(0);
+
+  useEffect(() => {
+    const handleDocsUpdated = () => setDocsVersion(v => v + 1);
+    window.addEventListener('student_documents_updated', handleDocsUpdated);
+    return () => window.removeEventListener('student_documents_updated', handleDocsUpdated);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || !student || !webAppUrl) return;
+    const currentDocs = getEffectiveStudentDocuments(student) || {};
+    const allPages = Object.values(currentDocs).flatMap(entry => getDocPages(entry));
+    const hasMissingUrl = allPages.some(p => !isValidDataUrl(p.dataUrl));
+    if (hasMissingUrl) {
+      AppsScriptService.fetchStudentFullDocs(webAppUrl, student)
+        .then(res => {
+          if (res) setDocsVersion(v => v + 1);
+        })
+        .catch(() => {});
+    }
+  }, [isOpen, student, webAppUrl]);
 
   if (!isOpen || !student) return null;
 
@@ -84,8 +110,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
       })
     : '-';
 
-  const storedDocs = student?.studentId ? dbStorage.getCachedDocuments(student.studentId) : null;
-  const docs = (storedDocs && Object.keys(storedDocs).length > 0) ? storedDocs : (student.documents || {});
+  const docs = getEffectiveStudentDocuments(student) || {};
   const docList = [
     { key: 'idCard' as const, label: t.docIdCard, doc: docs.idCard, required: true },
     { key: 'birthCert' as const, label: t.docBirthCert, doc: docs.birthCert, required: true },
@@ -664,13 +689,16 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                           {/* List of uploaded pages (1 to 5) */}
                           <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
                             {pages.map((page, idx) => {
-                              const isImage = page.type?.startsWith('image/') || page.dataUrl?.startsWith('data:image/');
+                              const hasValidUrl = isValidDataUrl(page.dataUrl);
+                              const isImage =
+                                (page.type?.startsWith('image/') || page.dataUrl?.startsWith('data:image/')) &&
+                                hasValidUrl;
                               return (
                                 <div 
                                   key={idx} 
                                   className="flex items-center gap-2 p-1.5 rounded-lg bg-slate-50 border border-slate-200/80 hover:bg-indigo-50/40 transition-colors"
                                 >
-                                  {isImage && page.dataUrl ? (
+                                  {isImage ? (
                                     <img 
                                       src={page.dataUrl} 
                                       alt={`${label} p.${idx + 1}`} 
@@ -701,17 +729,15 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                                   </div>
 
                                   <div className="flex items-center gap-1 shrink-0">
-                                    {page.dataUrl && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setPreviewDoc({ doc: page, title: label, pageIndex: idx, allPages: pages })}
-                                        className="p-1 rounded text-indigo-600 hover:bg-indigo-100 transition-colors"
-                                        title={t.viewFile}
-                                      >
-                                        <Eye className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                    {page.dataUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewDoc({ doc: page, title: label, pageIndex: idx, allPages: pages })}
+                                      className="p-1 rounded text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                      title={t.viewFile}
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                    </button>
+                                    {hasValidUrl && (
                                       <button
                                         type="button"
                                         onClick={() => downloadDocumentWithStandardName(page, student, key, idx)}

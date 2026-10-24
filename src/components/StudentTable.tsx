@@ -32,7 +32,8 @@ import { Student, FilterState, SortConfig, SortField, Language } from '../types'
 import { translations } from '../translations';
 import { MAJORS, TARGET_SCHOOLS } from '../constants/studentOptions';
 import { schoolMajorService } from '../services/schoolMajorService';
-import { areAllRequiredDocumentsUploaded, countUploadedCategories } from '../utils/documentUtils';
+import { areAllRequiredDocumentsUploaded, countUploadedCategories, getEffectiveStudentDocuments } from '../utils/documentUtils';
+import { stripCloudEnvelopeFromNotes } from '../utils/cloudDocSyncUtils';
 import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { TranslationTooltip } from './TranslationTooltip';
@@ -90,13 +91,19 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Subscribe to dynamic schools and majors updates
+  // Subscribe to dynamic schools, majors, and student document hydration updates
   const [schoolsVersion, setSchoolsVersion] = useState(0);
+  const [, setDocsVersion] = useState(0);
   useEffect(() => {
     const unsub = schoolMajorService.subscribe(() => {
       setSchoolsVersion(v => v + 1);
     });
-    return unsub;
+    const handleDocsUpdated = () => setDocsVersion(v => v + 1);
+    window.addEventListener('student_documents_updated', handleDocsUpdated);
+    return () => {
+      unsub();
+      window.removeEventListener('student_documents_updated', handleDocsUpdated);
+    };
   }, []);
 
   // School and Major Admin management modal state (Add, Edit, Delete from Filter Options)
@@ -330,7 +337,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
     const csvRows = [
       headers.join(','),
       ...listToExport.map(s => {
-        const val = areAllRequiredDocumentsUploaded(s.documents);
+        const val = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
         const docCount = `${val.completedCount}/${val.totalRequired}`;
         const studentAgeStr = s.age ? s.age.toString() : (calculateAge(s.dob)?.toString() || '');
         const fatherAgeStr = s.fatherAge ? s.fatherAge.toString() : (calculateAge(s.fatherDob)?.toString() || '');
@@ -366,7 +373,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
           `"${(s.targetSchool || '').replace(/"/g, '""')}"`,
           `"${(s.major || '').replace(/"/g, '""')}"`,
           `"${docCount}"`,
-          `"${(s.notes || '').replace(/"/g, '""')}"`,
+          `"${stripCloudEnvelopeFromNotes(s.notes).replace(/"/g, '""')}"`,
           `"${s.createdAt || ''}"`
         ].join(',');
       })
@@ -832,8 +839,9 @@ export const StudentTable: React.FC<StudentTableProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {paginatedStudents.map(student => {
                   const isSelected = selectedIds.includes(student.studentId);
-                  const docValidation = areAllRequiredDocumentsUploaded(student.documents);
-                  const uploadedCategoryCount = countUploadedCategories(student.documents);
+                  const effectiveDocs = getEffectiveStudentDocuments(student);
+                  const docValidation = areAllRequiredDocumentsUploaded(effectiveDocs);
+                  const uploadedCategoryCount = countUploadedCategories(effectiveDocs);
                   const sTrans = getSchoolTranslation(student.targetSchool);
                   const mTrans = getMajorTranslation(student.major);
 
@@ -1180,8 +1188,9 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                 paginatedStudents.map(student => {
                   const isSelected = selectedIds.includes(student.studentId);
                   const displayName = student.nameKhmer || student.name || '-';
-                  const docValidation = areAllRequiredDocumentsUploaded(student.documents);
-                  const uploadedCategoryCount = countUploadedCategories(student.documents);
+                  const effectiveDocs = getEffectiveStudentDocuments(student);
+                  const docValidation = areAllRequiredDocumentsUploaded(effectiveDocs);
+                  const uploadedCategoryCount = countUploadedCategories(effectiveDocs);
 
                   return (
                     <tr 

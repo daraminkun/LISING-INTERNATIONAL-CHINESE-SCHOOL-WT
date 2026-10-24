@@ -1,4 +1,10 @@
-import { UploadedDocument, StudentDocuments } from '../types';
+import { Student, UploadedDocument, StudentDocuments } from '../types';
+import { dbStorage } from '../services/dbStorage';
+import {
+  CLOUD_ENVELOPE_MARKER,
+  mergeBestStudentDocuments,
+  unpackStudentFromSheets,
+} from './cloudDocSyncUtils';
 
 /**
  * Normalizes a document entry into an array of UploadedDocument pages.
@@ -122,4 +128,25 @@ export function countTotalPages(documents?: StudentDocuments): number {
     'passport',
   ];
   return allKeys.reduce((acc, k) => acc + getDocPages(documents[k]).length, 0);
+}
+
+/**
+ * Resolves the complete, merged documents for a student across IndexedDB cache,
+ * in-memory state, and Google Sheets cloud envelope.
+ */
+export function getEffectiveStudentDocuments(
+  student?: Partial<Student> | null
+): StudentDocuments | undefined {
+  if (!student) return undefined;
+
+  let unpackedDocs: StudentDocuments | undefined = undefined;
+  if (student.notes && student.notes.includes(CLOUD_ENVELOPE_MARKER)) {
+    unpackedDocs = unpackStudentFromSheets(student as Student).documents;
+  }
+
+  const cachedDocs = dbStorage.getCachedDocumentsForStudent(
+    student as Pick<Student, 'studentId' | 'createdAt' | 'nameKhmer' | 'nameLatin' | 'phone'>
+  );
+
+  return mergeBestStudentDocuments(cachedDocs, student.documents, unpackedDocs);
 }

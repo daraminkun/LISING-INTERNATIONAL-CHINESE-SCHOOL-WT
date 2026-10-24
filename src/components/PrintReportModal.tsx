@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Student, Language } from '../types';
 import { generateHighQualityPDF, executePrintDocument, downloadPrintableHtml } from '../utils/pdfRenderUtils';
-import { areAllRequiredDocumentsUploaded } from '../utils/documentUtils';
+import { areAllRequiredDocumentsUploaded, getEffectiveStudentDocuments } from '../utils/documentUtils';
 import { calculateAge, formatDobOnly } from '../utils/ageUtils';
 import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
 
@@ -317,7 +317,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {students.slice(0, 15).map((s, idx) => {
-                    const docVal = areAllRequiredDocumentsUploaded(s.documents);
+                    const docVal = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
                     const studentAge = s.age || calculateAge(s.dob);
                     const schoolTrans = getSchoolTranslation(s.targetSchool);
                     const majorTrans = getMajorTranslation(s.major);

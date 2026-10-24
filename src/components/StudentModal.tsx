@@ -39,7 +39,8 @@ import {
   areAllRequiredDocumentsUploaded, 
   hasDocUploaded, 
   getDocPages, 
-  countUploadedCategories 
+  countUploadedCategories,
+  getEffectiveStudentDocuments
 } from '../utils/documentUtils';
 import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
 import { TranslationTooltip } from './TranslationTooltip';
@@ -48,8 +49,8 @@ import { authService } from '../services/authService';
 import { schoolMajorService } from '../services/schoolMajorService';
 import { AdminPinModal } from './AdminPinModal';
 import { downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
-import { dbStorage } from '../services/dbStorage';
 import { useInstitution } from '../services/institutionService';
+import { stripCloudEnvelopeFromNotes } from '../utils/cloudDocSyncUtils';
 
 interface StudentModalProps {
   isOpen: boolean;
@@ -330,8 +331,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
         setPreviousSchoolAddressKhmer(studentToEdit.previousSchoolAddressKhmer || '');
         setTargetSchool(studentToEdit.targetSchool || '');
         setMajor(studentToEdit.major || '');
-        const storedDocs = studentToEdit.studentId ? dbStorage.getCachedDocuments(studentToEdit.studentId) : null;
-        setDocuments((storedDocs && Object.keys(storedDocs).length > 0) ? storedDocs : (studentToEdit.documents || {}));
+        setNotes(stripCloudEnvelopeFromNotes(studentToEdit.notes));
+        setDocuments(getEffectiveStudentDocuments(studentToEdit) || {});
       } else {
         // Reset form for new student
         setNameKhmer('');

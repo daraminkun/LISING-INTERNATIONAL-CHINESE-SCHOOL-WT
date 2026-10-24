@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Users, 
   UserCheck, 
@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { Student, Language, ConnectionStatus } from '../types';
 import { translations } from '../translations';
-import { areAllRequiredDocumentsUploaded, countUploadedCategories } from '../utils/documentUtils';
+import { areAllRequiredDocumentsUploaded, countUploadedCategories, getEffectiveStudentDocuments } from '../utils/documentUtils';
 import { TranslationTooltip } from './TranslationTooltip';
 import { getMajorTranslation, getSchoolTranslation } from '../utils/schoolMajorTranslations';
 import { SchoolMajorAnalytics } from './SchoolMajorAnalytics';
@@ -58,6 +58,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const t = translations[language];
   const institution = useInstitution();
   const [isLocalInstModalOpen, setIsLocalInstModalOpen] = useState(false);
+  const [, setDocsVersion] = useState(0);
+
+  useEffect(() => {
+    const handleDocsUpdated = () => setDocsVersion(v => v + 1);
+    window.addEventListener('student_documents_updated', handleDocsUpdated);
+    return () => window.removeEventListener('student_documents_updated', handleDocsUpdated);
+  }, []);
 
   const total = students.length;
   const maleCount = students.filter(s => s.gender === 'Male').length;
@@ -139,9 +146,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const activeBarList = barChartMode === 'major' ? majorBarData : schoolBarData;
   const maxBarCount = activeBarList.length > 0 ? Math.max(...activeBarList.map(item => item.total), 1) : 1;
 
-  // Document upload completion statistics (requires all 5 mandatory documents)
-  const studentsWithAllDocs = students.filter(s => areAllRequiredDocumentsUploaded(s.documents).isValid).length;
-  const studentsWithAnyDocs = students.filter(s => countUploadedCategories(s.documents) > 0).length;
+  // Document upload completion statistics (requires all 6 mandatory documents)
+  const studentsWithAllDocs = students.filter(s => areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s)).isValid).length;
+  const studentsWithAnyDocs = students.filter(s => countUploadedCategories(getEffectiveStudentDocuments(s)) > 0).length;
 
   // Recent students (last 5, sorted by numeric studentId or createdAt desc)
   const recentStudents = [...students].sort((a, b) => {
@@ -743,7 +750,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         ) : (
           <div className="divide-y divide-slate-100">
             {recentStudents.map(student => {
-              const val = areAllRequiredDocumentsUploaded(student.documents);
+              const val = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(student));
 
               return (
                 <div 

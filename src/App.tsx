@@ -34,6 +34,13 @@ import { translations } from './translations';
 import { formatDobOnly } from './utils/ageUtils';
 import { schoolMajorService } from './services/schoolMajorService';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import {
+  mergeBestStudentDocuments,
+  stripCloudEnvelopeFromNotes,
+  unpackStudentFromSheets,
+  isMockStudentDocuments,
+} from './utils/cloudDocSyncUtils';
+import { countUploadedCategories } from './utils/documentUtils';
 
 const STORAGE_KEY_STUDENTS = 'sms_students_data_v1';
 const STORAGE_KEY_CONFIG = 'sms_appscript_config_v1';
@@ -41,6 +48,31 @@ const STORAGE_KEY_LANG = 'sms_app_lang_v1';
 
 // Official Master Web App URL for Google Sheets Backend
 export const HARDCODED_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz01aE2jUA4-GgNEmanaWjCKPGXX3ge4A0DA3Y1EEEc7LFjHWQp13JsRd0rE_Uq63FNKQ/exec';
+
+const MOCK_CREATED_AT_SET = new Set(
+  INITIAL_STUDENTS.map(m => (m.createdAt || '').trim()).filter(Boolean)
+);
+
+function isBuiltInMockStudent(s?: Partial<Student> | null): boolean {
+  if (!s) return false;
+  if (s.createdAt && MOCK_CREATED_AT_SET.has(s.createdAt.trim())) return true;
+  if (isMockStudentDocuments(s.documents)) return true;
+  return false;
+}
+
+function isSameStudentIdentity(a: Student, b: Student): boolean {
+  if (a.createdAt && b.createdAt && a.createdAt.trim() === b.createdAt.trim()) {
+    return true;
+  }
+  const nkA = (a.nameKhmer || '').trim().toLowerCase();
+  const nkB = (b.nameKhmer || '').trim().toLowerCase();
+  const phA = (a.phone || '').replace(/\s+/g, '');
+  const phB = (b.phone || '').replace(/\s+/g, '');
+  if (nkA && nkB && nkA === nkB && phA && phB && phA === phB) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Re-sequences student order numbers (លេខរៀង Auto: 1, 2, 3...)
@@ -93,14 +125,23 @@ export default function App() {
         console.error('Failed to parse local students data:', e);
       }
     }
-    const formatted = list.map(s => ({
-      ...s,
-      dob: formatDobOnly(s.dob),
-      fatherDob: formatDobOnly(s.fatherDob),
-      motherDob: formatDobOnly(s.motherDob),
-    }));
+    const formatted = list.map(raw => {
+      const s = unpackStudentFromSheets(raw);
+      const isMock = isBuiltInMockStudent(s);
+      const dbDocs = isMock ? undefined : dbStorage.getCachedDocumentsForStudent(s);
+      return {
+        ...s,
+        notes: stripCloudEnvelopeFromNotes(s.notes),
+        dob: formatDobOnly(s.dob),
+        fatherDob: formatDobOnly(s.fatherDob),
+        motherDob: formatDobOnly(s.motherDob),
+        documents: isMock ? s.documents : mergeBestStudentDocuments(dbDocs, s.documents),
+      };
+    });
     return resequenceStudentsList(formatted);
   });
+
+  const backfilledCloudKeysRef = React.useRef<Set<string>>(new Set());
 
   const defaultEnvUrl = ((import.meta as any).env?.VITE_APPS_SCRIPT_URL as string | undefined)?.trim() || HARDCODED_APPS_SCRIPT_URL;
 
@@ -194,26 +235,58 @@ export default function App() {
       const result = await AppsScriptService.fetchAllData(appScriptConfig.webAppUrl);
       if (Array.isArray(result.students)) {
         // Automatically re-sequence so there are never any gaps or starting from 2
-        // e.g. 2, 3, 4, 5... immediately becomes 1, 2, 3, 4...
         const resequenced = resequenceStudentsList(result.students);
-        setStudents(prev => {
-          const prevMap = new Map(prev.map(p => [p.studentId, p]));
-          const merged = resequenced.map(s => {
-            const existing = prevMap.get(s.studentId);
-            const dbDocs = dbStorage.getCachedDocuments(s.studentId);
-            return {
-              ...s,
-              documents: existing?.documents || dbDocs || s.documents,
-            };
-          });
-          return merged;
+        const studentsNeedingCloudBackfill: Student[] = [];
+
+        const preHydrated = resequenced.map(s => {
+          const dbDocs = dbStorage.getCachedDocumentsForStudent(s);
+          const mergedDocs = mergeBestStudentDocuments(dbDocs, s.documents);
+          const remoteDocCount = countUploadedCategories(s.documents);
+          const localDocCount = countUploadedCategories(mergedDocs);
+          const bKey = s.createdAt || `${s.studentId}_${s.nameKhmer}`;
+
+          const nextStudent: Student = {
+            ...s,
+            notes: stripCloudEnvelopeFromNotes(s.notes),
+            documents: mergedDocs,
+          };
+
+          if (localDocCount > remoteDocCount && !backfilledCloudKeysRef.current.has(bKey)) {
+            backfilledCloudKeysRef.current.add(bKey);
+            studentsNeedingCloudBackfill.push(nextStudent);
+          }
+
+          return nextStudent;
         });
 
-        // If Google Sheets had gaps (e.g. starts with 2, or missing rows), sync back to Google Sheets!
+        setStudents(prev => {
+          const realPrev = prev.filter(p => !isBuiltInMockStudent(p));
+          return preHydrated.map(s => {
+            const sameLocal = realPrev.find(p => isSameStudentIdentity(p, s));
+            if (!sameLocal) return s;
+            return {
+              ...s,
+              referrerName: s.referrerName || sameLocal.referrerName || '',
+              previousSchoolAddressKhmer: s.previousSchoolAddressKhmer || sameLocal.previousSchoolAddressKhmer || '',
+              email: s.email || sameLocal.email || '',
+              documents: mergeBestStudentDocuments(s.documents, sameLocal.documents),
+            };
+          });
+        });
+
+        // If Google Sheets had gaps OR local browser had unsynced documents, push back to Google Sheets
         const hasGap = result.students.some((s, idx) => String(s.studentId).trim() !== String(idx + 1));
         if (hasGap) {
-          AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, resequenced).catch(e => {
+          AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, preHydrated).catch(e => {
             console.warn('Auto re-sequence sheets sync notice:', e);
+          });
+        } else if (studentsNeedingCloudBackfill.length > 0) {
+          Promise.all(
+            studentsNeedingCloudBackfill.map(st =>
+              AppsScriptService.updateStudent(appScriptConfig.webAppUrl, st)
+            )
+          ).catch(e => {
+            console.warn('Auto document cloud backfill notice:', e);
           });
         }
       }
@@ -375,52 +448,88 @@ export default function App() {
     }
   }, [fetchAllFromSheets]);
 
-  // Hydrate students' documents from IndexedDB once dbStorage is ready
+  // Hydrate students' documents from IndexedDB once dbStorage is ready and whenever updated
   useEffect(() => {
-    dbStorage.whenReady().then(() => {
+    const syncDocsFromCache = () => {
       setStudents(prev => {
         let changed = false;
         const hydrated = prev.map(s => {
-          const storedDocs = dbStorage.getCachedDocuments(s.studentId);
-          if (storedDocs && (!s.documents || JSON.stringify(s.documents).includes('STORED_IN_INDEXEDDB'))) {
+          if (isBuiltInMockStudent(s)) return s;
+          const storedDocs = dbStorage.getCachedDocumentsForStudent(s);
+          const mergedDocs = mergeBestStudentDocuments(storedDocs, s.documents);
+          const prevCount = countUploadedCategories(s.documents);
+          const nextCount = countUploadedCategories(mergedDocs);
+          const hadPlaceholder = s.documents ? JSON.stringify(s.documents).includes('STORED_IN_INDEXEDDB') : false;
+
+          if (mergedDocs && (nextCount > prevCount || hadPlaceholder)) {
             changed = true;
+            // If Google Sheets row was missing these newly hydrated IndexedDB docs, push them once!
+            const bKey = s.createdAt || `${s.studentId}_${s.nameKhmer}`;
+            if (prevCount === 0 && nextCount > 0 && appScriptConfig.webAppUrl && !backfilledCloudKeysRef.current.has(bKey)) {
+              backfilledCloudKeysRef.current.add(bKey);
+              AppsScriptService.updateStudent(appScriptConfig.webAppUrl, {
+                ...s,
+                documents: mergedDocs,
+              }).catch(() => {});
+            }
             return {
               ...s,
-              documents: storedDocs,
+              documents: mergedDocs,
             };
           }
           return s;
         });
         return changed ? hydrated : prev;
       });
-    });
-  }, []);
+    };
 
-  // Persist students to IndexedDB (full heavy attachments) and safe localStorage
+    dbStorage.whenReady().then(syncDocsFromCache);
+    window.addEventListener('student_documents_updated', syncDocsFromCache);
+    return () => {
+      window.removeEventListener('student_documents_updated', syncDocsFromCache);
+    };
+  }, [appScriptConfig.webAppUrl]);
+
+  // Keep detail modal student synchronized when students list updates
   useEffect(() => {
-    // 1. Permanently store all document attachments in IndexedDB
+    if (!selectedStudentForDetail) return;
+    const latest = students.find(s => isSameStudentIdentity(s, selectedStudentForDetail) || s.studentId === selectedStudentForDetail.studentId);
+    if (latest && latest !== selectedStudentForDetail) {
+      setSelectedStudentForDetail(latest);
+    }
+  }, [students, selectedStudentForDetail]);
+
+  // Persist real students to IndexedDB (full heavy attachments) and safe localStorage
+  useEffect(() => {
+    // 1. Permanently store real student document attachments in IndexedDB (never store mock SVGs)
     students.forEach(s => {
-      if (s.documents && Object.keys(s.documents).length > 0) {
-        dbStorage.saveStudentDocuments(s.studentId, s.documents);
+      if (!isBuiltInMockStudent(s) && s.documents && Object.keys(s.documents).length > 0) {
+        dbStorage.saveStudentDocumentsForStudent(s, s.documents, true);
       }
     });
 
     // 2. Safe save to localStorage without hitting 5MB quota
     try {
-      localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
+      const cleanForLs = students.map(s => ({
+        ...s,
+        notes: stripCloudEnvelopeFromNotes(s.notes),
+      }));
+      localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(cleanForLs));
     } catch (quotaErr) {
       console.warn('LocalStorage quota limit reached, saving lightweight student manifest with full IndexedDB storage backup:', quotaErr);
       try {
         const lightweight = students.map(s => {
-          if (!s.documents) return s;
+          const base = { ...s, notes: stripCloudEnvelopeFromNotes(s.notes) };
+          if (!base.documents) return base;
           const lightDocs: any = {};
-          Object.entries(s.documents).forEach(([cat, docPages]) => {
+          Object.entries(base.documents).forEach(([cat, docPages]) => {
             if (Array.isArray(docPages)) {
               lightDocs[cat] = docPages.map(p => ({
                 name: p.name,
                 size: p.size,
                 type: p.type,
                 uploadedAt: p.uploadedAt,
+                pageNumber: p.pageNumber,
                 dataUrl: 'STORED_IN_INDEXEDDB',
               }));
             } else if (docPages && typeof docPages === 'object') {
@@ -429,11 +538,12 @@ export default function App() {
                 size: (docPages as any).size,
                 type: (docPages as any).type,
                 uploadedAt: (docPages as any).uploadedAt,
+                pageNumber: (docPages as any).pageNumber,
                 dataUrl: 'STORED_IN_INDEXEDDB',
               };
             }
           });
-          return { ...s, documents: lightDocs };
+          return { ...base, documents: lightDocs };
         });
         localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(lightweight));
       } catch (e2) {
@@ -519,20 +629,33 @@ export default function App() {
       schoolMajorService.ensureSchoolAndMajor(studentData.targetSchool, studentData.major);
     }
 
-    // Persist full documents in IndexedDB permanently
-    if (studentData.documents && Object.keys(studentData.documents).length > 0) {
-      await dbStorage.saveStudentDocuments(studentData.studentId, studentData.documents);
+    const cleanStudentData: Student = {
+      ...studentData,
+      notes: stripCloudEnvelopeFromNotes(studentData.notes),
+    };
+
+    // Persist full HD documents in IndexedDB permanently under stable student identity keys
+    if (cleanStudentData.documents && Object.keys(cleanStudentData.documents).length > 0) {
+      await dbStorage.saveStudentDocumentsForStudent(cleanStudentData, cleanStudentData.documents);
     }
 
     if (isEdit) {
-      // Update in local state
       setStudents(prev =>
-        prev.map(s => (s.studentId === studentData.studentId ? studentData : s))
+        prev.map(s => (s.studentId === cleanStudentData.studentId ? cleanStudentData : s))
       );
 
-      // Also update detail modal if it's currently open
-      if (selectedStudentForDetail?.studentId === studentData.studentId) {
-        setSelectedStudentForDetail(studentData);
+      if (selectedStudentForDetail?.studentId === cleanStudentData.studentId) {
+        setSelectedStudentForDetail(cleanStudentData);
+      }
+
+      if (appScriptConfig.webAppUrl) {
+        try {
+          await AppsScriptService.updateStudent(appScriptConfig.webAppUrl, cleanStudentData);
+          lastSyncTimeRef.current = Date.now();
+        } catch (err: any) {
+          console.warn('Apps Script update sync warning:', err);
+          showNotification('info', `Saved locally. Google Sheets sync: ${err.message}`);
+        }
       }
 
       const updateSuccessText = language === 'km'
@@ -541,26 +664,24 @@ export default function App() {
         ? '儲存成功'
         : 'Successfully';
       showNotification('success', updateSuccessText);
+    } else {
+      let savedStudent = cleanStudentData;
 
-      // Sync to Google Sheets in background if URL configured
+      // Sync to Google Sheets first while submit spinner is active so mobile WebViews never abort upload
       if (appScriptConfig.webAppUrl) {
         try {
-          await AppsScriptService.updateStudent(appScriptConfig.webAppUrl, studentData);
+          savedStudent = await AppsScriptService.createStudent(appScriptConfig.webAppUrl, cleanStudentData);
+          lastSyncTimeRef.current = Date.now();
         } catch (err: any) {
-          console.warn('Apps Script update sync warning:', err);
+          console.warn('Apps Script create sync warning:', err);
           showNotification('info', `Saved locally. Google Sheets sync: ${err.message}`);
         }
       }
-    } else {
-      // Create new student - append and maintain numeric sorting
+
       setStudents(prev => {
-        const nextList = [...prev, studentData];
-        return nextList.sort((a, b) => {
-          const numA = parseInt((a.studentId || '').replace(/\D/g, '') || '0', 10);
-          const numB = parseInt((b.studentId || '').replace(/\D/g, '') || '0', 10);
-          if (numA !== numB) return numA - numB;
-          return (a.createdAt || '').localeCompare(b.createdAt || '');
-        });
+        const realPrev = prev.filter(p => !isBuiltInMockStudent(p));
+        const nextList = [...realPrev, savedStudent];
+        return resequenceStudentsList(nextList);
       });
 
       const addSuccessText = language === 'km'
@@ -569,34 +690,23 @@ export default function App() {
         ? '儲存成功'
         : 'Successfully';
       showNotification('success', addSuccessText);
-
-      // Sync to Google Sheets in background if URL configured
-      if (appScriptConfig.webAppUrl) {
-        try {
-          await AppsScriptService.createStudent(appScriptConfig.webAppUrl, studentData);
-        } catch (err: any) {
-          console.warn('Apps Script create sync warning:', err);
-          showNotification('info', `Saved locally. Google Sheets sync: ${err.message}`);
-        }
-      }
     }
   };
 
   // Confirm Delete Student with Auto-resequence (លេខរៀង Auto)
-  // FIXED: Synchronously compute remaining and resequenced students to avoid wiping Google Sheets
   const handleConfirmDelete = async () => {
     if (!studentToDelete) return;
     setIsDeleting(true);
 
-    const targetId = studentToDelete.studentId;
+    const targetStudent = studentToDelete;
+    const targetId = targetStudent.studentId;
 
     try {
-      // 1. Calculate remaining and resequence synchronously from current state
       const remaining = students.filter(s => s.studentId !== targetId);
       const finalResequenced = resequenceStudentsList(remaining);
 
       // Delete documents from IndexedDB
-      await dbStorage.deleteStudentDocuments(targetId);
+      await dbStorage.deleteStudentDocumentsForStudent(targetStudent);
 
       // Immediately update local state
       setStudents(finalResequenced);
@@ -611,24 +721,22 @@ export default function App() {
         : 'Deleted successfully';
       showNotification('success', delSuccessText);
 
-      // If viewing details of this deleted student, close details modal
       if (selectedStudentForDetail?.studentId === targetId) {
         setIsDetailModalOpen(false);
         setSelectedStudentForDetail(null);
       }
 
-      // 2. Sync to Google Sheets if configured
       if (appScriptConfig.webAppUrl) {
         try {
           if (finalResequenced.length > 0) {
             await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, finalResequenced);
           } else {
-            await AppsScriptService.deleteStudent(appScriptConfig.webAppUrl, targetId);
+            await AppsScriptService.deleteStudent(appScriptConfig.webAppUrl, targetId, targetStudent);
           }
         } catch (err: any) {
           console.warn('Apps Script sync warning after delete:', err);
           try {
-            await AppsScriptService.deleteStudent(appScriptConfig.webAppUrl, targetId);
+            await AppsScriptService.deleteStudent(appScriptConfig.webAppUrl, targetId, targetStudent);
           } catch (delErr) {
             console.warn('Apps Script delete fallback warning:', delErr);
           }
@@ -655,6 +763,9 @@ export default function App() {
         : `Are you sure you want to delete these ${count} students?`
     );
     if (!confirmed) return;
+
+    const deletedStudents = students.filter(s => studentIds.includes(s.studentId));
+    await Promise.all(deletedStudents.map(st => dbStorage.deleteStudentDocumentsForStudent(st)));
 
     const remaining = students.filter(s => !studentIds.includes(s.studentId));
     const finalResequenced = resequenceStudentsList(remaining);
@@ -1013,6 +1124,7 @@ export default function App() {
           handleOpenDeleteStudent(student);
         }}
         language={language}
+        webAppUrl={appScriptConfig.webAppUrl}
       />
 
       {/* Delete Confirmation Modal */}

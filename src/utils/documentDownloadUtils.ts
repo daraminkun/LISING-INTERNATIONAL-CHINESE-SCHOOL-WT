@@ -5,7 +5,8 @@
  */
 
 import { Student, UploadedDocument, StudentDocuments } from '../types';
-import { getDocPages } from './documentUtils';
+import { getDocPages, getEffectiveStudentDocuments } from './documentUtils';
+import { isValidDataUrl, mergeBestStudentDocuments } from './cloudDocSyncUtils';
 import { formatDobOnly } from './ageUtils';
 import { dbStorage } from '../services/dbStorage';
 
@@ -72,18 +73,18 @@ export function downloadDocumentWithStandardName(
 ): void {
   let resolvedUrl = doc.dataUrl;
 
-  // If dataUrl was stripped or placeholder, pull from dbStorage
-  if ((!resolvedUrl || resolvedUrl === 'STORED_IN_INDEXEDDB') && student?.studentId) {
-    const fromDb = dbStorage.getCachedDocuments(student.studentId);
-    if (fromDb && (fromDb as any)[categoryKey]) {
-      const pages = getDocPages((fromDb as any)[categoryKey]);
-      if (pages[pageIndex]?.dataUrl) {
+  // If dataUrl was stripped or placeholder, pull from effective merged documents
+  if (!isValidDataUrl(resolvedUrl) && student) {
+    const effective = getEffectiveStudentDocuments(student);
+    if (effective && (effective as any)[categoryKey]) {
+      const pages = getDocPages((effective as any)[categoryKey]);
+      if (isValidDataUrl(pages[pageIndex]?.dataUrl)) {
         resolvedUrl = pages[pageIndex].dataUrl;
       }
     }
   }
 
-  if (!resolvedUrl || resolvedUrl === 'STORED_IN_INDEXEDDB') return;
+  if (!isValidDataUrl(resolvedUrl)) return;
 
   const fileName = generateStandardDocFilename(
     student,
@@ -94,7 +95,7 @@ export function downloadDocumentWithStandardName(
   );
 
   const a = document.createElement('a');
-  a.href = resolvedUrl;
+  a.href = resolvedUrl!;
   a.download = fileName;
   document.body.appendChild(a);
   a.click();
@@ -106,14 +107,14 @@ export function downloadDocumentWithStandardName(
  * along with a student profile summary manifest.
  */
 export async function downloadAllDocumentsForStudent(student: Student): Promise<{ count: number }> {
-  // Always retrieve the latest full documents from IndexedDB
-  let docs = student.documents || {};
-  if (student.studentId) {
-    const fromDb = await dbStorage.getStudentDocuments(student.studentId) || dbStorage.getCachedDocuments(student.studentId);
-    if (fromDb && Object.keys(fromDb).length > 0) {
-      docs = fromDb;
-    }
-  }
+  // Always retrieve and merge the latest full documents from IndexedDB + Cloud envelope + memory
+  const asyncDbDocs = await dbStorage.getStudentDocumentsForStudent(student);
+  const docs =
+    mergeBestStudentDocuments(
+      asyncDbDocs || undefined,
+      getEffectiveStudentDocuments(student),
+      student.documents
+    ) || {};
 
   const categories: (keyof StudentDocuments)[] = [
     'idCard',
@@ -164,11 +165,11 @@ export async function downloadAllDocumentsForStudent(student: Student): Promise<
         const stdName = generateStandardDocFilename(student, cat, i, page.name, page.type);
         manifestLines.push(`    - ទំព័រ ${i + 1}: ${stdName} (${Math.round((page.size || 0) / 1024)} KB)`);
 
-        if (page.dataUrl) {
+        if (isValidDataUrl(page.dataUrl)) {
           // Trigger download with a slight delay between items so the browser doesn't block them
           await new Promise(r => setTimeout(r, 180));
           const link = document.createElement('a');
-          link.href = page.dataUrl;
+          link.href = page.dataUrl!;
           link.download = stdName;
           document.body.appendChild(link);
           link.click();

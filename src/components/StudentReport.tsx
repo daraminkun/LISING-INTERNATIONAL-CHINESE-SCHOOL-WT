@@ -25,7 +25,8 @@ import {
 import { Student, Language, ReportFilterState, SortConfig, SortField } from '../types';
 import { translations } from '../translations';
 import { MAJORS, TARGET_SCHOOLS } from '../constants/studentOptions';
-import { areAllRequiredDocumentsUploaded, countUploadedCategories } from '../utils/documentUtils';
+import { areAllRequiredDocumentsUploaded, countUploadedCategories, getEffectiveStudentDocuments } from '../utils/documentUtils';
+import { stripCloudEnvelopeFromNotes } from '../utils/cloudDocSyncUtils';
 import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { TranslationTooltip } from './TranslationTooltip';
@@ -73,13 +74,19 @@ export const StudentReport: React.FC<StudentReportProps> = ({
     order: 'asc',
   });
 
-  // Subscribe to dynamic schools and majors updates
+  // Subscribe to dynamic schools, majors, and student document hydration updates
   const [schoolsVersion, setSchoolsVersion] = useState(0);
+  const [docsVersion, setDocsVersion] = useState(0);
   React.useEffect(() => {
     const unsub = schoolMajorService.subscribe(() => {
       setSchoolsVersion(v => v + 1);
     });
-    return unsub;
+    const handleDocsUpdated = () => setDocsVersion(v => v + 1);
+    window.addEventListener('student_documents_updated', handleDocsUpdated);
+    return () => {
+      unsub();
+      window.removeEventListener('student_documents_updated', handleDocsUpdated);
+    };
   }, []);
 
   // School and Major Admin management modal state (Add, Edit, Delete from Filter Options)
@@ -208,18 +215,20 @@ export const StudentReport: React.FC<StudentReportProps> = ({
         if (!isMatch) return false;
       }
 
-      // Document filter (based on 5 required documents)
-      const docVal = areAllRequiredDocumentsUploaded(student.documents);
-      const catCount = countUploadedCategories(student.documents);
+      // Document filter (based on 6 required documents)
+      const effectiveDocs = getEffectiveStudentDocuments(student);
+      const docVal = areAllRequiredDocumentsUploaded(effectiveDocs);
+      const catCount = countUploadedCategories(effectiveDocs);
       if (docFilter === 'complete' && !docVal.isValid) return false;
       if (docFilter === 'partial' && (catCount === 0 || docVal.isValid)) return false;
       if (docFilter === 'none' && catCount > 0) return false;
 
       // Notes filter
-      if (filters.hasNotes === 'yes' && (!student.notes || !student.notes.trim())) {
+      const cleanNotes = stripCloudEnvelopeFromNotes(student.notes);
+      if (filters.hasNotes === 'yes' && !cleanNotes.trim()) {
         return false;
       }
-      if (filters.hasNotes === 'no' && student.notes && student.notes.trim()) {
+      if (filters.hasNotes === 'no' && cleanNotes.trim()) {
         return false;
       }
 
@@ -247,7 +256,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
 
       return true;
     });
-  }, [students, filters, docFilter]);
+  }, [students, filters, docFilter, docsVersion]);
 
   // Handle Sort
   const handleSort = (field: SortField) => {
@@ -343,7 +352,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
   const maleCount = filteredStudents.filter(s => s.gender === 'Male').length;
   const femaleCount = filteredStudents.filter(s => s.gender === 'Female').length;
   const withDocsCount = filteredStudents.filter(s => {
-    return s.documents && Object.keys(s.documents).some(k => !!(s.documents as any)[k]);
+    return countUploadedCategories(getEffectiveStudentDocuments(s)) > 0;
   }).length;
 
   // Reset all filters
@@ -410,8 +419,8 @@ export const StudentReport: React.FC<StudentReportProps> = ({
     ];
 
     const rows = sortedStudents.map(s => {
-      const docVal = areAllRequiredDocumentsUploaded(s.documents);
-      const docCount = `${docVal.completedCount} / ${docVal.totalRequired}`;
+      const docVal = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
+      const docCount = `${docVal.completedCount}/${docVal.totalRequired}`;
       const studentAgeStr = s.age ? s.age.toString() : (calculateAge(s.dob)?.toString() || '');
       const fatherAgeStr = s.fatherAge ? s.fatherAge.toString() : (calculateAge(s.fatherDob)?.toString() || '');
       const motherAgeStr = s.motherAge ? s.motherAge.toString() : (calculateAge(s.motherDob)?.toString() || '');
@@ -445,8 +454,8 @@ export const StudentReport: React.FC<StudentReportProps> = ({
         `"${(s.previousSchoolAddressKhmer || '').replace(/"/g, '""')}"`,
         `"${(s.targetSchool || '').replace(/"/g, '""')}"`,
         `"${(s.major || '').replace(/"/g, '""')}"`,
-        `"${docCount} / 5"`,
-        `"${(s.notes || '').replace(/"/g, '""')}"`,
+        `"${docCount}"`,
+        `"${stripCloudEnvelopeFromNotes(s.notes).replace(/"/g, '""')}"`,
         `"${s.createdAt || ''}"`
       ].join(',');
     });
@@ -1146,8 +1155,9 @@ export const StudentReport: React.FC<StudentReportProps> = ({
                 </tr>
               ) : (
                 sortedStudents.map(student => {
-                  const docVal = areAllRequiredDocumentsUploaded(student.documents);
-                  const catCount = countUploadedCategories(student.documents);
+                  const effectiveDocs = getEffectiveStudentDocuments(student);
+                  const docVal = areAllRequiredDocumentsUploaded(effectiveDocs);
+                  const catCount = countUploadedCategories(effectiveDocs);
                   return (
                     <tr 
                       key={student.studentId}
