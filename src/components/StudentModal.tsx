@@ -20,7 +20,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
-  CheckCircle2
+  CheckCircle2,
+  Lock,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Student, Gender, Language, StudentDocuments, UploadedDocument } from '../types';
 import { translations } from '../translations';
@@ -48,7 +51,7 @@ import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorT
 import { authService } from '../services/authService';
 import { schoolMajorService } from '../services/schoolMajorService';
 import { AdminPinModal } from './AdminPinModal';
-import { downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
+import { downloadAllDocumentsForStudent, generateStandardDocFilename } from '../utils/documentDownloadUtils';
 import { useInstitution } from '../services/institutionService';
 import { stripCloudEnvelopeFromNotes } from '../utils/cloudDocSyncUtils';
 
@@ -219,15 +222,30 @@ export const StudentModal: React.FC<StudentModalProps> = ({
 
   // Admin Mode & Authorization state
   const [isAdmin, setIsAdmin] = useState(() => authService.isAdminAuthenticated());
+  const [showOrderNumber, setShowOrderNumber] = useState(false);
+  const [hasManuallyEditedOrderNumber, setHasManuallyEditedOrderNumber] = useState(false);
   const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState(false);
   const [pendingAdminAction, setPendingAdminAction] = useState<(() => void) | null>(null);
 
+  const MASKED_ORDER_SYMBOL = '••••••';
+  const isOrderMasked = !isAdmin || !showOrderNumber;
+
   useEffect(() => {
     const handleAuthChange = (e: any) => {
-      setIsAdmin(!!e.detail?.isAdmin);
+      const nextAdmin = !!e.detail?.isAdmin || authService.isAdminAuthenticated();
+      setIsAdmin(nextAdmin);
+      if (!nextAdmin) setShowOrderNumber(false);
     };
+    const unsubAuth = authService.subscribe(() => {
+      const nextAdmin = authService.isAdminAuthenticated();
+      setIsAdmin(nextAdmin);
+      if (!nextAdmin) setShowOrderNumber(false);
+    });
     window.addEventListener('admin_auth_changed', handleAuthChange);
-    return () => window.removeEventListener('admin_auth_changed', handleAuthChange);
+    return () => {
+      unsubAuth();
+      window.removeEventListener('admin_auth_changed', handleAuthChange);
+    };
   }, []);
 
   const ensureAdmin = (action: () => void) => {
@@ -267,24 +285,42 @@ export const StudentModal: React.FC<StudentModalProps> = ({
     ? schoolSpecificMajors
     : allMajorsList;
 
-  // Auto-generate next Order Number (e.g. 1, 2, 3...)
-  const generateNextId = () => {
+  // Compute next sequential Order Number (e.g. 1, 2, 3...)
+  const computeNextOrderNumber = (ids: string[] = existingStudentIds): string => {
     let maxNum = 0;
-    existingStudentIds.forEach(id => {
-      const match = id.match(/(\d+)/);
+    ids.forEach(id => {
+      const match = String(id).match(/(\d+)/);
       if (match) {
         const n = parseInt(match[1], 10);
         if (n > maxNum) maxNum = n;
       }
     });
-    const nextNum = maxNum + 1;
-    setStudentId(nextNum.toString());
+    return (maxNum + 1).toString();
+  };
+
+  // Auto-generate next Order Number (e.g. 1, 2, 3...)
+  const generateNextId = () => {
+    const nextId = computeNextOrderNumber();
+    setStudentId(nextId);
+    setHasManuallyEditedOrderNumber(false);
     setErrors(prev => ({ ...prev, studentId: '' }));
   };
+
+  // Keep auto-assigned order number up to date if remote students finish loading while modal is open
+  useEffect(() => {
+    if (isOpen && !studentToEdit && !hasManuallyEditedOrderNumber) {
+      const nextId = computeNextOrderNumber(existingStudentIds);
+      if (nextId !== studentId) {
+        setStudentId(nextId);
+      }
+    }
+  }, [isOpen, studentToEdit, existingStudentIds, hasManuallyEditedOrderNumber]);
 
   useEffect(() => {
     if (isOpen) {
       setSubmittedAttempt(false);
+      setShowOrderNumber(false);
+      setHasManuallyEditedOrderNumber(false);
       if (studentToEdit) {
         setStudentId(studentToEdit.studentId || '');
         setNameKhmer(studentToEdit.nameKhmer || studentToEdit.name || '');
@@ -380,10 +416,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({
     const newErrors: Record<string, string> = {};
 
     if (step === 1) {
-      // 1. Student ID *
-      if (!studentId.trim()) {
+      // 1. Student ID * (auto-resolve if masked so students never hit ID collisions)
+      const effectiveId = !isEdit && isOrderMasked && (!studentId.trim() || existingStudentIds.includes(studentId.trim()))
+        ? computeNextOrderNumber(existingStudentIds)
+        : studentId.trim();
+      if (!isEdit && isOrderMasked && effectiveId !== studentId) {
+        setStudentId(effectiveId);
+      }
+
+      if (!effectiveId) {
         newErrors.studentId = 'required';
-      } else if (!isEdit && existingStudentIds.includes(studentId.trim())) {
+      } else if (!isEdit && existingStudentIds.includes(effectiveId)) {
         newErrors.studentId = t.idExists;
       }
 
@@ -424,12 +467,15 @@ export const StudentModal: React.FC<StudentModalProps> = ({
       });
 
       if (duplicateStudent) {
-        const dupName = duplicateStudent.nameKhmer || duplicateStudent.nameLatin || duplicateStudent.name || duplicateStudent.studentId;
+        const dupName = duplicateStudent.nameKhmer || duplicateStudent.nameLatin || duplicateStudent.name || '';
+        const idSuffixKm = !isOrderMasked ? ` (លេខរៀង #${duplicateStudent.studentId})` : '';
+        const idSuffixZh = !isOrderMasked ? ` (編號 #${duplicateStudent.studentId})` : '';
+        const idSuffixEn = !isOrderMasked ? ` (ID #${duplicateStudent.studentId})` : '';
         const dupMsg = language === 'km'
-          ? `ឈ្មោះសិស្ស "${dupName}" (លេខរៀង #${duplicateStudent.studentId}) មាននៅក្នុងប្រព័ន្ធរួចហើយ មិនអាចបញ្ចូលឈ្មោះដូចគ្នាបានទេ!`
+          ? `ឈ្មោះសិស្ស "${dupName}"${idSuffixKm} មាននៅក្នុងប្រព័ន្ធរួចហើយ មិនអាចបញ្ចូលឈ្មោះដូចគ្នាបានទេ!`
           : language === 'zh-TW'
-          ? `學生姓名 "${dupName}" (編號 #${duplicateStudent.studentId}) 已存在於系統中，無法儲存重複學生！`
-          : `Student name "${dupName}" (ID #${duplicateStudent.studentId}) already exists in database! Duplicate names are not allowed.`;
+          ? `學生姓名 "${dupName}"${idSuffixZh} 已存在於系統中，無法儲存重複學生！`
+          : `Student name "${dupName}"${idSuffixEn} already exists in database! Duplicate names are not allowed.`;
         
         newErrors.nameKhmer = dupMsg;
         newErrors.nameLatin = dupMsg;
@@ -665,8 +711,33 @@ export const StudentModal: React.FC<StudentModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      const finalStudentId =
+        !isEdit && (!studentId.trim() || (isOrderMasked && existingStudentIds.includes(studentId.trim())))
+          ? computeNextOrderNumber(existingStudentIds)
+          : studentId.trim();
+
+      // Stamp uploaded documents with the true sequential studentId for Admin records
+      const normalizedDocuments: StudentDocuments = { ...documents };
+      (Object.keys(normalizedDocuments) as (keyof StudentDocuments)[]).forEach(catKey => {
+        const rawDoc = normalizedDocuments[catKey];
+        if (!rawDoc) return;
+        const pages = getDocPages(rawDoc);
+        if (pages.length > 0) {
+          normalizedDocuments[catKey] = pages.map((p, idx) => ({
+            ...p,
+            name: generateStandardDocFilename(
+              { studentId: finalStudentId, nameKhmer: nameKhmer.trim(), nameLatin: nameLatin.trim() },
+              catKey,
+              idx,
+              p.name,
+              p.type
+            ),
+          }));
+        }
+      });
+
       const studentPayload: Student = {
-        studentId: studentId.trim(),
+        studentId: finalStudentId,
         nameKhmer: nameKhmer.trim(),
         nameLatin: nameLatin.trim(),
         nameChinese: nameChinese.trim(),
@@ -699,7 +770,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
         currentAddress: currentAddress.trim(),
         phone: phone.trim(),
         email: email.trim(),
-        documents,
+        documents: normalizedDocuments,
         notes: notes.trim(),
         createdAt: studentToEdit?.createdAt || new Date().toISOString(),
         name: `${nameKhmer.trim()} (${nameLatin.trim()})`,
@@ -768,7 +839,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                 <span className="truncate">{isEdit ? t.editStudent : t.addStudent}</span>
                 {isEdit && (
                   <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 whitespace-nowrap shrink-0">
-                    #{studentId}
+                    #{isOrderMasked ? MASKED_ORDER_SYMBOL : studentId}
                   </span>
                 )}
               </h3>
@@ -881,38 +952,74 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                     </h4>
                   </div>
 
-                  {/* Order Number (លេខរៀង) */}
+                  {/* Order Number (លេខរៀង) - Masked with symbols to hide sequence number from students */}
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-1 gap-2">
                   <label className="font-semibold text-slate-700">
                     {t.studentId} <span className="text-rose-500">*</span>
                   </label>
-                  {!isEdit && (
+                  {!isOrderMasked && !isEdit && (
                     <button
                       type="button"
                       onClick={generateNextId}
-                      className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       {t.autoGenerateId}
                     </button>
                   )}
                 </div>
-                <input
-                  type="text"
-                  value={studentId}
-                  onChange={e => {
-                    setStudentId(e.target.value);
-                    if (errors.studentId) setErrors(prev => ({ ...prev, studentId: '' }));
-                  }}
-                  placeholder="ឧ. 1, 2, 3..."
-                  disabled={isEdit}
-                  className={`w-full px-3.5 py-2 rounded-lg border font-mono ${
-                    isEdit ? 'bg-slate-100/65 text-slate-500 cursor-not-allowed' : 'bg-white/60 focus:bg-white/90'
-                  } border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${
-                    errors.studentId ? 'border-rose-300 ring-1 ring-rose-300' : ''
-                  }`}
-                />
+                <div className="relative">
+                  {isOrderMasked && (
+                    <div className="pointer-events-none absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    value={isOrderMasked ? MASKED_ORDER_SYMBOL : studentId}
+                    onChange={e => {
+                      if (isOrderMasked || isEdit) return;
+                      setStudentId(e.target.value);
+                      setHasManuallyEditedOrderNumber(true);
+                      if (errors.studentId) setErrors(prev => ({ ...prev, studentId: '' }));
+                    }}
+                    readOnly={isOrderMasked || isEdit}
+                    placeholder={isOrderMasked ? MASKED_ORDER_SYMBOL : '1, 2, 3...'}
+                    aria-label={t.studentId}
+                    className={`w-full py-2 rounded-lg border font-mono ${
+                      isOrderMasked
+                        ? 'pl-9 pr-10 bg-slate-100/75 text-slate-600 tracking-[0.28em] select-none cursor-default'
+                        : isEdit
+                        ? 'px-3.5 pr-10 bg-slate-100/65 text-slate-500 cursor-not-allowed'
+                        : 'px-3.5 pr-10 bg-white/60 focus:bg-white/90 text-slate-900'
+                    } border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 ${
+                      errors.studentId ? 'border-rose-300 ring-1 ring-rose-300' : ''
+                    }`}
+                  />
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setShowOrderNumber(prev => !prev)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                      title={
+                        showOrderNumber
+                          ? language === 'km'
+                            ? 'លាក់លេខរៀងជាសញ្ញា'
+                            : language === 'zh-TW'
+                            ? '隱藏編號'
+                            : 'Hide order number'
+                          : language === 'km'
+                          ? 'បង្ហាញលេខរៀងពិត (Admin)'
+                          : language === 'zh-TW'
+                          ? '顯示實際編號 (管理員)'
+                          : 'Show actual order number (Admin)'
+                      }
+                    >
+                      {showOrderNumber ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
                 {errors.studentId && errors.studentId !== 'required' && (
                   <p className="mt-1 text-xs text-rose-600">{errors.studentId}</p>
                 )}
@@ -1699,7 +1806,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                         {language === 'km' ? 'កញ្ចប់ឯកសារសិស្ស៖' : 'Student Document Folder:'}
                       </span>
                       <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-mono font-bold text-xs">
-                        #{studentId || 'New'}
+                        #{isOrderMasked ? MASKED_ORDER_SYMBOL : (studentId || 'New')}
                       </span>
                       <span className="font-bold text-indigo-950 text-xs sm:text-sm truncate">
                         {nameKhmer || nameLatin || (language === 'km' ? '(មិនទាន់បំពេញឈ្មោះ)' : '(No name yet)')}
@@ -1707,18 +1814,18 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5">
                       {language === 'km'
-                        ? 'រាល់ឯកសារដែល Upload នឹងត្រូវកត់សម្គាល់ឈ្មោះ និងលេខសម្គាល់សិស្សស្វ័យប្រវត្ត (ងាយស្រួលទាញយក មិនច្រឡំគ្នា)'
-                        : 'All files are automatically branded with Student ID & Name to prevent mix-ups'}
+                        ? 'រាល់ឯកសារដែល Upload នឹងត្រូវកត់សម្គាល់ឈ្មោះសិស្សស្វ័យប្រវត្តិ (មិនច្រឡំគ្នា)'
+                        : 'All uploaded files are automatically organized under the student profile'}
                     </p>
                   </div>
                 </div>
 
-                {uploadedCategoryCount > 0 && (
+                {uploadedCategoryCount > 0 && isAdmin && (
                   <button
                     type="button"
                     onClick={() => {
                       downloadAllDocumentsForStudent({
-                        studentId,
+                        studentId: isOrderMasked ? '••••' : studentId,
                         nameKhmer,
                         nameLatin,
                         nameChinese,
@@ -1759,7 +1866,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   required={true}
                   maxPages={6}
                   document={documents.idCard}
-                  studentId={studentId}
+                  studentId={isOrderMasked ? undefined : studentId}
+                  maskStudentId={isOrderMasked}
                   studentName={nameKhmer || nameLatin}
                   onUploadPages={(pages) => handleDocumentUploadPages('idCard', pages)}
                   onRemovePage={(idx) => handleDocumentRemovePage('idCard', idx)}
@@ -1777,7 +1885,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   subtitle={language === 'km' ? 'សំបុត្រកំណើតច្បាប់ដើម ឬចម្លង (១-៥ ទំព័រ)' : language === 'zh-TW' ? '正本或驗證影本 (1-5 頁)' : 'Original or certified copy (1-5 pages)'}
                   required={true}
                   document={documents.birthCert}
-                  studentId={studentId}
+                  studentId={isOrderMasked ? undefined : studentId}
+                  maskStudentId={isOrderMasked}
                   studentName={nameKhmer || nameLatin}
                   onUploadPages={(pages) => handleDocumentUploadPages('birthCert', pages)}
                   onRemovePage={(idx) => handleDocumentRemovePage('birthCert', idx)}
@@ -1795,7 +1904,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   subtitle={language === 'km' ? 'ទំព័រគ្រួសារ & សមាជិក (១-៥ ទំព័រ)' : language === 'zh-TW' ? '戶長與全戶成員頁 (1-5 頁)' : 'Family & members pages (1-5 pages)'}
                   required={true}
                   document={documents.familyBook}
-                  studentId={studentId}
+                  studentId={isOrderMasked ? undefined : studentId}
+                  maskStudentId={isOrderMasked}
                   studentName={nameKhmer || nameLatin}
                   onUploadPages={(pages) => handleDocumentUploadPages('familyBook', pages)}
                   onRemovePage={(idx) => handleDocumentRemovePage('familyBook', idx)}
@@ -1813,7 +1923,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   subtitle={language === 'km' ? 'សៀវភៅស្នាក់នៅ (ក២) (១-៥ ទំព័រ)' : language === 'zh-TW' ? '居住證明 (K2) (1-5 頁)' : 'Stay / Residence book (1-5 pages)'}
                   required={true}
                   document={documents.residenceBook}
-                  studentId={studentId}
+                  studentId={isOrderMasked ? undefined : studentId}
+                  maskStudentId={isOrderMasked}
                   studentName={nameKhmer || nameLatin}
                   onUploadPages={(pages) => handleDocumentUploadPages('residenceBook', pages)}
                   onRemovePage={(idx) => handleDocumentRemovePage('residenceBook', idx)}
@@ -1831,7 +1942,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   subtitle={language === 'km' ? 'បឋមភូមិ ឬ ទុតិយភូមិ (១-៥ ទំព័រ)' : language === 'zh-TW' ? '初中或高中畢業證書 (1-5 頁)' : 'Secondary / High School Diploma (1-5 pages)'}
                   required={true}
                   document={documents.academicCert}
-                  studentId={studentId}
+                  studentId={isOrderMasked ? undefined : studentId}
+                  maskStudentId={isOrderMasked}
                   studentName={nameKhmer || nameLatin}
                   onUploadPages={(pages) => handleDocumentUploadPages('academicCert', pages)}
                   onRemovePage={(idx) => handleDocumentRemovePage('academicCert', idx)}
@@ -1849,7 +1961,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   subtitle={language === 'km' ? 'ច្បាប់ចម្លង ឬរូបភាព (១-៥ ទំព័រ)' : language === 'zh-TW' ? '影本或照片 (1-5 頁)' : 'Copy or photo (1-5 pages)'}
                   required={true}
                   document={documents.traineeBook}
-                  studentId={studentId}
+                  studentId={isOrderMasked ? undefined : studentId}
+                  maskStudentId={isOrderMasked}
                   studentName={nameKhmer || nameLatin}
                   onUploadPages={(pages) => handleDocumentUploadPages('traineeBook', pages)}
                   onRemovePage={(idx) => handleDocumentRemovePage('traineeBook', idx)}
@@ -1867,7 +1980,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   subtitle={language === 'km' ? 'ទំព័រព័ត៌មានលម្អិត (១-៥ ទំព័រ)' : 'Photo bio page (1-5 pages)'}
                   required={false}
                   document={documents.passport}
-                  studentId={studentId}
+                  studentId={isOrderMasked ? undefined : studentId}
+                  maskStudentId={isOrderMasked}
                   studentName={nameKhmer || nameLatin}
                   onUploadPages={(pages) => handleDocumentUploadPages('passport', pages)}
                   onRemovePage={(idx) => handleDocumentRemovePage('passport', idx)}

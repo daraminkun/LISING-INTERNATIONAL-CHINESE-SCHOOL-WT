@@ -32,6 +32,7 @@ interface DocumentUploadCardProps {
   studentId?: string;
   studentName?: string;
   categoryKey?: string;
+  maskStudentId?: boolean;
 }
 
 export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
@@ -50,6 +51,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
   studentId,
   studentName,
   categoryKey,
+  maskStudentId = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -92,7 +94,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
         filesToProcess.map(async (file, idx): Promise<UploadedDocument> => {
           const { dataUrl, mimeType } = await compressUploadedDocumentFile(file, 1600, 0.84);
           const stdName = generateStandardDocFilename(
-            { studentId, nameKhmer: studentName },
+            { studentId: maskStudentId ? '••••' : studentId, nameKhmer: studentName },
             targetCat,
             pages.length + idx,
             file.name,
@@ -259,14 +261,17 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            #{studentId || 'New'} • P{idx + 1}
+                            #{maskStudentId ? '••••' : (studentId || 'New')} • P{idx + 1}
                           </span>
                           <span className="text-[10px] text-slate-400">
                             {formatDocSize(p.size)}
                           </span>
                         </div>
-                        <p className="text-xs font-semibold text-slate-800 truncate" title={p.name}>
-                          {p.name}
+                        <p
+                          className="text-xs font-semibold text-slate-800 truncate"
+                          title={maskStudentId ? p.name.replace(/^\[No\.[^\]]+\]_/i, '[No.••••]_') : p.name}
+                        >
+                          {maskStudentId ? p.name.replace(/^\[No\.[^\]]+\]_/i, '[No.••••]_') : p.name}
                         </p>
                       </div>
                     </div>
@@ -288,10 +293,19 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
                           type="button"
                           onClick={() => {
                             const cat = categoryKey || id.replace('doc-', '');
-                            downloadDocumentWithStandardName(p, { studentId, nameKhmer: studentName }, cat, idx);
+                            downloadDocumentWithStandardName(
+                              p,
+                              { studentId: maskStudentId ? '••••' : studentId, nameKhmer: studentName },
+                              cat,
+                              idx
+                            );
                           }}
                           className="p-1 rounded-md text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
-                          title={language === 'km' ? `ទាញយកឯកសារ (${p.name})` : `Download (${p.name})`}
+                          title={
+                            language === 'km'
+                              ? `ទាញយកឯកសារ (${maskStudentId ? p.name.replace(/^\[No\.[^\]]+\]_/i, '[No.••••]_') : p.name})`
+                              : `Download (${maskStudentId ? p.name.replace(/^\[No\.[^\]]+\]_/i, '[No.••••]_') : p.name})`
+                          }
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
