@@ -24,6 +24,7 @@ import { Language } from '../types';
 import { useInstitution } from '../services/institutionService';
 import { InstitutionSettingsModal } from './InstitutionSettingsModal';
 import { dbStorage } from '../services/dbStorage';
+import { compressSchoolLogo } from '../utils/imageUtils';
 
 interface SchoolManagementViewProps {
   language: Language;
@@ -56,55 +57,72 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
     actionType: 'add_school',
   });
 
-  // Subscribe to changes in schoolMajorService
+  // Subscribe to changes in schoolMajorService and IndexedDB logo hydration
+  const [, setLogoVersion] = useState(0);
+
   useEffect(() => {
-    const unsub = schoolMajorService.subscribe(() => {
+    const refresh = () => {
       setSchools(schoolMajorService.getSchools());
-    });
-    return unsub;
+      setLogoVersion(v => v + 1);
+    };
+    const unsub = schoolMajorService.subscribe(refresh);
+    window.addEventListener('school_logos_updated', refresh);
+    dbStorage.whenReady().then(refresh);
+    return () => {
+      unsub();
+      window.removeEventListener('school_logos_updated', refresh);
+    };
   }, []);
 
   // Handle direct file upload for a specific school logo
-  const handleDirectLogoUpload = (schoolName: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDirectLogoUpload = async (schoolName: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert(language === 'km' ? 'ទំហំរូបភាពមិនត្រូវលើសពី 5MB ឡើយ' : 'Image size cannot exceed 5MB');
+    if (file.size > 10 * 1024 * 1024) {
+      setSyncNotice(language === 'km' ? 'ទំហំរូបភាពមិនត្រូវលើសពី 10MB ឡើយ' : 'Image size cannot exceed 10MB');
+      setTimeout(() => setSyncNotice(null), 3500);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      if (typeof reader.result === 'string') {
-        const logoDataUrl = reader.result;
-        // Permanently persist logo in IndexedDB
-        await dbStorage.saveSchoolLogo(schoolName, logoDataUrl);
+    try {
+      const logoDataUrl = await compressSchoolLogo(file);
+      await dbStorage.saveSchoolLogo(schoolName, logoDataUrl);
 
-        const currentList = schoolMajorService.getSchools();
-        const schoolObj = currentList.find(s => s.school === schoolName);
-        if (schoolObj) {
-          const trans = getSchoolTranslation(schoolName);
-          schoolMajorService.updateSchool(
-            schoolName,
-            {
-              ...schoolObj,
-              logoUrl: logoDataUrl,
-            },
-            {
-              km: trans?.km || schoolName,
-              en: trans?.en || schoolName,
-              location: trans?.locationKm || 'តៃវ៉ាន់',
-              logoUrl: logoDataUrl,
-            }
-          );
-          setSchools(schoolMajorService.getSchools());
-          setSyncNotice(language === 'km' ? 'បាន Upload Profile Logo សាលាដោយជោគជ័យ និងរក្សាទុកក្នុង IndexedDB' : 'School logo uploaded & saved permanently');
-          setTimeout(() => setSyncNotice(null), 3500);
-        }
+      const currentList = schoolMajorService.getSchools();
+      const schoolObj = currentList.find(s => s.school === schoolName);
+      if (schoolObj) {
+        const trans = getSchoolTranslation(schoolName);
+        schoolMajorService.updateSchool(
+          schoolName,
+          {
+            ...schoolObj,
+            logoUrl: logoDataUrl,
+          },
+          {
+            km: trans?.km || schoolName,
+            en: trans?.en || schoolName,
+            location: trans?.locationKm || 'តៃវ៉ាន់',
+            logoUrl: logoDataUrl,
+          }
+        );
+        setSchools(schoolMajorService.getSchools());
+        setSyncNotice(
+          language === 'km'
+            ? 'បាន Upload និងរក្សាទុក Logo សាលាដោយជោគជ័យ'
+            : 'School logo uploaded & saved permanently'
+        );
+        setTimeout(() => setSyncNotice(null), 3500);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      setSyncNotice(
+        language === 'km'
+          ? 'មានបញ្ហាក្នុងការ Upload រូបភាព Logo សូមសាកល្បងម្ដងទៀត'
+          : err?.message || 'Failed to process logo image'
+      );
+      setTimeout(() => setSyncNotice(null), 3500);
+    }
   };
 
   // Remove logo from a specific school
@@ -125,7 +143,8 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
           en: trans?.en || schoolName,
           location: trans?.locationKm || 'តៃវ៉ាន់',
           logoUrl: undefined,
-        }
+        },
+        { clearLogo: true }
       );
       setSchools(schoolMajorService.getSchools());
       setSyncNotice(language === 'km' ? 'បានលុប Profile Logo សាលា' : 'School logo removed');

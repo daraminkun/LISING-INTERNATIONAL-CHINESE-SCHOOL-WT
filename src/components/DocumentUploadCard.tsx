@@ -155,10 +155,10 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
         isError
           ? 'bg-rose-50/40 border-rose-400 ring-2 ring-rose-400/20'
           : isUploaded 
-            ? 'bg-slate-50/80 border-emerald-300 ring-1 ring-emerald-400/20 shadow-2xs' 
+            ? 'bg-slate-50/65 border-emerald-300 ring-1 ring-emerald-400/20 shadow-2xs' 
             : isDragging 
               ? 'bg-indigo-50/70 border-indigo-500 ring-2 ring-indigo-500/20' 
-              : 'bg-white border-slate-200 hover:border-slate-300'
+              : 'bg-white/65 border-slate-200 hover:border-slate-300'
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -236,7 +236,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
                 return (
                   <div 
                     key={idx}
-                    className="bg-white rounded-lg p-2 border border-slate-200 flex items-center justify-between gap-2 hover:border-slate-300 transition-colors shadow-2xs"
+                    className="bg-white/75 rounded-lg p-2 border border-slate-200 flex items-center justify-between gap-2 hover:border-slate-300 transition-colors shadow-2xs"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       {/* Page number badge */}

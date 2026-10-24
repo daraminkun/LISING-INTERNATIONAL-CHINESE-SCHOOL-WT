@@ -16,6 +16,7 @@ import {
 import { Language } from '../types';
 import { institutionService, useInstitution } from '../services/institutionService';
 import { DEFAULT_INSTITUTION_SETTINGS, InstitutionSettings } from '../services/dbStorage';
+import { compressSchoolLogo } from '../utils/imageUtils';
 
 interface InstitutionSettingsModalProps {
   isOpen: boolean;
@@ -63,28 +64,25 @@ export const InstitutionSettingsModal: React.FC<InstitutionSettingsModalProps> =
   if (!isOpen) return null;
 
   // Handle Logo Upload
-  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null);
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
-    // Check size (allow up to 8MB)
-    if (file.size > 8 * 1024 * 1024) {
-      setFileError(language === 'km' ? 'ទំហំរូបភាពមិនត្រូវលើសពី 8MB ឡើយ' : 'Image size cannot exceed 8MB');
+    // Check size (allow up to 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setFileError(language === 'km' ? 'ទំហំរូបភាពមិនត្រូវលើសពី 10MB ឡើយ' : 'Image size cannot exceed 10MB');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setLogoUrl(reader.result);
-        setPreviewError(false);
-      }
-    };
-    reader.onerror = () => {
+    try {
+      const compressed = await compressSchoolLogo(file);
+      setLogoUrl(compressed);
+      setPreviewError(false);
+    } catch (err) {
       setFileError(language === 'km' ? 'មានបញ្ហាក្នុងការអានឯកសាររូបភាព' : 'Failed to read image file');
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   // Reset Logo to default /logo.jpg

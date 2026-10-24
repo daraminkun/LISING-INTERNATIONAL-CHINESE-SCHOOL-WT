@@ -85,85 +85,94 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Mobile Top Header */}
-      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-2xs">
-        <div className="flex items-center gap-2.5">
+      <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 shadow-2xs">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <button
             type="button"
             onClick={() => setIsMobileOpen(true)}
-            className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200 active:bg-slate-200 transition-colors"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200 active:bg-slate-200 transition-colors shrink-0"
             aria-label="Open navigation menu"
           >
             <Menu className="w-5 h-5" />
           </button>
           
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-blue-700 flex items-center justify-center text-white shadow-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="hidden min-[390px]:flex w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-blue-700 items-center justify-center text-white shadow-xs shrink-0">
               <GraduationCap className="w-4 h-4" />
             </div>
-            <span className="font-bold text-slate-900 text-sm tracking-tight truncate max-w-[170px]">
+            <span className="font-bold text-slate-900 text-[13px] sm:text-sm tracking-tight truncate">
               {t.appName}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Quick Mobile Language & Font Cycle */}
           <button
+            type="button"
             onClick={onLanguageToggle}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors"
+            className="h-9 px-2.5 rounded-xl inline-flex items-center justify-center gap-1 text-xs font-bold whitespace-nowrap shrink-0 text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-200 shadow-2xs transition-colors"
             title="Switch Language & Font (Battambang / Times / 標楷體)"
           >
-            <span>{language === 'km' ? '🇰🇭 ខ្មែរ' : language === 'zh-TW' ? '🇹🇼 繁中' : '🇬🇧 EN'}</span>
+            <span className="text-sm leading-none shrink-0">
+              {language === 'km' ? '🇰🇭' : language === 'zh-TW' ? '🇹🇼' : '🇬🇧'}
+            </span>
+            <span className="leading-normal">
+              {language === 'km' ? 'ខ្មែរ' : language === 'zh-TW' ? '繁中' : 'EN'}
+            </span>
           </button>
 
           {/* User Account Button */}
           <button
             type="button"
             onClick={onOpenLogin}
-            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+            className={`h-9 w-9 sm:w-auto sm:px-2.5 rounded-xl inline-flex items-center justify-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0 border transition-colors ${
               currentUser?.role === 'Admin'
                 ? 'bg-amber-50 text-amber-900 border-amber-300'
                 : 'bg-blue-50 text-blue-900 border-blue-300'
             }`}
             title="Account / Login"
           >
-            <UserIcon className="w-3.5 h-3.5" />
-            <span className="font-mono text-[11px] hidden xs:inline">{currentUser?.username || 'Login'}</span>
+            <UserIcon className="w-4 h-4 shrink-0" />
+            <span className="font-mono text-[11px] hidden sm:inline">{currentUser?.username || 'Login'}</span>
           </button>
 
           {/* Quick Sync (Admin Only) */}
           {isAdmin && (
             <button
+              type="button"
               onClick={onSync}
               disabled={isSyncing}
-              className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+              className="h-9 w-9 rounded-xl inline-flex items-center justify-center shrink-0 text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
               title={t.syncNow}
             >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
+              <RefreshCw className={`w-4 h-4 shrink-0 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
             </button>
           )}
 
           {/* Quick School Info CTA */}
           <button
+            type="button"
             onClick={() => handleTabSelect('school_info')}
-            className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors shadow-xs ${
+            className={`h-9 w-9 sm:w-auto sm:px-3 rounded-xl inline-flex items-center justify-center gap-1.5 text-xs font-semibold whitespace-nowrap shrink-0 border transition-colors shadow-2xs ${
               currentTab === 'school_info'
                 ? 'bg-amber-400 text-amber-950 border-amber-300 font-bold'
                 : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
             }`}
             title={language === 'km' ? 'ព័ត៌មានអំពីសាលារៀន' : language === 'zh-TW' ? '學校資訊' : 'School Info'}
           >
-            <GraduationCap className="w-3.5 h-3.5" />
+            <GraduationCap className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline">{language === 'km' ? 'ព័ត៌មានសាលា' : language === 'zh-TW' ? '學校資訊' : 'Schools'}</span>
           </button>
 
           {/* Quick Add CTA */}
           <button
+            type="button"
             onClick={handleAddClick}
-            className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-xs"
+            className="h-9 w-9 sm:w-auto sm:px-3 rounded-xl inline-flex items-center justify-center gap-1.5 text-xs font-semibold whitespace-nowrap shrink-0 text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-2xs"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">{t.addStudent}</span>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">{t.addStudent}</span>
           </button>
         </div>
       </header>

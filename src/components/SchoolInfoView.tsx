@@ -18,6 +18,7 @@ import {
   getAllDetailedSchools
 } from '../data/detailedSchoolsData';
 import { formatNumberByLanguage } from '../utils/numberUtils';
+import { dbStorage } from '../services/dbStorage';
 
 interface SchoolInfoViewProps {
   language: Language;
@@ -28,7 +29,20 @@ interface SchoolInfoViewProps {
 export const SchoolInfoView: React.FC<SchoolInfoViewProps> = ({
   language
 }) => {
-  const allSchools = useMemo(() => getAllDetailedSchools(), []);
+  const [logoVersion, setLogoVersion] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setLogoVersion((v) => v + 1);
+    window.addEventListener('school_logos_updated', refresh);
+    window.addEventListener('school_majors_data_updated', refresh);
+    dbStorage.whenReady().then(refresh);
+    return () => {
+      window.removeEventListener('school_logos_updated', refresh);
+      window.removeEventListener('school_majors_data_updated', refresh);
+    };
+  }, []);
+
+  const allSchools = useMemo(() => getAllDetailedSchools(), [logoVersion]);
 
   // Filter States
   const [selectedCategory, setSelectedCategory] = useState<'all' | SchoolCategory>('all');

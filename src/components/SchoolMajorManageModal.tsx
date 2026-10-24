@@ -17,6 +17,8 @@ import { schoolMajorService } from '../services/schoolMajorService';
 import { SchoolMajorEntry } from '../constants/studentOptions';
 import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
 import { Language } from '../types';
+import { dbStorage } from '../services/dbStorage';
+import { compressSchoolLogo } from '../utils/imageUtils';
 
 export type ManageActionType = 'add_school' | 'edit_school' | 'delete_school' | 'add_major' | 'edit_major' | 'delete_major';
 
@@ -45,6 +47,7 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
   const [schoolNameKm, setSchoolNameKm] = useState('');
   const [schoolNameEn, setSchoolNameEn] = useState('');
   const [schoolLogoUrl, setSchoolLogoUrl] = useState('');
+  const [logoCleared, setLogoCleared] = useState(false);
   const [schoolLocation, setSchoolLocation] = useState('');
   const [ageLevel, setAgeLevel] = useState<'high_school' | 'university' | 'master'>('high_school');
   const [schoolMajorsText, setSchoolMajorsText] = useState('');
@@ -59,25 +62,28 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
   const [error, setError] = useState('');
   const [allSchools, setAllSchools] = useState<SchoolMajorEntry[]>([]);
 
-  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) {
-      setError(language === 'km' ? 'ទំហំរូបភាពមិនត្រូវលើសពី 3MB ឡើយ' : 'Image size cannot exceed 3MB');
+    if (file.size > 10 * 1024 * 1024) {
+      setError(language === 'km' ? 'ទំហំរូបភាពមិនត្រូវលើសពី 10MB ឡើយ' : 'Image size cannot exceed 10MB');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setSchoolLogoUrl(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressSchoolLogo(file);
+      setSchoolLogoUrl(compressed);
+      setLogoCleared(false);
+      setError('');
+    } catch (err: any) {
+      setError(language === 'km' ? 'មានបញ្ហាក្នុងការអានឯកសាររូបភាព' : 'Failed to process image file');
+    }
   };
 
   useEffect(() => {
     if (isOpen) {
       setError('');
+      setLogoCleared(false);
       const schools = schoolMajorService.getSchools();
       setAllSchools(schools);
 
@@ -89,11 +95,13 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
           const trans = getSchoolTranslation(schoolObj.school);
           setSchoolNameKm(trans?.km || '');
           setSchoolNameEn(trans?.en || '');
-          setSchoolLogoUrl(schoolObj.logoUrl || trans?.logoUrl || '');
+          setSchoolLogoUrl(
+            dbStorage.getCachedSchoolLogo(schoolObj.school) || schoolObj.logoUrl || trans?.logoUrl || ''
+          );
           setSchoolLocation(trans?.locationKm || 'តៃវ៉ាន់');
           setSchoolMajorsText(schoolObj.majors.join(', '));
           
-          if (schoolObj.ageRequirementEn.includes('25 & under')) {
+          if (schoolObj.ageRequirementEn.includes('25 & under') || schoolObj.ageRequirementEn.includes('25 and under')) {
             setAgeLevel('university');
           } else if (schoolObj.ageRequirementEn.includes('26 to 27')) {
             setAgeLevel('master');
@@ -133,13 +141,16 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
     if (schoolObj) {
       setTargetSchoolName(schoolObj.school);
       setSchoolNameZh(schoolObj.school);
+      setLogoCleared(false);
       const trans = getSchoolTranslation(schoolObj.school);
       setSchoolNameKm(trans?.km || '');
       setSchoolNameEn(trans?.en || '');
-      setSchoolLogoUrl(schoolObj.logoUrl || trans?.logoUrl || '');
+      setSchoolLogoUrl(
+        dbStorage.getCachedSchoolLogo(schoolObj.school) || schoolObj.logoUrl || trans?.logoUrl || ''
+      );
       setSchoolLocation(trans?.locationKm || 'តៃវ៉ាន់');
       setSchoolMajorsText(schoolObj.majors.join(', '));
-      if (schoolObj.ageRequirementEn.includes('25 & under')) {
+      if (schoolObj.ageRequirementEn.includes('25 & under') || schoolObj.ageRequirementEn.includes('25 and under')) {
         setAgeLevel('university');
       } else if (schoolObj.ageRequirementEn.includes('26 to 27')) {
         setAgeLevel('master');
@@ -249,7 +260,8 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
           en: schoolNameEn.trim() || schoolNameZh.trim(),
           location: schoolLocation.trim() || 'តៃវ៉ាន់',
           logoUrl: schoolLogoUrl.trim() || undefined,
-        }
+        },
+        { clearLogo: logoCleared && !schoolLogoUrl.trim() }
       );
 
       if (res.success) {
@@ -456,7 +468,10 @@ export const SchoolMajorManageModal: React.FC<SchoolMajorManageModalProps> = ({
                       {schoolLogoUrl && (
                         <button
                           type="button"
-                          onClick={() => setSchoolLogoUrl('')}
+                          onClick={() => {
+                            setSchoolLogoUrl('');
+                            setLogoCleared(true);
+                          }}
                           className="px-2.5 py-1.5 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-semibold transition-colors cursor-pointer"
                         >
                           {language === 'km' ? 'លុប Logo' : language === 'zh-TW' ? '清除校徽' : 'Remove'}

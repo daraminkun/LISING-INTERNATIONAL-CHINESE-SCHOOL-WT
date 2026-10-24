@@ -1,11 +1,12 @@
 /**
  * High-Capacity Persistent IndexedDB Storage Layer
- * Safely persists large binary assets (Student Attachment Documents, School Logos, Institution Settings)
- * Completely bypasses the browser's 5MB localStorage limit (IndexedDB provides hundreds of MBs/GBs).
- * Guarantees that uploaded student files and school logos NEVER disappear after page refresh or Google Sheets sync.
+ * Safely persists binary assets (Student Attachment Documents, School Logos, Institution Settings)
+ * with synchronous localStorage mirroring for school logos & institution settings so uploaded
+ * logos appear instantaneously on page refresh and NEVER disappear during remote Google Sheets sync.
  */
 
-import { StudentDocuments, UploadedDocument } from '../types';
+import { StudentDocuments } from '../types';
+import { normalizeSchoolKey, MAX_SHEETS_SAFE_DATA_URL_LENGTH } from '../utils/imageUtils';
 
 const DB_NAME = 'sms_secure_storage_v1';
 const DB_VERSION = 1;
@@ -13,6 +14,10 @@ const DB_VERSION = 1;
 const STORE_DOCUMENTS = 'student_documents';
 const STORE_SCHOOL_LOGOS = 'school_logos';
 const STORE_INSTITUTION = 'institution_settings';
+
+const LS_SCHOOL_LOGOS_BACKUP = 'sms_school_logos_backup_v1';
+const LS_DELETED_SCHOOL_LOGOS = 'sms_deleted_school_logos_v1';
+const LS_INSTITUTION_BACKUP = 'sms_institution_settings_v1';
 
 export interface InstitutionSettings {
   nameKm: string;
@@ -40,23 +45,25 @@ class DBStorageService {
   private dbPromise: Promise<IDBDatabase> | null = null;
   private memoryDocuments: Map<string, StudentDocuments> = new Map();
   private memorySchoolLogos: Map<string, string> = new Map();
+  private deletedSchoolLogos: Set<string> = new Set();
   private memoryInstitution: InstitutionSettings = { ...DEFAULT_INSTITUTION_SETTINGS };
   private isReady: boolean = false;
   private readyPromise: Promise<void>;
 
   constructor() {
+    this.loadSyncBackups();
     this.readyPromise = this.init();
   }
 
   /**
-   * Initializes the IndexedDB database and pre-loads cache into memory for instant synchronous reads.
+   * Synchronously hydrates lightweight backups from localStorage before IndexedDB opens,
+   * preventing initial-render flicker or premature overwrite by remote sync.
    */
-  async init(): Promise<void> {
-    if (this.isReady) return;
+  private loadSyncBackups(): void {
+    if (typeof window === 'undefined') return;
 
-    // Load institution fallback from localStorage if present
     try {
-      const savedInst = localStorage.getItem('sms_institution_settings_v1');
+      const savedInst = localStorage.getItem(LS_INSTITUTION_BACKUP);
       if (savedInst) {
         const parsed = JSON.parse(savedInst);
         this.memoryInstitution = { ...DEFAULT_INSTITUTION_SETTINGS, ...parsed };
@@ -65,21 +72,91 @@ class DBStorageService {
       console.warn('LocalStorage institution read notice:', e);
     }
 
+    try {
+      const deletedRaw = localStorage.getItem(LS_DELETED_SCHOOL_LOGOS);
+      if (deletedRaw) {
+        const parsed = JSON.parse(deletedRaw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((k) => {
+            const norm = normalizeSchoolKey(String(k));
+            if (norm) this.deletedSchoolLogos.add(norm);
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('LocalStorage deleted logos read notice:', e);
+    }
+
+    try {
+      const savedLogos = localStorage.getItem(LS_SCHOOL_LOGOS_BACKUP);
+      if (savedLogos) {
+        const parsed = JSON.parse(savedLogos);
+        if (parsed && typeof parsed === 'object') {
+          for (const [k, v] of Object.entries(parsed)) {
+            const norm = normalizeSchoolKey(k);
+            if (norm && typeof v === 'string' && v && !this.deletedSchoolLogos.has(norm)) {
+              this.memorySchoolLogos.set(norm, v);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('LocalStorage school logos read notice:', e);
+    }
+  }
+
+  private persistLogosBackupToLocalStorage(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const obj: Record<string, string> = {};
+      this.memorySchoolLogos.forEach((val, key) => {
+        // Only mirror compact logos to localStorage so we never hit 5MB quota
+        if (val && val.length <= MAX_SHEETS_SAFE_DATA_URL_LENGTH + 8000) {
+          obj[key] = val;
+        }
+      });
+      localStorage.setItem(LS_SCHOOL_LOGOS_BACKUP, JSON.stringify(obj));
+    } catch (e) {
+      console.warn('LocalStorage school logos backup quota notice:', e);
+    }
+
+    try {
+      localStorage.setItem(
+        LS_DELETED_SCHOOL_LOGOS,
+        JSON.stringify(Array.from(this.deletedSchoolLogos))
+      );
+    } catch (e) {
+      // Ignore quota notice
+    }
+  }
+
+  private broadcastSchoolLogosUpdated(): void {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('school_logos_updated'));
+    }
+  }
+
+  /**
+   * Initializes the IndexedDB database and pre-loads cache into memory for instant synchronous reads.
+   */
+  async init(): Promise<void> {
+    if (this.isReady) return;
+
     if (typeof window === 'undefined' || !window.indexedDB) {
-      console.warn('IndexedDB not supported in current environment; using in-memory & localStorage fallback.');
       this.isReady = true;
       return;
     }
 
     try {
       const db = await this.openDatabase();
-      // Hydrate in-memory maps from IndexedDB
       await Promise.all([
         this.hydrateDocuments(db),
         this.hydrateSchoolLogos(db),
         this.hydrateInstitution(db),
       ]);
       this.isReady = true;
+      this.persistLogosBackupToLocalStorage();
+      this.broadcastSchoolLogosUpdated();
     } catch (err) {
       console.error('Failed to initialize IndexedDB:', err);
       this.isReady = true;
@@ -156,7 +233,15 @@ class DBStorageService {
         req.onsuccess = (e) => {
           const cursor = (e.target as IDBRequest).result as IDBCursorWithValue | null;
           if (cursor) {
-            this.memorySchoolLogos.set(String(cursor.key), cursor.value);
+            const normKey = normalizeSchoolKey(String(cursor.key));
+            if (
+              normKey &&
+              typeof cursor.value === 'string' &&
+              cursor.value &&
+              !this.deletedSchoolLogos.has(normKey)
+            ) {
+              this.memorySchoolLogos.set(normKey, cursor.value);
+            }
             cursor.continue();
           } else {
             resolve();
@@ -180,6 +265,11 @@ class DBStorageService {
         req.onsuccess = () => {
           if (req.result) {
             this.memoryInstitution = { ...DEFAULT_INSTITUTION_SETTINGS, ...req.result };
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('institution_settings_updated', { detail: this.memoryInstitution })
+              );
+            }
           }
           resolve();
         };
@@ -195,17 +285,11 @@ class DBStorageService {
   // STUDENT DOCUMENTS METHODS
   // ==========================================
 
-  /**
-   * Synchronous cached retrieval of student documents
-   */
   getCachedDocuments(studentId: string): StudentDocuments | undefined {
     if (!studentId) return undefined;
     return this.memoryDocuments.get(String(studentId).trim());
   }
 
-  /**
-   * Retrieve student documents from IndexedDB (with memory cache fallback)
-   */
   async getStudentDocuments(studentId: string): Promise<StudentDocuments | null> {
     if (!studentId) return null;
     const key = String(studentId).trim();
@@ -237,17 +321,12 @@ class DBStorageService {
     }
   }
 
-  /**
-   * Save student documents to IndexedDB permanently
-   */
   async saveStudentDocuments(studentId: string, documents: StudentDocuments): Promise<void> {
     if (!studentId || !documents) return;
     const key = String(studentId).trim();
 
-    // 1. Update memory cache immediately
     this.memoryDocuments.set(key, documents);
 
-    // 2. Persist to IndexedDB
     try {
       const db = await this.openDatabase();
       await new Promise<void>((resolve, reject) => {
@@ -263,9 +342,6 @@ class DBStorageService {
     }
   }
 
-  /**
-   * Delete student documents from IndexedDB
-   */
   async deleteStudentDocuments(studentId: string): Promise<void> {
     if (!studentId) return;
     const key = String(studentId).trim();
@@ -291,22 +367,31 @@ class DBStorageService {
   // DESTINATION SCHOOL LOGO METHODS
   // ==========================================
 
-  /**
-   * Synchronous cached retrieval of destination school logo
-   */
-  getCachedSchoolLogo(schoolName: string): string | undefined {
-    if (!schoolName) return undefined;
-    return this.memorySchoolLogos.get(schoolName.trim());
+  isSchoolLogoDeleted(schoolName: string): boolean {
+    const key = normalizeSchoolKey(schoolName);
+    if (!key) return false;
+    return this.deletedSchoolLogos.has(key);
   }
 
   /**
-   * Save school logo permanently
+   * Synchronous cached retrieval of destination school logo (normalized key match)
    */
-  async saveSchoolLogo(schoolName: string, logoUrl: string): Promise<void> {
-    if (!schoolName || !logoUrl) return;
-    const key = schoolName.trim();
+  getCachedSchoolLogo(schoolName: string): string | undefined {
+    const key = normalizeSchoolKey(schoolName);
+    if (!key || this.deletedSchoolLogos.has(key)) return undefined;
+    return this.memorySchoolLogos.get(key);
+  }
 
+  /**
+   * Save school logo permanently to memory, localStorage backup, and IndexedDB
+   */
+  async saveSchoolLogo(schoolName: string, logoUrl: string, silent = false): Promise<void> {
+    const key = normalizeSchoolKey(schoolName);
+    if (!key || !logoUrl) return;
+
+    this.deletedSchoolLogos.delete(key);
     this.memorySchoolLogos.set(key, logoUrl);
+    this.persistLogosBackupToLocalStorage();
 
     try {
       const db = await this.openDatabase();
@@ -321,46 +406,51 @@ class DBStorageService {
     } catch (err) {
       console.warn('IndexedDB write error for school logo:', err);
     }
+
+    if (!silent) {
+      this.broadcastSchoolLogosUpdated();
+    }
   }
 
   /**
-   * Delete school logo
+   * Delete school logo permanently and record deletion tombstone
    */
   async deleteSchoolLogo(schoolName: string): Promise<void> {
-    if (!schoolName) return;
-    const key = schoolName.trim();
+    const rawKey = (schoolName || '').trim();
+    const normKey = normalizeSchoolKey(schoolName);
+    if (!normKey) return;
 
-    this.memorySchoolLogos.delete(key);
+    this.deletedSchoolLogos.add(normKey);
+    this.memorySchoolLogos.delete(normKey);
+    this.persistLogosBackupToLocalStorage();
 
     try {
       const db = await this.openDatabase();
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE_SCHOOL_LOGOS, 'readwrite');
         const store = tx.objectStore(STORE_SCHOOL_LOGOS);
-        const req = store.delete(key);
-
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        store.delete(normKey);
+        if (rawKey && rawKey !== normKey) {
+          store.delete(rawKey);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
       });
     } catch (err) {
       console.warn('IndexedDB delete error for school logo:', err);
     }
+
+    this.broadcastSchoolLogosUpdated();
   }
 
   // ==========================================
   // INSTITUTION SETTINGS METHODS
   // ==========================================
 
-  /**
-   * Synchronous cached retrieval of Institution Settings
-   */
   getCachedInstitutionSettings(): InstitutionSettings {
     return { ...this.memoryInstitution };
   }
 
-  /**
-   * Save Institution Settings permanently
-   */
   async saveInstitutionSettings(settings: Partial<InstitutionSettings>): Promise<InstitutionSettings> {
     const updated: InstitutionSettings = {
       ...this.memoryInstitution,
@@ -370,14 +460,12 @@ class DBStorageService {
 
     this.memoryInstitution = updated;
 
-    // Save lightweight backup to localStorage
     try {
-      localStorage.setItem('sms_institution_settings_v1', JSON.stringify(updated));
+      localStorage.setItem(LS_INSTITUTION_BACKUP, JSON.stringify(updated));
     } catch (e) {
       console.warn('LocalStorage quota notice for institution settings:', e);
     }
 
-    // Save to IndexedDB
     try {
       const db = await this.openDatabase();
       await new Promise<void>((resolve, reject) => {
@@ -392,8 +480,9 @@ class DBStorageService {
       console.warn('IndexedDB write error for institution settings:', err);
     }
 
-    // Broadcast change
-    window.dispatchEvent(new CustomEvent('institution_settings_updated', { detail: updated }));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('institution_settings_updated', { detail: updated }));
+    }
 
     return updated;
   }

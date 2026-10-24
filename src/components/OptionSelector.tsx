@@ -83,25 +83,25 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({
   const colors = {
     indigo: {
       active: 'bg-indigo-600 text-white border-indigo-600 shadow-xs font-semibold ring-2 ring-indigo-600/20',
-      hover: 'hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 text-slate-700 bg-white border-slate-200',
+      hover: 'hover:bg-indigo-50/90 hover:border-indigo-300 hover:text-indigo-700 text-slate-700 bg-white/65 border-slate-200',
       badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
       accent: 'text-indigo-600',
     },
     blue: {
       active: 'bg-blue-600 text-white border-blue-600 shadow-xs font-semibold ring-2 ring-blue-600/20',
-      hover: 'hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 text-slate-700 bg-white border-slate-200',
+      hover: 'hover:bg-blue-50/90 hover:border-blue-300 hover:text-blue-700 text-slate-700 bg-white/65 border-slate-200',
       badge: 'bg-blue-50 text-blue-700 border-blue-200',
       accent: 'text-blue-600',
     },
     purple: {
       active: 'bg-purple-600 text-white border-purple-600 shadow-xs font-semibold ring-2 ring-purple-600/20',
-      hover: 'hover:bg-purple-50 hover:border-purple-300 hover:text-purple-700 text-slate-700 bg-white border-slate-200',
+      hover: 'hover:bg-purple-50/90 hover:border-purple-300 hover:text-purple-700 text-slate-700 bg-white/65 border-slate-200',
       badge: 'bg-purple-50 text-purple-700 border-purple-200',
       accent: 'text-purple-600',
     },
     emerald: {
       active: 'bg-emerald-600 text-white border-emerald-600 shadow-xs font-semibold ring-2 ring-emerald-600/20',
-      hover: 'hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 text-slate-700 bg-white border-slate-200',
+      hover: 'hover:bg-emerald-50/90 hover:border-emerald-300 hover:text-emerald-700 text-slate-700 bg-white/65 border-slate-200',
       badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       accent: 'text-emerald-600',
     },
@@ -244,7 +244,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             placeholder={placeholder || (language === 'km' ? 'ស្វែងរកជម្រើសរហ័ស...' : 'Quick search options...')}
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-colors"
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white/60 focus:bg-white/90 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition-colors"
           />
           {searchTerm && (
             <button
@@ -268,8 +268,8 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({
           }}
           className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors shrink-0 ${
             isCustomMode || (value && !isValueInOptions)
-              ? 'bg-amber-50 text-amber-800 border-amber-300 font-semibold'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              ? 'bg-amber-50/90 text-amber-800 border-amber-300 font-semibold'
+              : 'bg-white/65 text-slate-600 border-slate-200 hover:bg-slate-50/90'
           }`}
         >
           <Edit3 className="w-3 h-3" />
@@ -303,7 +303,7 @@ export const OptionSelector: React.FC<OptionSelectorProps> = ({
 
       {/* Buttons / Chips Grid */}
       <div 
-        className="max-h-56 overflow-y-auto pr-1 p-2 rounded-xl bg-slate-50/60 border border-slate-200/80 space-y-2"
+        className="max-h-56 overflow-y-auto pr-1 p-2 rounded-xl bg-slate-50/40 border border-slate-200/80 space-y-2"
         onMouseLeave={() => setHoveredOption(null)}
       >
         {filteredOptions.length === 0 ? (

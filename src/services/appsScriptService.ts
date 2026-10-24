@@ -417,6 +417,8 @@ function doPost(e) {
         const sRows = schools.map(s => {
           const trans = (customTranslations.schools && customTranslations.schools[s.school]) || {};
           const majorsStr = Array.isArray(s.majors) ? s.majors.join(", ") : (s.majors || "");
+          const rawLogo = s.logoUrl || trans.logoUrl || "";
+          const safeLogo = String(rawLogo).length <= 49000 ? rawLogo : "";
           return [
             s.school || "",
             majorsStr,
@@ -427,7 +429,7 @@ function doPost(e) {
             trans.km || "",
             trans.en || "",
             trans.locationKm || trans.location || "",
-            s.logoUrl || trans.logoUrl || ""
+            safeLogo
           ];
         });
         schoolsSheet.getRange(2, 1, sRows.length, SCHOOL_HEADERS.length).setValues(sRows);
@@ -468,6 +470,8 @@ function doPost(e) {
           const sRows = schools.map(s => {
             const trans = (customTranslations.schools && customTranslations.schools[s.school]) || {};
             const majorsStr = Array.isArray(s.majors) ? s.majors.join(", ") : (s.majors || "");
+            const rawLogo = s.logoUrl || trans.logoUrl || "";
+            const safeLogo = String(rawLogo).length <= 49000 ? rawLogo : "";
             return [
               s.school || "",
               majorsStr,
@@ -478,7 +482,7 @@ function doPost(e) {
               trans.km || "",
               trans.en || "",
               trans.locationKm || trans.location || "",
-              s.logoUrl || trans.logoUrl || ""
+              safeLogo
             ];
           });
           schoolsSheet.getRange(2, 1, sRows.length, SCHOOL_HEADERS.length).setValues(sRows);
@@ -641,6 +645,33 @@ export class AppsScriptService {
     }
   }
 
+  private static sanitizeSchoolsForSheets(
+    schools: SchoolMajorEntry[],
+    customTranslations?: CustomTranslationsStore
+  ): { safeSchools: SchoolMajorEntry[]; safeTranslations?: CustomTranslationsStore } {
+    const safeSchools = schools.map(s => ({
+      ...s,
+      logoUrl: s.logoUrl && s.logoUrl.length <= 48000 ? s.logoUrl : undefined,
+    }));
+
+    let safeTranslations = customTranslations;
+    if (customTranslations?.schools) {
+      const cleanedSchools: CustomTranslationsStore['schools'] = {};
+      for (const [k, v] of Object.entries(customTranslations.schools)) {
+        cleanedSchools[k] = {
+          ...v,
+          logoUrl: v?.logoUrl && v.logoUrl.length <= 48000 ? v.logoUrl : undefined,
+        };
+      }
+      safeTranslations = {
+        ...customTranslations,
+        schools: cleanedSchools,
+      };
+    }
+
+    return { safeSchools, safeTranslations };
+  }
+
   static async syncSchools(
     webAppUrl: string, 
     schools: SchoolMajorEntry[], 
@@ -649,10 +680,11 @@ export class AppsScriptService {
     deletedMajors?: string[]
   ): Promise<void> {
     if (!webAppUrl) return;
+    const { safeSchools, safeTranslations } = this.sanitizeSchoolsForSheets(schools, customTranslations);
     const res = await this.sendRequest(webAppUrl, {
       action: 'syncSchools',
-      schools,
-      customTranslations,
+      schools: safeSchools,
+      customTranslations: safeTranslations,
       deletedSchools,
       deletedMajors,
     });
@@ -692,11 +724,12 @@ export class AppsScriptService {
     deletedMajors?: string[]
   ): Promise<void> {
     if (!webAppUrl) return;
+    const { safeSchools, safeTranslations } = this.sanitizeSchoolsForSheets(schools, customTranslations);
     const res = await this.sendRequest(webAppUrl, {
       action: 'syncAll',
       students,
-      schools,
-      customTranslations,
+      schools: safeSchools,
+      customTranslations: safeTranslations,
       deletedSchools,
       deletedMajors,
     });

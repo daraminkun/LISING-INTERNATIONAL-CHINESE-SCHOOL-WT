@@ -4,6 +4,8 @@
  * target schools and vocational / university majors in Taiwan.
  */
 
+import { dbStorage } from '../services/dbStorage';
+
 export interface SchoolTranslation {
   zh: string;
   shortZh?: string;
@@ -2472,27 +2474,77 @@ export const MAJOR_TRANSLATIONS: Record<string, MajorTranslation> = {
  */
 export function getSchoolTranslation(name?: string): SchoolTranslation | null {
   if (!name || !name.trim()) return null;
-  const cleanSpacing = (str: string) => str.replace(/\s+/g, ' ').trim();
+  const cleanSpacing = (str: string) =>
+    str.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
   const trimmed = name.trim();
   const normalized = cleanSpacing(trimmed);
 
-  // 0. Check custom translations in localStorage first
+  const findStaticBase = (): SchoolTranslation | null => {
+    if (SCHOOL_TRANSLATIONS[trimmed]) {
+      return SCHOOL_TRANSLATIONS[trimmed];
+    }
+    for (const [key, val] of Object.entries(SCHOOL_TRANSLATIONS)) {
+      if (cleanSpacing(key) === normalized) {
+        return val;
+      }
+    }
+    if (normalized.includes('中信')) {
+      return SCHOOL_TRANSLATIONS['中信科技大學'] || SCHOOL_TRANSLATIONS['臺南市新市區中華路49號 中信金學校財團法人中信科技大學'] || null;
+    }
+    if (normalized.includes('中華科')) {
+      return SCHOOL_TRANSLATIONS['中華科技大學'] || SCHOOL_TRANSLATIONS['臺北市南港區研究院路三段 245號 中華學校財團法人中華科技大學'] || null;
+    }
+    if (normalized.includes('中臺') || normalized.includes('中台')) {
+      return SCHOOL_TRANSLATIONS['中臺科技大學'] || SCHOOL_TRANSLATIONS['臺中市北屯區廍子路666號 中臺科技大學'] || null;
+    }
+    if (normalized.includes('立志') || normalized.includes('志高級')) {
+      return SCHOOL_TRANSLATIONS['高雄市立 志高級中學'] || SCHOOL_TRANSLATIONS['高雄市立 立志高級中學'] || null;
+    }
+    for (const [key, val] of Object.entries(SCHOOL_TRANSLATIONS)) {
+      const cleanKey = cleanSpacing(key);
+      if (normalized.includes(cleanKey) || cleanKey.includes(normalized)) {
+        return val;
+      }
+      if (val.shortZh && normalized.includes(val.shortZh)) {
+        return val;
+      }
+      if (val.en.toLowerCase().includes(normalized.toLowerCase()) || normalized.toLowerCase().includes(val.en.toLowerCase())) {
+        return val;
+      }
+    }
+    const coreKey = normalized
+      .replace(/(高雄市|臺北市|臺南市|桃園市|嘉義市|新竹縣|新竹市|臺中市|新北市|嘉義縣|雲林縣|台湾|宜蘭縣|私立|市立|區|鄉|路|段|號|臺灣大道六段|沙鹿區|湖口鄉|中山路三段|龜山區|萬壽路一段|板橋區|四川路二段58號|大寮區|泰山區|三星鄉|三星路二段|新市區|中華路49號|南港區|研究院路三段|245號|北屯區|廍子路666號|中信金學校財團法人|中華學校財團法人)/g, '')
+      .trim();
+
+    if (coreKey) {
+      for (const [key, val] of Object.entries(SCHOOL_TRANSLATIONS)) {
+        if (cleanSpacing(key).includes(coreKey)) return val;
+      }
+    }
+    return null;
+  };
+
+  const base = findStaticBase();
+  const cachedLogo = dbStorage.getCachedSchoolLogo(normalized);
+  const logoDeleted = dbStorage.isSchoolLogoDeleted(normalized);
+
+  // Merge custom translation overrides if present
   try {
     const customRaw = localStorage.getItem('sms_custom_translations_v2');
     if (customRaw) {
       const customStore = JSON.parse(customRaw);
-      if (customStore?.schools?.[trimmed] || customStore?.schools?.[normalized]) {
-        const c = customStore.schools[trimmed] || customStore.schools[normalized];
+      const c = customStore?.schools?.[normalized] || customStore?.schools?.[trimmed];
+      if (c) {
         return {
-          zh: trimmed,
-          shortZh: c.shortZh || trimmed,
-          en: c.en || trimmed,
-          km: c.km || trimmed,
-          locationEn: c.locationEn || "Taiwan",
-          locationKm: c.locationKm || "ប្រទេសតៃវ៉ាន់",
-          levelEn: c.levelEn || "Institution",
-          levelKm: c.levelKm || "គ្រឹះស្ថានអប់រំ",
-          logoUrl: c.logoUrl,
+          zh: base?.zh || trimmed,
+          shortZh: c.shortZh || base?.shortZh || trimmed,
+          en: c.en || base?.en || trimmed,
+          km: c.km || base?.km || trimmed,
+          locationEn: c.locationEn || base?.locationEn || "Taiwan",
+          locationKm: c.locationKm || base?.locationKm || "ប្រទេសតៃវ៉ាន់",
+          levelEn: c.levelEn || base?.levelEn || "Institution",
+          levelKm: c.levelKm || base?.levelKm || "គ្រឹះស្ថានអប់រំ",
+          logoUrl: logoDeleted ? undefined : (cachedLogo || c.logoUrl || base?.logoUrl),
         };
       }
     }
@@ -2500,56 +2552,13 @@ export function getSchoolTranslation(name?: string): SchoolTranslation | null {
     // Ignore JSON error
   }
 
-  // 1. Direct key match or whitespace-normalized match
-  if (SCHOOL_TRANSLATIONS[trimmed]) {
-    return SCHOOL_TRANSLATIONS[trimmed];
-  }
-  for (const [key, val] of Object.entries(SCHOOL_TRANSLATIONS)) {
-    if (cleanSpacing(key) === normalized) {
-      return val;
-    }
+  if (base) {
+    return {
+      ...base,
+      logoUrl: logoDeleted ? undefined : (cachedLogo || base.logoUrl),
+    };
   }
 
-  // 2. Known key token shortcuts
-  if (normalized.includes('中信')) {
-    return SCHOOL_TRANSLATIONS['中信科技大學'] || SCHOOL_TRANSLATIONS['臺南市新市區中華路49號 中信金學校財團法人中信科技大學'];
-  }
-  if (normalized.includes('中華科')) {
-    return SCHOOL_TRANSLATIONS['中華科技大學'] || SCHOOL_TRANSLATIONS['臺北市南港區研究院路三段 245號 中華學校財團法人中華科技大學'];
-  }
-  if (normalized.includes('中臺') || normalized.includes('中台')) {
-    return SCHOOL_TRANSLATIONS['中臺科技大學'] || SCHOOL_TRANSLATIONS['臺中市北屯區廍子路666號 中臺科技大學'];
-  }
-  if (normalized.includes('立志') || normalized.includes('志高級')) {
-    return SCHOOL_TRANSLATIONS['高雄市立 志高級中學'] || SCHOOL_TRANSLATIONS['高雄市立 立志高級中學'];
-  }
-
-  // 3. Partial match in keys
-  for (const [key, val] of Object.entries(SCHOOL_TRANSLATIONS)) {
-    const cleanKey = cleanSpacing(key);
-    if (normalized.includes(cleanKey) || cleanKey.includes(normalized)) {
-      return val;
-    }
-    if (val.shortZh && normalized.includes(val.shortZh)) {
-      return val;
-    }
-    if (val.en.toLowerCase().includes(normalized.toLowerCase()) || normalized.toLowerCase().includes(val.en.toLowerCase())) {
-      return val;
-    }
-  }
-
-  // 4. Normalized stripped match
-  const coreKey = normalized
-    .replace(/(高雄市|臺北市|臺南市|桃園市|嘉義市|新竹縣|新竹市|臺中市|新北市|嘉義縣|雲林縣|台湾|宜蘭縣|私立|市立|區|鄉|路|段|號|臺灣大道六段|沙鹿區|湖口鄉|中山路三段|龜山區|萬壽路一段|板橋區|四川路二段58號|大寮區|泰山區|三星鄉|三星路二段|新市區|中華路49號|南港區|研究院路三段|245號|北屯區|廍子路666號|中信金學校財團法人|中華學校財團法人)/g, '')
-    .trim();
-
-  if (coreKey) {
-    for (const [key, val] of Object.entries(SCHOOL_TRANSLATIONS)) {
-      if (cleanSpacing(key).includes(coreKey)) return val;
-    }
-  }
-
-  // Fallback if not found: create a structured object
   return {
     zh: trimmed,
     en: trimmed,
@@ -2558,6 +2567,7 @@ export function getSchoolTranslation(name?: string): SchoolTranslation | null {
     locationKm: "ប្រទេសតៃវ៉ាន់",
     levelEn: "Institution",
     levelKm: "គ្រឹះស្ថានអប់រំ",
+    logoUrl: logoDeleted ? undefined : cachedLogo,
   };
 }
 
