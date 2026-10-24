@@ -431,7 +431,7 @@ class SchoolMajorService {
    * Get majors for a specific school
    */
   getMajorsForSchool(schoolName?: string): string[] {
-    if (!schoolName || !schoolName.trim()) return [];
+    if (typeof schoolName !== 'string' || !schoolName.trim()) return [];
     const normalized = normalizeSchoolKey(schoolName);
     const schools = this.getSchools();
 
@@ -480,7 +480,7 @@ class SchoolMajorService {
    * Get age requirement for a school
    */
   getSchoolAgeRequirement(schoolName?: string, language: Language = 'km'): string | undefined {
-    if (!schoolName || !schoolName.trim()) return undefined;
+    if (typeof schoolName !== 'string' || !schoolName.trim()) return undefined;
     const normalized = normalizeSchoolKey(schoolName);
     const schools = this.getSchools();
     const found = schools.find(
@@ -504,7 +504,7 @@ class SchoolMajorService {
    * Get short age badge for a school
    */
   getSchoolShortAgeBadge(schoolName?: string, language: Language = 'km'): string | undefined {
-    if (!schoolName || !schoolName.trim()) return undefined;
+    if (typeof schoolName !== 'string' || !schoolName.trim()) return undefined;
     const normalized = normalizeSchoolKey(schoolName);
     const schools = this.getSchools();
     const found = schools.find(

@@ -363,7 +363,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
 
         setPreviousSchoolKhmer('');
         setPreviousSchoolAddressKhmer('');
-        setTargetSchool(initialSchool || '');
+        setTargetSchool(typeof initialSchool === 'string' ? initialSchool : '');
         setMajor('');
         setNotes('');
         setDocuments({});

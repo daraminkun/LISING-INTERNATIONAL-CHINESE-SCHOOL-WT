@@ -91,8 +91,8 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
           <div className="shrink-0 flex flex-col gap-2.5">
             <button
               type="button"
-              onClick={onAddStudent}
-              className="inline-flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-base text-red-900 bg-white hover:bg-amber-50 active:scale-[0.98] shadow-lg shadow-black/20 hover:shadow-xl transition-all font-battambang group"
+              onClick={() => onAddStudent()}
+              className="inline-flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-black text-base text-red-900 bg-white hover:bg-amber-50 active:scale-[0.98] shadow-lg shadow-black/20 hover:shadow-xl transition-all font-battambang group cursor-pointer"
             >
               <UserPlus className="w-5 h-5 text-red-700 transition-transform group-hover:scale-110" />
               <span>

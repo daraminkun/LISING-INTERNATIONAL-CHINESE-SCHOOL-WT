@@ -265,8 +265,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {/* Right Side: Primary Actions */}
           <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             <button
-              onClick={onAddStudent}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-950 hover:bg-indigo-50 font-bold text-xs sm:text-sm shadow-lg transition-all active:scale-95 whitespace-nowrap"
+              type="button"
+              onClick={() => onAddStudent()}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-950 hover:bg-indigo-50 font-bold text-xs sm:text-sm shadow-lg transition-all active:scale-95 whitespace-nowrap cursor-pointer"
             >
               <Plus className="w-4 h-4 text-indigo-700 shrink-0" />
               <span>{t.addStudent}</span>

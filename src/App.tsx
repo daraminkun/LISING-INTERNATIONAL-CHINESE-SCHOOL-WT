@@ -581,9 +581,9 @@ export default function App() {
   // Preselected school state when applying directly from School Information directory
   const [preselectedSchool, setPreselectedSchool] = useState<string | undefined>(undefined);
 
-  // Open Add Student Modal
-  const handleOpenAddStudent = (school?: string) => {
-    setPreselectedSchool(school);
+  // Open Add Student Modal (guards against SyntheticEvent when wired directly to onClick)
+  const handleOpenAddStudent = (school?: unknown) => {
+    setPreselectedSchool(typeof school === 'string' ? school : undefined);
     setStudentToEdit(null);
     setIsStudentModalOpen(true);
   };
@@ -967,7 +967,7 @@ export default function App() {
             />
           ) : !isAdmin ? (
             <StudentPortalView
-              onAddStudent={handleOpenAddStudent}
+              onAddStudent={() => handleOpenAddStudent()}
               onOpenSchoolInfo={() => setCurrentTab('school_info')}
               language={language}
               currentUser={currentUser}
@@ -992,7 +992,7 @@ export default function App() {
                   language={language}
                   connectionStatus={connectionStatus}
                   onNavigateToStudents={handleNavigateToStudents}
-                  onAddStudent={handleOpenAddStudent}
+                  onAddStudent={() => handleOpenAddStudent()}
                   onViewStudent={handleOpenViewStudent}
                   onOpenSettings={() => {
                     if (!authService.isAdmin()) {
@@ -1013,7 +1013,7 @@ export default function App() {
                   language={language}
                   filterState={filterState}
                   onFilterChange={setFilterState}
-                  onAddStudent={handleOpenAddStudent}
+                  onAddStudent={() => handleOpenAddStudent()}
                   onEditStudent={handleOpenEditStudent}
                   onDeleteStudent={handleOpenDeleteStudent}
                   onViewStudent={handleOpenViewStudent}
