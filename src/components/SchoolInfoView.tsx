@@ -148,14 +148,6 @@ export const SchoolInfoView: React.FC<SchoolInfoViewProps> = ({
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs sm:text-sm text-red-100/90 font-battambang">
             <span>
               {language === 'km'
-                ? `សាលាដៃគូសរុប ${formatNumberByLanguage(allSchools.length, language)}`
-                : language === 'zh-TW'
-                ? `合作學校共 ${formatNumberByLanguage(allSchools.length, language)} 所`
-                : `${formatNumberByLanguage(allSchools.length, language)} Partner Schools`}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              {language === 'km'
                 ? `អនុវិទ្យាល័យ/វិទ្យាល័យ ${formatNumberByLanguage(highSchoolCount, language)}`
                 : language === 'zh-TW'
                 ? `高中職 ${formatNumberByLanguage(highSchoolCount, language)} 所`

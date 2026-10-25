@@ -197,9 +197,6 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
                     ? '學校與校徽管理系統 (School & Logo Management)' 
                     : 'School & Logo Profile Management'}
                 </h1>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                  {schools.length} {language === 'km' ? 'សាលារៀន' : 'Schools'}
-                </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 {language === 'km'
@@ -270,14 +267,6 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
-          </div>
-
-          <div className="text-xs text-slate-500 self-start sm:self-auto flex items-center gap-2">
-            <span>
-              {language === 'km' 
-                ? `បង្ហាញសាលារៀន ${filteredSchools.length} ក្នុងចំណោម ${schools.length}` 
-                : `Showing ${filteredSchools.length} of ${schools.length} schools`}
-            </span>
           </div>
         </div>
       </div>

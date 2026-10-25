@@ -381,9 +381,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <Users className="w-5 h-5 text-white shrink-0" />
                     <span className="text-white font-semibold">{t.studentTable}</span>
                   </div>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full font-black bg-white text-red-900 shadow-xs">
-                    {studentCount}
-                  </span>
                 </button>
 
                 <button
@@ -481,12 +478,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         : 'School Info & Live'}
                     </span>
                   </div>
-                  {currentTab === 'school_info' ? (
+                  {currentTab === 'school_info' && (
                     <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
-                  ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-400 text-amber-950">
-                      59
-                    </span>
                   )}
                 </button>
               </nav>
@@ -518,35 +511,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   {currentTab === 'student_portal' && (
                     <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleTabSelect('school_info')}
-                  style={{ backgroundColor: currentTab === 'school_info' ? '#dc2626' : '#9f1239' }}
-                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
-                    currentTab === 'school_info'
-                      ? 'border-white/50 text-white shadow-md'
-                      : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <GraduationCap className="w-5 h-5 text-white shrink-0" />
-                    <span className="text-white font-semibold">
-                      {language === 'km' 
-                        ? 'ព័ត៌មានអំពីសាលារៀន' 
-                        : language === 'zh-TW' 
-                        ? '學校資訊與最新動態' 
-                        : 'School Info & Live'}
-                    </span>
-                  </div>
-                  {currentTab === 'school_info' ? (
-                    <div className="w-2 h-5 rounded-full bg-white shadow-xs" />
-                  ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-400 text-amber-950">
-                      59
-                    </span>
                   )}
                 </button>
               </nav>
