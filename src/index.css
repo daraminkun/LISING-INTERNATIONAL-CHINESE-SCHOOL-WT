@@ -95,8 +95,8 @@ html[lang="km"] button {
 /* Print Media Optimization */
 @media print {
   @page {
-    size: A4 landscape;
-    margin: 8mm;
+    size: A4 portrait;
+    margin: 7mm 6mm;
   }
 
   body {

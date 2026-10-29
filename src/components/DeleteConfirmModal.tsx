@@ -6,6 +6,8 @@ import { translations } from '../translations';
 interface DeleteConfirmModalProps {
   isOpen: boolean;
   student: Student | null;
+  bulkCount?: number;
+  schoolMajorNo?: number;
   onClose: () => void;
   onConfirm: () => Promise<void>;
   isDeleting: boolean;
@@ -15,6 +17,8 @@ interface DeleteConfirmModalProps {
 export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   isOpen,
   student,
+  bulkCount = 0,
+  schoolMajorNo,
   onClose,
   onConfirm,
   isDeleting,
@@ -22,7 +26,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
 }) => {
   const t = translations[language];
 
-  if (!isOpen || !student) return null;
+  if (!isOpen || (!student && bulkCount <= 0)) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -40,18 +44,36 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
               {t.confirmDelete}
             </h3>
             <p className="text-xs sm:text-sm text-slate-500">
-              {t.deleteWarning}
+              {bulkCount > 0
+                ? language === 'km'
+                  ? `តើអ្នកពិតជាចង់លុបសិស្សទាំង ${bulkCount} នាក់នេះមែនទេ? លេខរៀង និង No នឹងរៀបតាមលំដាប់ស្វ័យប្រវត្តិឡើងវិញ។`
+                  : language === 'zh-TW'
+                  ? `您確定要刪除這 ${bulkCount} 位學生嗎？系統將自動重新排序編號。`
+                  : `Are you sure you want to delete these ${bulkCount} students? Order numbers will automatically re-sequence.`
+                : t.deleteWarning}
             </p>
           </div>
 
-          {/* Student Card Summary */}
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs sm:text-sm">
-            <div>
-              <span className="font-bold text-slate-900 block">{student.nameKhmer || student.nameLatin || student.nameChinese || student.name || '-'}</span>
-              <span className="font-mono text-slate-500 text-xs">#{student.studentId} {student.targetSchool ? `• ${student.targetSchool}` : ''}</span>
+          {/* Student or Bulk Summary */}
+          {student ? (
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs sm:text-sm">
+              <div>
+                <span className="font-bold text-slate-900 block">{student.nameKhmer || student.nameLatin || student.nameChinese || student.name || '-'}</span>
+                <span className="font-mono text-slate-500 text-xs">
+                  #{student.studentId}{schoolMajorNo ? ` (No. ${schoolMajorNo})` : ''} {student.targetSchool ? `• ${student.targetSchool}` : ''}
+                </span>
+              </div>
+              <span className="font-mono text-slate-600 text-xs">{student.phone}</span>
             </div>
-            <span className="font-mono text-slate-600 text-xs">{student.phone}</span>
-          </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-rose-50/70 border border-rose-200 text-center text-xs sm:text-sm font-bold text-rose-800">
+              {language === 'km'
+                ? `ជ្រើសរើសសិស្សចំនួន ${bulkCount} នាក់ សម្រាប់លុបចេញ`
+                : language === 'zh-TW'
+                ? `已選擇 ${bulkCount} 位學生進行刪除`
+                : `${bulkCount} students selected for deletion`}
+            </div>
+          )}
 
           {/* Buttons */}
           <div className="pt-2 flex items-center justify-end gap-3">

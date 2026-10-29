@@ -30,8 +30,9 @@ import {
 } from 'lucide-react';
 import { Student, FilterState, SortConfig, SortField, Language } from '../types';
 import { translations } from '../translations';
-import { MAJORS, TARGET_SCHOOLS } from '../constants/studentOptions';
 import { schoolMajorService } from '../services/schoolMajorService';
+import { canonicalizeSchoolName } from '../utils/imageUtils';
+import { isMockStudentDocuments } from '../utils/cloudDocSyncUtils';
 import { areAllRequiredDocumentsUploaded, countUploadedCategories, getEffectiveStudentDocuments } from '../utils/documentUtils';
 import { stripCloudEnvelopeFromNotes } from '../utils/cloudDocSyncUtils';
 import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
@@ -41,6 +42,13 @@ import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorT
 import { downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
 import { authService } from '../services/authService';
 import { SchoolMajorManageModal, ManageActionType } from './SchoolMajorManageModal';
+import {
+  computeStudentNumbersList,
+  compareStudentsBySchoolMajorOrder,
+  buildCatalogOrderMaps,
+  safeCopyToClipboard,
+  triggerSafeBlobDownload,
+} from '../utils/studentOrderUtils';
 
 interface StudentTableProps {
   students: Student[];
@@ -117,45 +125,43 @@ export const StudentTable: React.FC<StudentTableProps> = ({
     actionType: 'add_school',
   });
 
-  // Extract unique majors and target schools
+  // Extract unique majors and target schools dynamically synchronized with schoolMajorService
   const uniqueMajors = useMemo(() => {
     const set = new Set<string>();
-    // 1. From schoolMajorService (includes all custom & pre-configured majors)
+    // 1. From schoolMajorService (official + custom Admin-configured majors)
     schoolMajorService.getAllMajors().forEach(m => {
       if (m && m.trim()) set.add(m.trim());
     });
-    // 2. From standard MAJORS list
-    MAJORS.forEach(m => {
-      if (m && m.trim()) set.add(m.trim());
-    });
-    // 3. From students records (including custom entered majors)
+    // 2. From real students records (including custom entered majors)
     students.forEach(s => {
-      if (s.major?.trim()) set.add(s.major.trim());
+      if (!isMockStudentDocuments(s.documents) && s.major?.trim()) {
+        set.add(s.major.trim());
+      }
     });
     return Array.from(set);
   }, [students, schoolsVersion]);
 
   const uniqueSchools = useMemo(() => {
-    const isExcluded = (name: string) => 
-      !name || 
-      name.trim() === '日興國際學校' || 
+    const isExcluded = (name: string) =>
+      !name ||
+      name.trim() === '日興國際學校' ||
       name.trim() === 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' ||
       name.trim() === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
       name.toLowerCase().includes('lising international');
 
     const set = new Set<string>();
-    // 1. From schoolMajorService (includes all newly added schools)
+    // 1. From schoolMajorService (exact unified school list)
     schoolMajorService.getSchoolNames().forEach(s => {
-      if (s && s.trim() && !isExcluded(s)) set.add(s.trim());
+      const c = canonicalizeSchoolName(s);
+      if (c && !isExcluded(c)) set.add(c);
     });
-    // 2. From standard TARGET_SCHOOLS list
-    TARGET_SCHOOLS.forEach(s => {
-      if (s && s.trim() && !isExcluded(s)) set.add(s.trim());
-    });
-    // 3. From students records (including custom entered schools)
+    // 2. From real students records (canonicalized so legacy address-prefixed names never duplicate)
     students.forEach(s => {
-      if (s.targetSchool?.trim() && !isExcluded(s.targetSchool.trim())) {
-        set.add(s.targetSchool.trim());
+      if (!isMockStudentDocuments(s.documents) && s.targetSchool?.trim()) {
+        const c = canonicalizeSchoolName(s.targetSchool.trim());
+        if (c && !isExcluded(c)) {
+          set.add(c);
+        }
       }
     });
     return Array.from(set);
@@ -239,14 +245,15 @@ export const StudentTable: React.FC<StudentTableProps> = ({
 
         // Target school match
         if (filterState.targetSchool && filterState.targetSchool !== 'all') {
-          const selSchool = filterState.targetSchool.trim().toLowerCase();
-          const stuSchool = (s.targetSchool || '').trim().toLowerCase();
+          const selCanonical = canonicalizeSchoolName(filterState.targetSchool).toLowerCase();
+          const stuCanonical = canonicalizeSchoolName(s.targetSchool || '').toLowerCase();
           const selTrans = getSchoolTranslation(filterState.targetSchool);
           const stuTrans = getSchoolTranslation(s.targetSchool);
-          const isMatch = stuSchool === selSchool ||
+          const isMatch =
+            stuCanonical === selCanonical ||
             (selTrans && stuTrans && selTrans.zh.toLowerCase() === stuTrans.zh.toLowerCase()) ||
-            (selTrans && (stuSchool === selTrans.km.toLowerCase() || stuSchool === selTrans.en.toLowerCase() || stuSchool === selTrans.zh.toLowerCase())) ||
-            (stuTrans && (selSchool === stuTrans.km.toLowerCase() || selSchool === stuTrans.en.toLowerCase() || selSchool === stuTrans.zh.toLowerCase()));
+            (selTrans && (stuCanonical === selTrans.km.toLowerCase() || stuCanonical === selTrans.en.toLowerCase() || stuCanonical === selTrans.zh.toLowerCase())) ||
+            (stuTrans && (selCanonical === stuTrans.km.toLowerCase() || selCanonical === stuTrans.en.toLowerCase() || selCanonical === stuTrans.zh.toLowerCase()));
           if (!isMatch) return false;
         }
 
@@ -254,20 +261,31 @@ export const StudentTable: React.FC<StudentTableProps> = ({
       })
       .sort((a, b) => {
         const field = sortConfig.field;
-        // Numeric sort for studentId (លេខរៀង)
+        // Default sort by studentId preserves exact (School -> Major -> No -> លេខរៀង) order
         if (field === 'studentId') {
           const numA = parseInt(a.studentId.replace(/\D/g, '') || '0', 10);
           const numB = parseInt(b.studentId.replace(/\D/g, '') || '0', 10);
           if (numA !== numB) {
             return sortConfig.order === 'asc' ? numA - numB : numB - numA;
           }
+          const cmp = compareStudentsBySchoolMajorOrder(a, b, 0, 0, buildCatalogOrderMaps());
+          return sortConfig.order === 'asc' ? cmp : -cmp;
+        }
+        if (field === 'major' || field === 'targetSchool') {
+          const cmp = compareStudentsBySchoolMajorOrder(a, b, 0, 0, buildCatalogOrderMaps());
+          return sortConfig.order === 'asc' ? cmp : -cmp;
         }
         const valA = ((a as any)[field] || (field === 'nameKhmer' ? a.name : '') || '').toString().toLowerCase();
         const valB = ((b as any)[field] || (field === 'nameKhmer' ? b.name : '') || '').toString().toLowerCase();
         const res = valA.localeCompare(valB, undefined, { numeric: true });
         return sortConfig.order === 'asc' ? res : -res;
       });
-  }, [students, filterState, sortConfig]);
+  }, [students, filterState, sortConfig, schoolsVersion]);
+
+  const numberedFilteredStudents = useMemo(
+    () => computeStudentNumbersList(filteredAndSortedStudents),
+    [filteredAndSortedStudents]
+  );
 
   // Selection handlers
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -284,10 +302,10 @@ export const StudentTable: React.FC<StudentTableProps> = ({
     );
   };
 
-  // Copy phone handler
+  // Copy phone handler (mobile & iframe safe)
   const handleCopyPhone = (phone: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(phone);
+    void safeCopyToClipboard(phone);
     setCopiedPhone(phone);
     setTimeout(() => setCopiedPhone(null), 2000);
   };
@@ -300,8 +318,11 @@ export const StudentTable: React.FC<StudentTableProps> = ({
 
     if (listToExport.length === 0) return;
 
+    const numberedExport = computeStudentNumbersList(listToExport);
+
     const headers = [
-      'លេខរៀង (No.)',
+      'លេខរៀង',
+      'No',
       'ឈ្មោះខ្មែរ (Name Khmer)',
       'ឈ្មោះអង់គ្លេស (Name Latin)',
       'ឈ្មោះចិន (Name Chinese)',
@@ -336,7 +357,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
 
     const csvRows = [
       headers.join(','),
-      ...listToExport.map(s => {
+      ...numberedExport.map(({ student: s, sequenceNo, schoolMajorNo }) => {
         const val = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
         const docCount = `${val.completedCount}/${val.totalRequired}`;
         const studentAgeStr = s.age ? s.age.toString() : (calculateAge(s.dob)?.toString() || '');
@@ -344,7 +365,8 @@ export const StudentTable: React.FC<StudentTableProps> = ({
         const motherAgeStr = s.motherAge ? s.motherAge.toString() : (calculateAge(s.motherDob)?.toString() || '');
 
         return [
-          `"${s.studentId}"`,
+          `"${sequenceNo}"`,
+          `"${schoolMajorNo}"`,
           `"${(s.nameKhmer || s.name || '').replace(/"/g, '""')}"`,
           `"${(s.nameLatin || '').replace(/"/g, '""')}"`,
           `"${(s.nameChinese || '').replace(/"/g, '""')}"`,
@@ -380,12 +402,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
     ];
 
     const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Students_List_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    triggerSafeBlobDownload(blob, `Students_List_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   // Export Excel (.xlsx)
@@ -419,11 +436,12 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   };
 
   // Pagination calculation
-  const totalItems = filteredAndSortedStudents.length;
+  const totalItems = numberedFilteredStudents.length;
   const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
   const validPage = Math.min(currentPage, totalPages);
   const startIndex = (validPage - 1) * rowsPerPage;
-  const paginatedStudents = filteredAndSortedStudents.slice(startIndex, startIndex + rowsPerPage);
+  const paginatedNumberedStudents = numberedFilteredStudents.slice(startIndex, startIndex + rowsPerPage);
+  const paginatedStudents = paginatedNumberedStudents.map(item => item.student);
 
   // Render Sort Icon
   const renderSortIcon = (field: SortField) => {
@@ -837,7 +855,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {paginatedStudents.map(student => {
+                {paginatedNumberedStudents.map(({ student, sequenceNo, schoolMajorNo }) => {
                   const isSelected = selectedIds.includes(student.studentId);
                   const effectiveDocs = getEffectiveStudentDocuments(student);
                   const docValidation = areAllRequiredDocumentsUploaded(effectiveDocs);
@@ -854,9 +872,9 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
-                      {/* Top Row: Select Checkbox, ID, Gender & Actions */}
+                      {/* Top Row: Select Checkbox, ID, Coupled No, Gender & Actions */}
                       <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -864,7 +882,13 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                             className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
                           />
                           <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">
-                            #{student.studentId}
+                            #{sequenceNo}
+                          </span>
+                          <span
+                            className="font-mono font-bold text-[11px] px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            title={language === 'km' ? 'លេខរៀងតាមសាលា និងជំនាញ (No)' : 'School & Major No'}
+                          >
+                            No.{schoolMajorNo}
                           </span>
                           <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                             student.gender === 'Male'
@@ -1085,17 +1109,25 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                       />
                     </th>
 
-                    {/* លេខរៀង (No.) */}
+                    {/* លេខរៀង */}
                     <th 
                       onClick={() => handleSort('studentId')}
-                      className="py-3.5 px-3 cursor-pointer hover:bg-slate-100 transition-colors w-24 text-center"
+                      className="py-3.5 px-2.5 cursor-pointer hover:bg-slate-100 transition-colors w-20 text-center"
                     >
                       <div className="flex flex-col items-center justify-center">
                         <div className="flex items-center justify-center gap-1 font-bold">
                           <span>{t.studentId}</span>
                           {renderSortIcon('studentId')}
                         </div>
-                        <span className="text-[11px] text-slate-500 font-normal">No. / 編號</span>
+                        <span className="text-[11px] text-slate-500 font-normal">Seq / 總序號</span>
+                      </div>
+                    </th>
+
+                    {/* No (តាមសាលា & ជំនាញ) */}
+                    <th className="py-3.5 px-2 w-16 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <span className="font-bold">No</span>
+                        <span className="text-[11px] text-slate-500 font-normal">តាមសាលា</span>
                       </div>
                     </th>
 
@@ -1168,9 +1200,9 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                 </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {paginatedStudents.length === 0 ? (
+              {paginatedNumberedStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center">
+                  <td colSpan={9} className="py-12 text-center">
                     <div className="max-w-xs mx-auto space-y-2">
                       <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
                         <Search className="w-6 h-6" />
@@ -1185,7 +1217,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                   </td>
                 </tr>
               ) : (
-                paginatedStudents.map(student => {
+                paginatedNumberedStudents.map(({ student, sequenceNo, schoolMajorNo }) => {
                   const isSelected = selectedIds.includes(student.studentId);
                   const displayName = student.nameKhmer || student.name || '-';
                   const effectiveDocs = getEffectiveStudentDocuments(student);
@@ -1210,9 +1242,16 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                       </td>
 
                       {/* Order Number (លេខរៀង) */}
-                      <td className="py-3.5 px-3 text-center">
+                      <td className="py-3.5 px-2.5 text-center">
                         <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 inline-block">
-                          #{student.studentId}
+                          {sequenceNo}
+                        </span>
+                      </td>
+
+                      {/* Coupled School & Major No */}
+                      <td className="py-3.5 px-2 text-center">
+                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200/70 inline-block">
+                          {schoolMajorNo}
                         </span>
                       </td>
 

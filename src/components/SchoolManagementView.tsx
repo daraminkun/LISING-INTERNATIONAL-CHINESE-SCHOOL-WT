@@ -14,7 +14,8 @@ import {
   HelpCircle,
   Clock,
   Sparkles,
-  Settings
+  Settings,
+  School
 } from 'lucide-react';
 import { schoolMajorService } from '../services/schoolMajorService';
 import { SchoolMajorEntry } from '../constants/studentOptions';
@@ -25,6 +26,7 @@ import { useInstitution } from '../services/institutionService';
 import { InstitutionSettingsModal } from './InstitutionSettingsModal';
 import { dbStorage } from '../services/dbStorage';
 import { compressSchoolLogo } from '../utils/imageUtils';
+import { formatNumberByLanguage } from '../utils/numberUtils';
 
 interface SchoolManagementViewProps {
   language: Language;
@@ -43,6 +45,7 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
   const [isInstitutionModalOpen, setIsInstitutionModalOpen] = useState(false);
   const [schools, setSchools] = useState<SchoolMajorEntry[]>(() => schoolMajorService.getSchools());
   const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'high_school' | 'university'>('all');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
@@ -167,8 +170,30 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
     }
   };
 
+  const getEntryCategory = (entry: SchoolMajorEntry): 'high_school' | 'university' => {
+    const name = entry.school || '';
+    const ageEn = (entry.ageRequirementEn || '').toLowerCase();
+    if (
+      name.includes('大學') ||
+      name.includes('學院') ||
+      name.includes('專科') ||
+      ageEn.includes('university') ||
+      ageEn.includes('college') ||
+      ageEn.includes('25')
+    ) {
+      return 'university';
+    }
+    return 'high_school';
+  };
+
+  const highSchoolCount = schools.filter(s => getEntryCategory(s) === 'high_school').length;
+  const univCount = schools.filter(s => getEntryCategory(s) === 'university').length;
+
   // Filter schools
   const filteredSchools = schools.filter(s => {
+    if (selectedCategory !== 'all' && getEntryCategory(s) !== selectedCategory) {
+      return false;
+    }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     const trans = getSchoolTranslation(s.school);
@@ -242,9 +267,53 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
           </div>
         )}
 
-        {/* Search & Stats Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
-          <div className="relative w-full sm:max-w-md">
+        {/* Search & Unified School Count Bar */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('all')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 font-battambang cursor-pointer ${
+                selectedCategory === 'all'
+                  ? 'bg-purple-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <School className="w-3.5 h-3.5" />
+              <span>{language === 'km' ? 'ទាំងអស់' : language === 'zh-TW' ? '全部學校' : 'All'}</span>
+              <span className="opacity-85 tabular-nums">({formatNumberByLanguage(schools.length, language)})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('high_school')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 font-battambang cursor-pointer ${
+                selectedCategory === 'high_school'
+                  ? 'bg-purple-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>{language === 'km' ? 'អនុវិទ្យាល័យ/វិទ្យាល័យ' : language === 'zh-TW' ? '高中職' : 'High Schools'}</span>
+              <span className="opacity-85 tabular-nums">({formatNumberByLanguage(highSchoolCount, language)})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('university')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 font-battambang cursor-pointer ${
+                selectedCategory === 'university'
+                  ? 'bg-purple-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>{language === 'km' ? 'មហាវិទ្យាល័យ/សាកលវិទ្យាល័យ' : language === 'zh-TW' ? '科技大學' : 'Universities'}</span>
+              <span className="opacity-85 tabular-nums">({formatNumberByLanguage(univCount, language)})</span>
+            </button>
+          </div>
+
+          <div className="relative w-full lg:max-w-sm">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
@@ -324,6 +393,8 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
         {filteredSchools.map((item, idx) => {
           const trans = getSchoolTranslation(item.school);
           const logo = item.logoUrl || trans?.logoUrl || dbStorage.getCachedSchoolLogo(item.school);
+          const globalIndex = schools.findIndex(s => s.school === item.school);
+          const displayNumber = globalIndex >= 0 ? globalIndex + 1 : idx + 1;
 
           return (
             <div
@@ -367,7 +438,7 @@ export const SchoolManagementView: React.FC<SchoolManagementViewProps> = ({
                     {/* School Order Index */}
                     <div>
                       <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200">
-                        #{idx + 1}
+                        #{displayNumber}
                       </span>
                       {logo ? (
                         <button

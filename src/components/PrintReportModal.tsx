@@ -1,22 +1,30 @@
-import React, { useState } from 'react';
-import { 
-  Printer, 
-  Download, 
-  FileText, 
-  X, 
-  CheckCircle2, 
-  AlertCircle, 
-  Eye, 
+import React, { useState, useMemo } from 'react';
+import {
+  Printer,
+  Download,
+  X,
+  CheckCircle2,
+  AlertCircle,
   FileCode,
   Loader2,
-  Calendar,
-  Users
+  Users,
 } from 'lucide-react';
 import { Student, Language } from '../types';
-import { generateHighQualityPDF, executePrintDocument, downloadPrintableHtml } from '../utils/pdfRenderUtils';
-import { areAllRequiredDocumentsUploaded, getEffectiveStudentDocuments } from '../utils/documentUtils';
-import { calculateAge, formatDobOnly } from '../utils/ageUtils';
-import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
+import {
+  generateHighQualityPDF,
+  executePrintDocument,
+  downloadPrintableHtml,
+  formatCurrentReportDateDot,
+  getTrilingualReportTitles,
+  TRILINGUAL_REPORT_COLUMNS,
+} from '../utils/pdfRenderUtils';
+import { useInstitution } from '../services/institutionService';
+import {
+  computeStudentNumbersList,
+  formatConciseSchoolForReport,
+  formatDobDot,
+  formatGenderCode,
+} from '../utils/studentOrderUtils';
 
 interface PrintReportModalProps {
   isOpen: boolean;
@@ -31,19 +39,24 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   onClose,
   students,
   language,
-  reportTitle = 'តារាងរបាយការណ៍សិស្ស (Student Registration Report)',
+  reportTitle = 'តារាងរបាយការណ៍សិស្ស • 學生綜合報表 • STUDENT COMPREHENSIVE REPORT',
 }) => {
+  const institution = useInstitution();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState('');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
 
+  const numberedItems = useMemo(() => computeStudentNumbersList(students), [students]);
+
   if (!isOpen) return null;
 
-  const currentDateFormatted = new Date().toLocaleDateString(language === 'km' ? 'km-KH' : 'en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  const schoolLogo = institution.logoUrl || '/logo.jpg';
+  const schoolNameKm = institution.nameKm || 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ';
+  const schoolNameZh = institution.nameZh || '日興國際學校';
+  const schoolNameEn = institution.nameEn || 'LISING INTERNATIONAL CHINESE SCHOOL';
+
+  const currentDateDot = formatCurrentReportDateDot();
+  const titles = getTrilingualReportTitles(reportTitle);
 
   const handleDirectPrint = async () => {
     setStatusMessage(null);
@@ -52,17 +65,23 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
       if (!res.success) {
         setStatusMessage({
           type: 'warning',
-          text: language === 'km'
-            ? 'ផ្ទាំង Print មិនអាចបើកបានដោយសារកម្រិតសុវត្ថិភាព iFrame របស់កម្មវិធីរុករក។ សូមចុចប៊ូតុង «ទាញយកជា PDF (Font ខ្មែរ/ចិន)» ឬ «ទាញយកឯកសារបោះពុម្ព (.html)» ជំនួសវិញ!'
-            : 'Print dialog could not be shown due to browser iframe security. Please use "Download PDF" or "Download Print HTML" instead!',
+          text:
+            language === 'zh-TW'
+              ? '此瀏覽器環境限制直接列印視窗，請點擊紅色按鈕「下載 PDF (A4 直向)」以獲得完整清晰報表！'
+              : language === 'en'
+              ? 'Direct print dialog is restricted in this browser view. Please click "Download PDF (A4 Portrait)" instead!'
+              : 'កម្មវិធីរុករកនៅលើឧបករណ៍នេះមិនគាំទ្រផ្ទាំង Print ផ្ទាល់ទេ។ សូមចុចប៊ូតុងពណ៌ក្រហម «ទាញយកជា PDF (ក្រដាសបញ្ឈរ A4)» ដើម្បីបើក ឬបោះពុម្ពបានច្បាស់ ១០០%!',
         });
       }
-    } catch (e: any) {
+    } catch {
       setStatusMessage({
         type: 'warning',
-        text: language === 'km'
-          ? 'សូមចុចប៊ូតុង «ទាញយកជា PDF (Font ខ្មែរ/ចិន)» ដើម្បីទទួលបានឯកសារបោះពុម្ពច្បាស់ ១០០%!'
-          : 'Please click "Download PDF" to get the fully rendered printable document!',
+        text:
+          language === 'zh-TW'
+            ? '請點擊「下載 PDF (A4 直向)」以取得清晰報表！'
+            : language === 'en'
+            ? 'Please click "Download PDF" to get the fully rendered A4 Portrait document!'
+            : 'សូមចុចប៊ូតុង «ទាញយកជា PDF (ក្រដាសបញ្ឈរ A4)» ដើម្បីទទួលបានឯកសារបោះពុម្ពច្បាស់ ១០០%!',
       });
     }
   };
@@ -80,13 +99,23 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
       );
       setStatusMessage({
         type: 'success',
-        text: language === 'km' ? 'បានទាញយកឯកសារ PDF ជោគជ័យ (Font ខ្មែរ និង ចិន ត្រឹមត្រូវ ១០០%)!' : 'PDF downloaded successfully with Khmer and Chinese fonts!',
+        text:
+          language === 'zh-TW'
+            ? '已成功下載 A4 直向三語 PDF 報表 (14號字)！'
+            : language === 'en'
+            ? 'A4 Portrait Trilingual PDF (Font Size 14) downloaded successfully!'
+            : 'បានទាញយកឯកសារ PDF ៣ភាសា (ក្រដាសបញ្ឈរ A4 • ទំហំអក្សរ ១៤) ជោគជ័យ!',
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error('PDF generation error:', err);
       setStatusMessage({
         type: 'error',
-        text: language === 'km' ? 'មានបញ្ហាក្នុងការបង្កើត PDF' : 'Error generating PDF file',
+        text:
+          language === 'zh-TW'
+            ? '產出 PDF 檔案時發生錯誤'
+            : language === 'en'
+            ? 'Error generating PDF file'
+            : 'មានបញ្ហាក្នុងការបង្កើត PDF',
       });
     } finally {
       setIsGeneratingPdf(false);
@@ -94,52 +123,68 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     }
   };
 
-  const handleDownloadHtml = () => {
-    downloadPrintableHtml(students, reportTitle, 'Student_Report', language);
+  const handleDownloadHtml = async () => {
+    await downloadPrintableHtml(students, reportTitle, 'Student_Report', language);
     setStatusMessage({
       type: 'success',
-      text: language === 'km' ? 'បានទាញយកឯកសារបោះពុម្ព (.html) ជោគជ័យ! អ្នកអាចបើកលើកុំព្យូទ័រដើម្បី Print បានភ្លាមៗ' : 'Downloaded printable HTML file!',
+      text:
+        language === 'zh-TW'
+          ? '已下載離線列印檔案 (.html)，可於任何電腦或手機開啟列印！'
+          : language === 'en'
+          ? 'Downloaded printable A4 Portrait HTML file!'
+          : 'បានទាញយកឯកសារបោះពុម្ព (.html) ជោគជ័យ! អាចបើក Print លើកុំព្យូទ័រ ឬទូរស័ព្ទបានគ្រប់ពេល។',
     });
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-      <div 
-        className="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-        onClick={e => e.stopPropagation()}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+      <div
+        className="bg-white rounded-2xl max-w-5xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/90 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-xs">
+        {/* Modal Header */}
+        <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/90 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-xs shrink-0">
               <Printer className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
-                <span>{language === 'km' ? 'មជ្ឈមណ្ឌលបោះពុម្ព និងទាញយករបាយការណ៍ (Print & PDF Center)' : 'Print & PDF Export Center'}</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Font ខ្មែរ & ចិន ១០០%
+            <div className="min-w-0">
+              <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2 flex-wrap">
+                <span>
+                  {language === 'zh-TW'
+                    ? '列印與下載學生三語報表 (A4 直向)'
+                    : language === 'en'
+                    ? 'Print & PDF Export Center (A4 Portrait • 3 Languages)'
+                    : 'បោះពុម្ព និងទាញយករបាយការណ៍សិស្ស ៣ភាសា (A4 ក្រដាសបញ្ឈរ)'}
+                </span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {language === 'zh-TW'
+                    ? 'A4 直向 • 14號字 • 三語'
+                    : language === 'en'
+                    ? 'A4 Portrait • Size 14 • 3 Languages'
+                    : 'A4 បញ្ឈរ • ទំហំ ១៤ • ៣ភាសា'}
                 </span>
               </h3>
-              <p className="text-xs text-slate-500">
-                {language === 'km' 
-                  ? `របាយការណ៍សិស្សសរុប ${students.length} នាក់ | កាលបរិច្ឆេទ៖ ${currentDateFormatted}`
-                  : `Total ${students.length} Students | Date: ${currentDateFormatted}`}
+              <p className="text-xs text-slate-500 truncate">
+                {language === 'zh-TW'
+                  ? `學生總數 ${students.length} 人 | 日期：${currentDateDot}`
+                  : language === 'en'
+                  ? `Total ${students.length} Students | Date: ${currentDateDot}`
+                  : `សិស្សសរុប ${students.length} នាក់ | កាលបរិច្ឆេទ៖ ${currentDateDot}`}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Top Control Bar with 3 Export Options */}
-        <div className="p-4 sm:p-5 bg-indigo-50/60 border-b border-indigo-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        {/* Export Controls */}
+        <div className="p-3.5 sm:p-5 bg-indigo-50/60 border-b border-indigo-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Action 1: Download High-Res PDF (Font 100%) */}
             <button
               onClick={handleDownloadPDF}
               disabled={isGeneratingPdf}
@@ -148,52 +193,90 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
               {isGeneratingPdf ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{pdfProgress || (language === 'km' ? 'កំពុងបង្កើត PDF...' : 'Rendering PDF...')}</span>
+                  <span>
+                    {pdfProgress ||
+                      (language === 'zh-TW'
+                        ? '正在建立 PDF...'
+                        : language === 'en'
+                        ? 'Rendering PDF...'
+                        : 'កំពុងបង្កើត PDF...')}
+                  </span>
                 </>
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  <span>{language === 'km' ? 'ទាញយកជា PDF (Font ខ្មែរ & ចិន)' : 'Download PDF (Khmer & Chinese)'}</span>
+                  <span>
+                    {language === 'zh-TW'
+                      ? '下載 PDF (A4 直向)'
+                      : language === 'en'
+                      ? 'Download PDF (A4 Portrait)'
+                      : 'ទាញយកជា PDF (ក្រដាសបញ្ឈរ A4)'}
+                  </span>
                 </>
               )}
             </button>
 
-            {/* Action 2: Direct Print */}
             <button
               onClick={handleDirectPrint}
               disabled={isGeneratingPdf}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
             >
               <Printer className="w-4 h-4" />
-              <span>{language === 'km' ? 'បោះពុម្ព (Print Now)' : 'Print Document'}</span>
+              <span>
+                {language === 'zh-TW'
+                  ? '直接列印 (Print)'
+                  : language === 'en'
+                  ? 'Print Document'
+                  : 'បោះពុម្ព (Print Now)'}
+              </span>
             </button>
 
-            {/* Action 3: Download Printable HTML */}
             <button
               onClick={handleDownloadHtml}
               className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-              title={language === 'km' ? 'ទាញយកឯកសារបោះពុម្ព .html សម្រាប់បើក Print ក្រៅបណ្តាញ' : 'Download offline printable HTML file'}
+              title={
+                language === 'zh-TW'
+                  ? '下載離線列印 HTML 檔案'
+                  : language === 'en'
+                  ? 'Download offline printable HTML file'
+                  : 'ទាញយកឯកសារបោះពុម្ព .html'
+              }
             >
               <FileCode className="w-4 h-4 text-emerald-600" />
-              <span>{language === 'km' ? 'ឯកសារបោះពុម្ព (.html)' : 'Download Print HTML'}</span>
+              <span>
+                {language === 'zh-TW'
+                  ? '下載列印檔 (.html)'
+                  : language === 'en'
+                  ? 'Download Print HTML'
+                  : 'ឯកសារបោះពុម្ព (.html)'}
+              </span>
             </button>
           </div>
 
           <div className="text-xs text-slate-600 flex items-center gap-2">
             <Users className="w-4 h-4 text-slate-400" />
-            <span>{students.length} {language === 'km' ? 'សិស្សក្នុងរបាយការណ៍' : 'students in report'}</span>
+            <span>
+              {students.length}{' '}
+              {language === 'zh-TW'
+                ? '位學生於報表中'
+                : language === 'en'
+                ? 'students in report'
+                : 'នាក់ក្នុងរបាយការណ៍'}
+            </span>
           </div>
         </div>
 
-        {/* Status Alert Banner if needed */}
+        {/* Status Banner */}
         {statusMessage && (
-          <div className={`px-6 py-2.5 text-xs font-medium flex items-center gap-2 border-b shrink-0 ${
-            statusMessage.type === 'success' 
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-              : statusMessage.type === 'warning'
-              ? 'bg-amber-50 text-amber-800 border-amber-200'
-              : 'bg-rose-50 text-rose-800 border-rose-200'
-          }`}>
+          <div
+            className={`px-6 py-2.5 text-xs font-medium flex items-center gap-2 border-b shrink-0 ${
+              statusMessage.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : statusMessage.type === 'warning'
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : 'bg-rose-50 text-rose-800 border-rose-200'
+            }`}
+          >
             {statusMessage.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
             {statusMessage.type === 'warning' && <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />}
             {statusMessage.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
@@ -201,230 +284,230 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
           </div>
         )}
 
-        {/* Live Printable Preview Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70">
-          <div className="bg-white rounded-xl shadow-md border border-slate-300 max-w-4xl mx-auto p-6 sm:p-8 font-battambang text-slate-900">
-            {/* Official Report Header with School Emblem */}
-            <div className="pb-4 mb-4 border-b-2 border-indigo-600">
-              {/* National Motto Centered in 3 Languages */}
-              <div className="text-center mb-3">
-                <div className="font-black text-sm sm:text-base text-slate-900 font-battambang leading-tight">
+        {/* Live A4 Portrait Sheet Preview (Full 3-Language Official Layout) */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-200/70">
+          <div className="bg-white shadow-lg border border-slate-300 max-w-[810px] mx-auto p-5 sm:p-6 text-black">
+            {/* Official Enlarged 3-Language Report Header */}
+            <div className="pb-2.5 mb-2.5 border-b-2 border-slate-900">
+              {/* Centered 3-Language Motto */}
+              <div className="text-center mb-2.5">
+                <div className="font-black text-[18px] sm:text-[18.5px] text-black font-battambang leading-snug">
                   ព្រះរាជាណាចក្រកម្ពុជា
                 </div>
-                <div className="font-bold text-xs sm:text-sm text-slate-700 font-battambang mt-0.5">
+                <div className="font-bold text-[15.5px] sm:text-[16px] text-slate-900 font-battambang mt-0.5 leading-snug">
                   ជាតិ សាសនា ព្រះមហាក្សត្រ
                 </div>
-                <div className="font-bold text-xs text-slate-700 font-kai mt-1">
+                <div className="font-bold text-[14.5px] sm:text-[15px] text-slate-900 font-biaukai mt-0.5 leading-snug">
                   柬埔寨王國 • 民族 宗教 國王
                 </div>
-                <div className="font-semibold text-[10px] sm:text-[11px] text-slate-600 font-sans tracking-wider uppercase mt-0.5">
+                <div className="font-bold text-[11px] sm:text-[11.5px] text-slate-800 font-times tracking-wider uppercase mt-0.5">
                   KINGDOM OF CAMBODIA • NATION RELIGION KING
                 </div>
               </div>
 
-              {/* School Info & Meta Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-13 h-13 rounded-full bg-white p-0.5 border-2 border-indigo-600 shadow-xs shrink-0 overflow-hidden flex items-center justify-center">
-                    <img src="/logo.jpg" alt="Logo" className="w-full h-full object-contain rounded-full" />
+              {/* School Logo + 3-Language School Name + 3-Language Date & Total Students Meta */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-300">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-15 h-15 rounded-full bg-white p-0.5 border-2 border-indigo-950 shadow-2xs shrink-0 overflow-hidden flex items-center justify-center">
+                    <img
+                      src={schoolLogo}
+                      alt={schoolNameKm}
+                      className="w-full h-full object-contain rounded-full"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/logo.jpg';
+                      }}
+                    />
                   </div>
                   <div>
-                    <div className="font-black text-xs sm:text-sm text-indigo-950 font-battambang leading-tight">
-                      សាលារៀនចិនលិស៊ីងអន្តរជាតិ
+                    <div className="font-black text-[16.5px] sm:text-[17px] text-slate-950 font-battambang leading-snug">
+                      {schoolNameKm}
                     </div>
-                    <div className="font-bold text-[11px] text-indigo-900 font-kai">
-                      日興國際學校
+                    <div className="font-bold text-[15px] sm:text-[15.5px] text-indigo-950 font-biaukai mt-0.5">
+                      {schoolNameZh}
                     </div>
-                    <div className="font-semibold text-[9px] text-indigo-800 tracking-wider uppercase font-sans">
-                      LISING INTERNATIONAL CHINESE SCHOOL
+                    <div className="font-bold text-[11px] sm:text-[11.5px] text-slate-700 tracking-wide uppercase font-times mt-0.5">
+                      {schoolNameEn}
                     </div>
                   </div>
                 </div>
-                <div className="text-right text-[11px] text-slate-600 shrink-0">
-                  <div><strong>កាលបរិច្ឆេទ៖</strong> {currentDateFormatted}</div>
-                  <div><strong>ចំនួនសរុប៖</strong> <span className="font-bold text-indigo-700">{students.length} នាក់</span></div>
-                  <div><strong>ប្រព័ន្ធ៖</strong> Student Management System (SMS)</div>
+
+                {/* 3-Language Metadata Block */}
+                <div className="text-left sm:text-right text-[12px] text-slate-900 shrink-0 font-battambang space-y-0.5 leading-snug">
+                  <div>
+                    <strong>កាលបរិច្ឆេទ / 日期 / Date:</strong>{' '}
+                    <span className="font-times font-bold">{currentDateDot}</span>
+                  </div>
+                  <div>
+                    <strong>ចំនួនសិស្សសរុប / 學生總數 / Total:</strong>{' '}
+                    <span className="font-extrabold text-black">
+                      {students.length} នាក់ / 人 / Students
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <h2 className="font-black text-base sm:text-lg text-indigo-950 text-center mt-3">
-                {reportTitle}
-              </h2>
+              {/* Centered 3-Language Report Title */}
+              <div className="text-center mt-2.5">
+                <h2 className="font-black text-[16.5px] sm:text-[17px] text-slate-950 font-battambang leading-snug">
+                  {titles.km}
+                </h2>
+                <div className="font-bold text-[14.5px] sm:text-[15px] text-indigo-950 font-biaukai mt-0.5 leading-snug">
+                  {titles.zh}
+                </div>
+                <div className="font-bold text-[11px] sm:text-[11.5px] text-slate-800 font-times tracking-wider uppercase mt-0.5">
+                  {titles.en}
+                </div>
+              </div>
             </div>
 
-            {/* Table Preview */}
+            {/* Official 9-Column Size-14 Black-Bordered Table Preview with 3-Language Headers */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse border border-slate-300 text-xs">
+              <table className="w-full min-w-[754px] table-fixed border-collapse border border-black text-[14px] text-black">
+                <colgroup>
+                  {TRILINGUAL_REPORT_COLUMNS.map((col) => (
+                    <col key={col.key} style={{ width: `${col.widthPx}px` }} />
+                  ))}
+                </colgroup>
                 <thead>
-                  <tr className="bg-indigo-600 text-white font-bold text-center">
-                    <th className="p-2 border border-indigo-700 text-center w-8">
-                      <div>ល.រ</div>
-                      <div className="text-[10px] font-normal opacity-90">No. / 編號</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center">
-                      <div>ឈ្មោះខ្មែរ</div>
-                      <div className="text-[10px] font-normal opacity-90">Khmer / 高棉名</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center font-times">
-                      <div>ឈ្មោះឡាតាំង</div>
-                      <div className="text-[10px] font-normal opacity-90">Latin / 英文名</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center font-biaukai">
-                      <div>ឈ្មោះចិន</div>
-                      <div className="text-[10px] font-normal opacity-90">Chinese / 中文名</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center">
-                      <div>ភេទ</div>
-                      <div className="text-[10px] font-normal opacity-90">Sex / 性別</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center">
-                      <div>ថ្ងៃកំណើត</div>
-                      <div className="text-[10px] font-normal opacity-90">DOB / 生日</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center font-mono">
-                      <div>អត្តសញ្ញាបណ្ណ</div>
-                      <div className="text-[10px] font-normal opacity-90">ID Card / 身分證</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center font-mono">
-                      <div>លិខិតឆ្លងដែន</div>
-                      <div className="text-[10px] font-normal opacity-90">Passport / 護照</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center">
-                      <div>អ្នកណែនាំ</div>
-                      <div className="text-[10px] font-normal opacity-90">Referrer / 推薦人</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center">
-                      <div>ទូរស័ព្ទ</div>
-                      <div className="text-[10px] font-normal opacity-90">Phone / 電話</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center">
-                      <div>សាលានៅខ្មែរ</div>
-                      <div className="text-[10px] font-normal opacity-90">School KH / 原校</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center">
-                      <div>សាលារៀន</div>
-                      <div className="text-[10px] font-normal opacity-90">School / 學校</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center">
-                      <div>ជំនាញ</div>
-                      <div className="text-[10px] font-normal opacity-90">Major / 科系</div>
-                    </th>
-                    <th className="p-2 border border-indigo-700 text-center">
-                      <div>ឯកសារ*</div>
-                      <div className="text-[10px] font-normal opacity-90">Docs / 文件</div>
-                    </th>
+                  <tr className="bg-slate-50 font-bold text-center">
+                    {TRILINGUAL_REPORT_COLUMNS.map((col) => (
+                      <th
+                        key={col.key}
+                        className="py-1.5 px-1 border border-black align-middle"
+                      >
+                        <div className="font-battambang font-bold text-[13.5px] text-black leading-tight">
+                          {col.km}
+                        </div>
+                        <div className="font-biaukai font-bold text-[12.5px] text-slate-900 leading-tight mt-0.5">
+                          {col.zh}
+                        </div>
+                        <div className="font-times font-bold text-[10.5px] text-slate-800 leading-tight mt-0.5">
+                          {col.en}
+                        </div>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {students.slice(0, 15).map((s, idx) => {
-                    const docVal = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
-                    const studentAge = s.age || calculateAge(s.dob);
-                    const schoolTrans = getSchoolTranslation(s.targetSchool);
-                    const majorTrans = getMajorTranslation(s.major);
-
+                <tbody>
+                  {numberedItems.map(({ student: s, sequenceNo, schoolMajorNo }) => {
+                    const latinName = (s.nameLatin || s.nameKhmer || s.name || '').trim().toUpperCase();
                     return (
-                      <tr key={s.studentId || idx} className={idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}>
-                        <td className="p-2 border border-slate-300 text-center font-mono font-bold text-slate-600 text-[11px]">
-                          {s.studentId || (idx + 1)}
+                      <tr key={`${s.studentId}_${sequenceNo}`} className="bg-white">
+                        <td className="py-1.5 px-1 border border-black text-center text-[14px]">
+                          {sequenceNo}
                         </td>
-                        <td className="p-2 border border-slate-300 font-bold text-slate-900">
-                          {s.nameKhmer || s.name || '-'}
+                        <td className="py-1.5 px-1 border border-black text-center text-[14px]">
+                          {schoolMajorNo}
                         </td>
-                        <td className="p-2 border border-slate-300 font-times font-semibold text-slate-800">
-                          {s.nameLatin || '-'}
+                        <td className="py-1.5 px-1.5 border border-black text-center text-[14px] break-words">
+                          {latinName}
                         </td>
-                        <td className="p-2 border border-slate-300 font-biaukai font-semibold text-slate-900 text-sm">
-                          {s.nameChinese || '-'}
+                        <td className="py-1.5 px-1 border border-black text-center font-biaukai text-[14px] break-words">
+                          {s.nameChinese || ''}
                         </td>
-                        <td className="p-2 border border-slate-300 text-center text-[11px]">
-                          {s.gender === 'Male' ? 'ប្រុស' : s.gender === 'Female' ? 'ស្រី' : (s.gender || '-')}
+                        <td className="py-1.5 px-1 border border-black text-center font-times text-[14px] whitespace-nowrap">
+                          {formatDobDot(s.dob)}
                         </td>
-                        <td className="p-2 border border-slate-300 font-mono text-[11px] whitespace-nowrap">
-                          {formatDobOnly(s.dob) || '-'} {studentAge ? <span className="text-slate-400">({studentAge}ឆ្នាំ)</span> : ''}
+                        <td className="py-1.5 px-1 border border-black text-center text-[14px]">
+                          {formatGenderCode(s.gender)}
                         </td>
-                        <td className="p-2 border border-slate-300 font-mono text-[11px]">
-                          {s.idCardNumber || '-'}
+                        <td className="py-1.5 px-1 border border-black text-center font-biaukai text-[14px] break-words">
+                          {formatConciseSchoolForReport(s.targetSchool)}
                         </td>
-                        <td className="p-2 border border-slate-300 font-mono text-[11px]">
-                          {s.passportNumber || '-'}
+                        <td className="py-1.5 px-1 border border-black text-center font-biaukai text-[14px] break-words">
+                          {(s.major || '').trim()}
                         </td>
-                        <td className="p-2 border border-slate-300 text-[11px] font-battambang">
-                          {s.referrerName || '-'}
-                        </td>
-                        <td className="p-2 border border-slate-300 font-mono text-[11px]">
-                          {s.phone || '-'}
-                        </td>
-                        <td className="p-2 border border-slate-300">
-                          <div className="font-bold text-slate-800 text-xs font-battambang">{s.previousSchoolKhmer || '-'}</div>
-                          {s.previousSchoolAddressKhmer && (
-                            <div className="text-[10px] text-slate-500 font-battambang">{s.previousSchoolAddressKhmer}</div>
-                          )}
-                        </td>
-                        <td className="p-2 border border-slate-300">
-                          <div className="font-biaukai font-bold text-indigo-950 text-xs">{s.targetSchool || '-'}</div>
-                          {schoolTrans?.km && schoolTrans.km !== s.targetSchool && (
-                            <div className="text-[10px] text-slate-500 font-battambang">{schoolTrans.km}</div>
-                          )}
-                        </td>
-                        <td className="p-2 border border-slate-300">
-                          <div className="font-biaukai font-bold text-emerald-950 text-xs">{s.major || '-'}</div>
-                          {majorTrans?.km && majorTrans.km !== s.major && (
-                            <div className="text-[10px] text-emerald-600 font-battambang">{majorTrans.km}</div>
-                          )}
-                        </td>
-                        <td className="p-2 border border-slate-300 text-center">
-                          <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                            docVal.isValid 
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}>
-                            {docVal.completedCount}/{docVal.totalRequired}*
-                          </span>
+                        <td className="py-1.5 px-1 border border-black text-center font-biaukai text-[14px] break-words leading-tight">
+                          {(s.referrerName || '').trim()}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              {students.length > 15 && (
-                <div className="p-2 text-center text-xs text-slate-400 italic bg-slate-50 border-x border-b border-slate-200">
-                  {language === 'km' 
-                    ? `...និងសិស្សចំនួន ${students.length - 15} នាក់ទៀត (នឹងបង្ហាញពេញលេញក្នុងឯកសារ PDF ឬពេលបោះពុម្ព)` 
-                    : `...and ${students.length - 15} more students (will appear in full in PDF and Print)`}
-                </div>
-              )}
             </div>
 
-            {/* Official Signatures Section */}
-            <div className="mt-8 pt-4 border-t border-slate-300 grid grid-cols-2 text-center text-xs text-slate-600">
+            {/* Official 3-Language Signatures Section */}
+            <div className="mt-5 pt-3.5 border-t border-dashed border-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-6 text-center text-slate-800">
+              {/* Left Column: Approver / Administration */}
               <div>
-                <div>បានឃើញ និងពិនិត្យត្រឹមត្រូវ</div>
-                <div className="font-bold text-slate-800 mt-1">ប្រធានការិយាល័យ / រដ្ឋបាល</div>
-                <div className="h-14"></div>
-                <div className="text-[10px] text-slate-400">( ហត្ថលេខា និងត្រា )</div>
+                <div className="font-battambang text-[12.5px] text-slate-800 leading-snug">
+                  បានឃើញ និងពិនិត្យត្រឹមត្រូវ
+                </div>
+                <div className="font-biaukai text-[12px] text-slate-700 leading-snug mt-0.5">
+                  已審閱並核對無誤
+                </div>
+                <div className="font-times text-[10.5px] text-slate-600 leading-snug mt-0.5">
+                  Seen and Verified Correct
+                </div>
+
+                <div className="mt-1.5">
+                  <div className="font-battambang font-bold text-[13.5px] text-black leading-snug">
+                    ប្រធានការិយាល័យ / រដ្ឋបាល
+                  </div>
+                  <div className="font-biaukai font-bold text-[12.5px] text-slate-900 leading-snug mt-0.5">
+                    辦公室主任 / 行政主管
+                  </div>
+                  <div className="font-times font-bold text-[11px] text-slate-800 leading-snug mt-0.5">
+                    Head of Office / Administration
+                  </div>
+                </div>
+
+                <div className="h-11" />
+
+                <div className="text-[11px] text-slate-500 font-battambang">
+                  ( ហត្ថលេខា និងត្រា / 簽名及蓋章 / Signature &amp; Stamp )
+                </div>
               </div>
+
+              {/* Right Column: Location, Date & Report Preparer */}
               <div>
-                <div>រាជធានីភ្នំពេញ, ថ្ងៃទី....... ខែ....... ឆ្នាំ២០២...</div>
-                <div className="font-bold text-slate-800 mt-1">អ្នករៀបចំរបាយការណ៍</div>
-                <div className="h-14"></div>
-                <div className="text-[10px] text-slate-400">( ហត្ថលេខា )</div>
+                <div className="font-battambang text-[12.5px] text-slate-800 leading-snug">
+                  រាជធានីភ្នំពេញ, ថ្ងៃទី....... ខែ....... ឆ្នាំ២០២...
+                </div>
+                <div className="font-biaukai text-[12px] text-slate-700 leading-snug mt-0.5">
+                  金邊市，202...年......月......日
+                </div>
+                <div className="font-times text-[10.5px] text-slate-600 leading-snug mt-0.5">
+                  Phnom Penh, Date: ....... / ....... / 202...
+                </div>
+
+                <div className="mt-1.5">
+                  <div className="font-battambang font-bold text-[13.5px] text-black leading-snug">
+                    អ្នករៀបចំរបាយការណ៍
+                  </div>
+                  <div className="font-biaukai font-bold text-[12.5px] text-slate-900 leading-snug mt-0.5">
+                    報表編製人
+                  </div>
+                  <div className="font-times font-bold text-[11px] text-slate-800 leading-snug mt-0.5">
+                    Report Preparer
+                  </div>
+                </div>
+
+                <div className="h-11" />
+
+                <div className="text-[11px] text-slate-500 font-battambang">
+                  ( ហត្ថលេខា / 簽名 / Signature )
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50 text-xs">
+        {/* Modal Footer */}
+        <div className="px-4 sm:px-6 py-3 border-t border-slate-200 flex items-center justify-between gap-2 bg-slate-50 text-xs">
           <div className="text-slate-500">
-            {language === 'km' 
-              ? 'ចំណាំ៖ ប្រសិនបើផ្ទាំង Print មិនលោតឡើង សូមចុចប៊ូតុងពណ៌ក្រហម «ទាញយកជា PDF»' 
-              : 'Tip: If browser print dialog does not appear, click "Download PDF"'}
+            {language === 'zh-TW'
+              ? '提示：A4 直向三語報表 (14號字) 支援所有電腦與手機瀏覽器下載 PDF。'
+              : language === 'en'
+              ? 'Tip: A4 Portrait trilingual PDF download (Size 14) works across all desktop and mobile browsers.'
+              : 'ចំណាំ៖ ទម្រង់ក្រដាសបញ្ឈរ A4 ៣ភាសា (ទំហំអក្សរ និងលេខ ១៤) អាចទាញយកជា PDF បានទាំងលើកុំព្យូទ័រ និងទូរស័ព្ទ។'}
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-700 hover:bg-slate-100"
+            className="px-4 py-1.5 rounded-lg border border-slate-300 font-semibold text-slate-700 hover:bg-slate-100 shrink-0"
           >
-            {language === 'km' ? 'បិទផ្ទាំង' : 'Close'}
+            {language === 'zh-TW' ? '關閉' : language === 'en' ? 'Close' : 'បិទផ្ទាំង'}
           </button>
         </div>
       </div>

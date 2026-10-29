@@ -9,6 +9,7 @@ import { getDocPages, getEffectiveStudentDocuments } from './documentUtils';
 import { isValidDataUrl, mergeBestStudentDocuments } from './cloudDocSyncUtils';
 import { formatDobOnly } from './ageUtils';
 import { dbStorage } from '../services/dbStorage';
+import { triggerSafeBlobDownload } from './studentOrderUtils';
 
 export const CATEGORY_NAMES: Record<string, { km: string; en: string; short: string }> = {
   idCard: { km: 'អត្តសញ្ញាបណ្ណ', en: 'National_ID_Card', short: 'ID_Card' },
@@ -187,17 +188,13 @@ export async function downloadAllDocumentsForStudent(student: Student): Promise<
   manifestLines.push('ប្រព័ន្ធគ្រប់គ្រងសិស្ស Student Management System (SMS)');
   manifestLines.push('========================================================================');
 
-  // Also download the text manifest file
+  // Also download the text manifest file safely across desktop & mobile browsers
   await new Promise(r => setTimeout(r, 200));
   const blob = new Blob(['\uFEFF' + manifestLines.join('\n')], { type: 'text/plain;charset=utf-8' });
-  const manifestUrl = URL.createObjectURL(blob);
-  const manifestLink = document.createElement('a');
-  manifestLink.href = manifestUrl;
-  manifestLink.download = `[No.${student.studentId || 'X'}]_${getSafeStudentName(student)}_INFO_MANIFEST.txt`;
-  document.body.appendChild(manifestLink);
-  manifestLink.click();
-  document.body.removeChild(manifestLink);
-  URL.revokeObjectURL(manifestUrl);
+  triggerSafeBlobDownload(
+    blob,
+    `[No.${student.studentId || 'X'}]_${getSafeStudentName(student)}_INFO_MANIFEST.txt`
+  );
 
   return { count: downloadedCount };
 }

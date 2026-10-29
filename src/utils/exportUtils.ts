@@ -4,16 +4,18 @@ import { areAllRequiredDocumentsUploaded, getEffectiveStudentDocuments } from '.
 import { stripCloudEnvelopeFromNotes } from './cloudDocSyncUtils';
 import { calculateAge, formatDobOnly } from './ageUtils';
 import { generateHighQualityPDF } from './pdfRenderUtils';
+import { computeStudentNumbersList } from './studentOrderUtils';
 
 export interface ExportColumn {
   header: string;
-  accessor: (student: Student) => string;
+  accessor: (student: Student, sequenceNo: number, schoolMajorNo: number) => string;
 }
 
 export function getExportColumns(language: Language = 'km'): ExportColumn[] {
   if (language === 'zh-TW') {
     return [
-      { header: '編號 (No.)', accessor: s => s.studentId || '' },
+      { header: '總序號 (លេខរៀង)', accessor: (_s, seq) => String(seq) },
+      { header: '校系序號 (No)', accessor: (_s, _seq, smNo) => String(smNo) },
       { header: '高棉姓名 (Name Khmer)', accessor: s => s.nameKhmer || s.name || '' },
       { header: '英文姓名 (Name Latin)', accessor: s => s.nameLatin || '' },
       { header: '中文姓名 (Name Chinese)', accessor: s => s.nameChinese || '' },
@@ -52,7 +54,8 @@ export function getExportColumns(language: Language = 'km'): ExportColumn[] {
 
   if (language === 'en') {
     return [
-      { header: 'No.', accessor: s => s.studentId || '' },
+      { header: 'Seq (លេខរៀង)', accessor: (_s, seq) => String(seq) },
+      { header: 'No', accessor: (_s, _seq, smNo) => String(smNo) },
       { header: 'Khmer Name', accessor: s => s.nameKhmer || s.name || '' },
       { header: 'English Name', accessor: s => s.nameLatin || '' },
       { header: 'Chinese Name', accessor: s => s.nameChinese || '' },
@@ -91,7 +94,8 @@ export function getExportColumns(language: Language = 'km'): ExportColumn[] {
 
   // Default Khmer headers
   return [
-    { header: 'លេខរៀង (No.)', accessor: s => s.studentId || '' },
+    { header: 'លេខរៀង', accessor: (_s, seq) => String(seq) },
+    { header: 'No', accessor: (_s, _seq, smNo) => String(smNo) },
     { header: 'ឈ្មោះខ្មែរ (Name Khmer)', accessor: s => s.nameKhmer || s.name || '' },
     { header: 'ឈ្មោះអង់គ្លេស (Name Latin)', accessor: s => s.nameLatin || '' },
     { header: 'ឈ្មោះចិន (Name Chinese)', accessor: s => s.nameChinese || '' },
@@ -140,7 +144,10 @@ export function exportToExcel(
 
   const columns = getExportColumns(language);
   const headers = columns.map(c => c.header);
-  const rows = students.map(s => columns.map(c => c.accessor(s)));
+  const numbered = computeStudentNumbersList(students);
+  const rows = numbered.map(({ student, sequenceNo, schoolMajorNo }) =>
+    columns.map(c => c.accessor(student, sequenceNo, schoolMajorNo))
+  );
 
   // Combine into worksheet data
   const data = [headers, ...rows];

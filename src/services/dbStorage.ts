@@ -6,7 +6,12 @@
  */
 
 import { Student, StudentDocuments } from '../types';
-import { normalizeSchoolKey, MAX_SHEETS_SAFE_DATA_URL_LENGTH } from '../utils/imageUtils';
+import {
+  normalizeSchoolKey,
+  canonicalizeSchoolName,
+  getSchoolAliasKeys,
+  MAX_SHEETS_SAFE_DATA_URL_LENGTH,
+} from '../utils/imageUtils';
 import { mergeBestStudentDocuments, isMockStudentDocuments } from '../utils/cloudDocSyncUtils';
 
 const DB_NAME = 'sms_secure_storage_v1';
@@ -79,8 +84,8 @@ class DBStorageService {
         const parsed = JSON.parse(deletedRaw);
         if (Array.isArray(parsed)) {
           parsed.forEach((k) => {
-            const norm = normalizeSchoolKey(String(k));
-            if (norm) this.deletedSchoolLogos.add(norm);
+            const canon = canonicalizeSchoolName(String(k));
+            if (canon) this.deletedSchoolLogos.add(canon);
           });
         }
       }
@@ -94,9 +99,11 @@ class DBStorageService {
         const parsed = JSON.parse(savedLogos);
         if (parsed && typeof parsed === 'object') {
           for (const [k, v] of Object.entries(parsed)) {
-            const norm = normalizeSchoolKey(k);
-            if (norm && typeof v === 'string' && v && !this.deletedSchoolLogos.has(norm)) {
-              this.memorySchoolLogos.set(norm, v);
+            const canon = canonicalizeSchoolName(k);
+            if (canon && typeof v === 'string' && v && !this.deletedSchoolLogos.has(canon)) {
+              if (!this.memorySchoolLogos.has(canon) || k === canon) {
+                this.memorySchoolLogos.set(canon, v);
+              }
             }
           }
         }
@@ -258,14 +265,17 @@ class DBStorageService {
         req.onsuccess = (e) => {
           const cursor = (e.target as IDBRequest).result as IDBCursorWithValue | null;
           if (cursor) {
-            const normKey = normalizeSchoolKey(String(cursor.key));
+            const rawKey = normalizeSchoolKey(String(cursor.key));
+            const canonKey = canonicalizeSchoolName(rawKey);
             if (
-              normKey &&
+              canonKey &&
               typeof cursor.value === 'string' &&
               cursor.value &&
-              !this.deletedSchoolLogos.has(normKey)
+              !this.deletedSchoolLogos.has(canonKey)
             ) {
-              this.memorySchoolLogos.set(normKey, cursor.value);
+              if (!this.memorySchoolLogos.has(canonKey) || rawKey === canonKey) {
+                this.memorySchoolLogos.set(canonKey, cursor.value);
+              }
             }
             cursor.continue();
           } else {
@@ -527,25 +537,31 @@ class DBStorageService {
   // ==========================================
 
   isSchoolLogoDeleted(schoolName: string): boolean {
-    const key = normalizeSchoolKey(schoolName);
+    const key = canonicalizeSchoolName(schoolName);
     if (!key) return false;
     return this.deletedSchoolLogos.has(key);
   }
 
   /**
-   * Synchronous cached retrieval of destination school logo (normalized key match)
+   * Synchronous cached retrieval of destination school logo (canonical & alias key match)
    */
   getCachedSchoolLogo(schoolName: string): string | undefined {
-    const key = normalizeSchoolKey(schoolName);
-    if (!key || this.deletedSchoolLogos.has(key)) return undefined;
-    return this.memorySchoolLogos.get(key);
+    const canonKey = canonicalizeSchoolName(schoolName);
+    if (!canonKey || this.deletedSchoolLogos.has(canonKey)) return undefined;
+    const direct = this.memorySchoolLogos.get(canonKey);
+    if (direct) return direct;
+    for (const alias of getSchoolAliasKeys(canonKey)) {
+      const found = this.memorySchoolLogos.get(alias);
+      if (found) return found;
+    }
+    return undefined;
   }
 
   /**
    * Save school logo permanently to memory, localStorage backup, and IndexedDB
    */
   async saveSchoolLogo(schoolName: string, logoUrl: string, silent = false): Promise<void> {
-    const key = normalizeSchoolKey(schoolName);
+    const key = canonicalizeSchoolName(schoolName);
     if (!key || !logoUrl) return;
 
     this.deletedSchoolLogos.delete(key);
@@ -576,11 +592,14 @@ class DBStorageService {
    */
   async deleteSchoolLogo(schoolName: string): Promise<void> {
     const rawKey = (schoolName || '').trim();
-    const normKey = normalizeSchoolKey(schoolName);
-    if (!normKey) return;
+    const canonKey = canonicalizeSchoolName(schoolName);
+    if (!canonKey) return;
 
-    this.deletedSchoolLogos.add(normKey);
-    this.memorySchoolLogos.delete(normKey);
+    const allKeys = new Set<string>([canonKey, ...getSchoolAliasKeys(canonKey)]);
+    if (rawKey) allKeys.add(rawKey);
+
+    this.deletedSchoolLogos.add(canonKey);
+    allKeys.forEach((k) => this.memorySchoolLogos.delete(k));
     this.persistLogosBackupToLocalStorage();
 
     try {
@@ -588,10 +607,9 @@ class DBStorageService {
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE_SCHOOL_LOGOS, 'readwrite');
         const store = tx.objectStore(STORE_SCHOOL_LOGOS);
-        store.delete(normKey);
-        if (rawKey && rawKey !== normKey) {
-          store.delete(rawKey);
-        }
+        allKeys.forEach((k) => {
+          if (k) store.delete(k);
+        });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });

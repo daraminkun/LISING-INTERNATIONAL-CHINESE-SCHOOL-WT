@@ -3,6 +3,15 @@
  * Manages User Accounts, Roles (Admin, User), Passwords, and Role-Based Access Control (RBAC).
  */
 
+import {
+  safeGetLocalStorage,
+  safeSetLocalStorage,
+  safeRemoveLocalStorage,
+  safeGetSessionStorage,
+  safeSetSessionStorage,
+  safeRemoveSessionStorage,
+} from '../utils/studentOrderUtils';
+
 export type UserRole = 'Admin' | 'User';
 
 export interface UserAccount {
@@ -95,9 +104,9 @@ class AuthService {
   }
 
   private init() {
-    // Load users from localStorage
+    // Load users from localStorage safely
     let rawList: UserAccount[] = [];
-    const savedUsers = localStorage.getItem(STORAGE_KEY_USERS);
+    const savedUsers = safeGetLocalStorage(STORAGE_KEY_USERS);
     if (savedUsers) {
       try {
         const parsed = JSON.parse(savedUsers);
@@ -136,10 +145,8 @@ class AuthService {
     this.users = Array.from(uniqueMap.values());
     this.persistUsers(true);
 
-    // Load active session:
-    // If user closed the tab/browser or clicked away without logging out,
-    // sessionStorage is naturally cleared so reopening the link strictly requires entering Username & Password!
-    const sessionUser = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEY_CURRENT_USER) : null;
+    // Load active session safely across desktop, mobile Safari Private Mode, and in-app WebViews
+    const sessionUser = safeGetSessionStorage(STORAGE_KEY_CURRENT_USER);
     if (sessionUser) {
       try {
         const parsedCurrent = JSON.parse(sessionUser);
@@ -176,7 +183,7 @@ class AuthService {
   }
 
   private persistUsers(skipRemote = false) {
-    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(this.users));
+    safeSetLocalStorage(STORAGE_KEY_USERS, JSON.stringify(this.users));
     if (!skipRemote && this.syncRemoteHandler) {
       try {
         this.syncRemoteHandler(this.users);
@@ -188,19 +195,17 @@ class AuthService {
 
   private persistCurrentUser() {
     if (this.currentUser) {
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(this.currentUser));
-      }
-      localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(this.currentUser));
+      const serialized = JSON.stringify(this.currentUser);
+      safeSetSessionStorage(STORAGE_KEY_CURRENT_USER, serialized);
+      safeSetLocalStorage(STORAGE_KEY_CURRENT_USER, serialized);
     } else {
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.removeItem(STORAGE_KEY_CURRENT_USER);
-      }
-      localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
+      safeRemoveSessionStorage(STORAGE_KEY_CURRENT_USER);
+      safeRemoveLocalStorage(STORAGE_KEY_CURRENT_USER);
     }
   }
 
   private notify() {
+    if (typeof window === 'undefined') return;
     window.dispatchEvent(new CustomEvent(AUTH_EVENT_NAME, {
       detail: {
         currentUser: this.currentUser,
@@ -210,6 +215,7 @@ class AuthService {
   }
 
   public subscribe(callback: () => void): () => void {
+    if (typeof window === 'undefined') return () => {};
     const handler = () => callback();
     window.addEventListener(AUTH_EVENT_NAME, handler);
     return () => window.removeEventListener(AUTH_EVENT_NAME, handler);
@@ -253,19 +259,21 @@ class AuthService {
 
   // --- Backwards compatibility for Admin PIN actions (Schools / Majors catalog) ---
   public getAdminPin(): string {
-    return localStorage.getItem(STORAGE_KEY_ADMIN_PIN) || DEFAULT_PIN;
+    return safeGetLocalStorage(STORAGE_KEY_ADMIN_PIN) || DEFAULT_PIN;
   }
 
   public isAdminAuthenticated(): boolean {
     if (this.isAdmin()) return true;
-    return sessionStorage.getItem(STORAGE_KEY_ADMIN_AUTH) === 'true';
+    return safeGetSessionStorage(STORAGE_KEY_ADMIN_AUTH) === 'true';
   }
 
   public verifyPin(pin: string): boolean {
     const currentPin = this.getAdminPin();
     if (pin.trim() === currentPin.trim()) {
-      sessionStorage.setItem(STORAGE_KEY_ADMIN_AUTH, 'true');
-      window.dispatchEvent(new CustomEvent('admin_auth_changed', { detail: { isAdmin: true } }));
+      safeSetSessionStorage(STORAGE_KEY_ADMIN_AUTH, 'true');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('admin_auth_changed', { detail: { isAdmin: true } }));
+      }
       return true;
     }
     return false;
@@ -278,17 +286,19 @@ class AuthService {
     if (!newPin || newPin.trim().length < 4) {
       return { success: false, message: 'លេខកូដថ្មីត្រូវមានយ៉ាងតិច ៤ ខ្ទង់ (New PIN must be at least 4 digits)' };
     }
-    localStorage.setItem(STORAGE_KEY_ADMIN_PIN, newPin.trim());
+    safeSetLocalStorage(STORAGE_KEY_ADMIN_PIN, newPin.trim());
     return { success: true, message: 'បានប្តូរលេខកូដសម្ងាត់ជោគជ័យ (PIN changed successfully)' };
   }
 
   public logoutAdmin(): void {
-    sessionStorage.removeItem(STORAGE_KEY_ADMIN_AUTH);
-    window.dispatchEvent(new CustomEvent('admin_auth_changed', { detail: { isAdmin: false } }));
+    safeRemoveSessionStorage(STORAGE_KEY_ADMIN_AUTH);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('admin_auth_changed', { detail: { isAdmin: false } }));
+    }
   }
 
   public resetPinToDefault(): void {
-    localStorage.removeItem(STORAGE_KEY_ADMIN_PIN);
+    safeRemoveLocalStorage(STORAGE_KEY_ADMIN_PIN);
   }
 
   /**

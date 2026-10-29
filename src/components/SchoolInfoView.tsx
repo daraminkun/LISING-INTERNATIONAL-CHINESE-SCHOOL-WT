@@ -19,6 +19,7 @@ import {
 } from '../data/detailedSchoolsData';
 import { formatNumberByLanguage } from '../utils/numberUtils';
 import { dbStorage } from '../services/dbStorage';
+import { schoolMajorService } from '../services/schoolMajorService';
 
 interface SchoolInfoViewProps {
   language: Language;
@@ -29,20 +30,25 @@ interface SchoolInfoViewProps {
 export const SchoolInfoView: React.FC<SchoolInfoViewProps> = ({
   language
 }) => {
-  const [logoVersion, setLogoVersion] = useState(0);
+  const [catalogVersion, setCatalogVersion] = useState(0);
 
   useEffect(() => {
-    const refresh = () => setLogoVersion((v) => v + 1);
+    const refresh = () => setCatalogVersion((v) => v + 1);
+    const unsub = schoolMajorService.subscribe(refresh);
     window.addEventListener('school_logos_updated', refresh);
     window.addEventListener('school_majors_data_updated', refresh);
     dbStorage.whenReady().then(refresh);
     return () => {
+      unsub();
       window.removeEventListener('school_logos_updated', refresh);
       window.removeEventListener('school_majors_data_updated', refresh);
     };
   }, []);
 
-  const allSchools = useMemo(() => getAllDetailedSchools(), [logoVersion]);
+  const allSchools = useMemo(
+    () => getAllDetailedSchools(schoolMajorService.getSchools()),
+    [catalogVersion]
+  );
 
   // Filter States
   const [selectedCategory, setSelectedCategory] = useState<'all' | SchoolCategory>('all');

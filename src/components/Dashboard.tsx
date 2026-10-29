@@ -29,6 +29,7 @@ import { SchoolMajorAnalytics } from './SchoolMajorAnalytics';
 import { useInstitution } from '../services/institutionService';
 import { InstitutionSettingsModal } from './InstitutionSettingsModal';
 import { formatNumberByLanguage, formatPercentByLanguage } from '../utils/numberUtils';
+import { canonicalizeSchoolName } from '../utils/imageUtils';
 
 interface DashboardProps {
   students: Student[];
@@ -119,7 +120,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const schoolBarData = useMemo(() => {
     const map: Record<string, { total: number; male: number; female: number; other: number }> = {};
     students.forEach(s => {
-      const sc = s.targetSchool?.trim() || (language === 'km' ? 'មិនទាន់បញ្ជាក់' : language === 'zh-TW' ? '未指定學校' : 'Unspecified');
+      const sc = (s.targetSchool?.trim() ? canonicalizeSchoolName(s.targetSchool) : '') || (language === 'km' ? 'មិនទាន់បញ្ជាក់' : language === 'zh-TW' ? '未指定學校' : 'Unspecified');
       if (!map[sc]) map[sc] = { total: 0, male: 0, female: 0, other: 0 };
       map[sc].total++;
       if (s.gender === 'Male') map[sc].male++;

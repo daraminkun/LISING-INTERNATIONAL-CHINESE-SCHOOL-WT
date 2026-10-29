@@ -1,4 +1,6 @@
-import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
+import { getSchoolTranslation } from '../utils/schoolMajorTranslations';
+import { canonicalizeSchoolName } from '../utils/imageUtils';
+import type { SchoolMajorEntry } from '../constants/studentOptions';
 
 export type SchoolCategory = 'high_school' | 'university';
 
@@ -51,7 +53,7 @@ export interface DetailedSchool {
   logoUrl?: string;
 }
 
-// 1. Raw Address & Domain map for High Schools (32 schools)
+// 1. Raw Address & Domain map for High Schools (33 schools)
 const HIGH_SCHOOL_SPECS: Record<string, { address: string; domain: string; phone: string }> = {
   "高雄市私立 三信高級家事商業職業學校": {
     address: "高雄市苓雅區三多一路186號",
@@ -212,6 +214,11 @@ const HIGH_SCHOOL_SPECS: Record<string, { address: string; domain: string; phone
     address: "臺中市南屯區嶺東路2號",
     domain: "https://www.lths.tc.edu.tw",
     phone: "+886 4 2389 8940"
+  },
+  "新北市私立 醒吾高中": {
+    address: "新北市林口區粉寮路一段75巷80號",
+    domain: "https://www.swsh.ntpc.edu.tw",
+    phone: "+886 2 2601 2644"
   }
 };
 
@@ -488,86 +495,109 @@ export function generateDailyAnnouncements(schoolName: string, category: SchoolC
 
 // 3. Authentic, official departments & majors for each school verified from official school portals
 export const AUTHENTIC_SCHOOL_MAJORS: Record<string, string[]> = {
-  // High Schools & Vocational Schools (32 schools)
-  "高雄市私立 三信高級家事商業職業學校": ["商業經營科", "資料處理科", "餐飲管理科", "應用英語科", "美容美髮科", "廣告設計科"],
-  "臺北市私立 大同高級中學": ["普通科", "應用英語科", "資訊科", "電子商務科", "多媒體應用科"],
-  "桃園市私立 方曙商工高級中等學校": ["飛機修護科", "資訊科", "電子商務科", "餐飲管理科", "照顧服務科"],
-  "桃園市私立 永平工商高級中等學校": ["餐飲管理科", "烘焙食品科", "觀光事業科", "表演藝術科", "汽車科", "廣告技術科"],
-  "高雄市 立志高級中學": ["電子商務科", "資訊科", "電機科", "餐飲管理科", "美容科", "汽車科"],
-  "新竹縣私立 仰德高級中學": ["餐飲管理科", "電子商務科", "汽車科", "烘焙食品科", "美容科"],
-  "桃園市私立 光啟高級中等學校": ["機械科", "電機科", "汽車科", "資訊科", "餐飲管理科", "電子商務科"],
-  "新竹市私立 光復高級中學": ["汽車科", "電機科", "資訊科", "資料處理科", "觀光事業科", "餐飲管理科", "幼兒保育科"],
-  "臺北市私立 育達高級中等學校": ["表演藝術科", "時尚造型科", "觀光事業科", "餐飲管理科", "多媒體設計科", "商業經營科"],
-  "臺南市私立 育德工業家事職業學校": ["航空電子科", "汽車科", "餐飲管理科", "烘焙食品科", "美容科"],
-  "臺中市私立 致用高級中學": ["機械科", "汽車科", "電子科", "資料處理科", "應用英語科", "餐飲管理科", "美容科"],
-  "桃園市私立 啟英高級中等學校": ["汽車科", "電機科", "資訊科", "電子商務科", "時尚造型科", "餐飲管理科", "應用日語科"],
-  "高雄市私立 華德高級工業家事職業學校": ["航空電子科", "汽車科", "烘焙食品科", "餐飲管理科", "時尚造型科"],
-  "高雄市 新光高級中學": ["資料處理科", "美容美髮科", "餐飲管理科", "音樂科"],
-  "雲林縣私立 義峰高級中學": ["觀光事業科", "餐飲管理科", "多媒體動畫科", "汽車科"],
-  "臺北市私立 稻江高級商業職業學校": ["觀光事業科", "應用日語科", "餐飲管理科", "動畫遊戲科", "商業經營科"],
-  "新北市私立 樹人高級家事商業職業學校": ["資料處理科", "觀光事業科", "餐飲管理科", "美容科", "幼兒保育科"],
-  "高雄市私立 樹德高級家事商業職業學校": ["美容美髮科", "服裝設計科", "幼兒保育科", "餐飲管理科", "資料處理科", "表演藝術科"],
-  "新北市私立 豫章高級工商職業學校": ["電機科", "資訊科", "電子商務科", "餐飲管理科", "商業經營科"],
-  "高雄市私立 中山高級工商職業學校": ["機電科", "汽車科", "電子科", "資訊科", "商業經營科", "餐飲管理科", "烘焙食品科", "幼兒保育科"],
-  "臺南市私立 六信高級中學": ["烘焙食品科", "餐飲管理科", "時尚造型科", "資訊科"],
-  "桃園市私立 世紀綠能工商高級中等學校": ["綠能技術科", "機械科", "汽車科", "資訊科", "餐飲管理科", "資料處理科"],
-  "臺南市私立 亞洲高級餐旅職業學校": ["餐飲管理科", "烘焙食品科", "觀光事業科", "餐飲技術科"],
-  "嘉義市私立 東吳高級工業家事職業學校": ["汽車科", "資訊科", "餐飲管理科", "美容科", "烘焙食品科"],
-  "新竹縣私立 東泰高級中學": ["汽車科", "電機科", "資訊科", "電子競技科", "餐飲管理科", "美容科"],
-  "臺中市私立 青年高級中學": ["資訊科", "汽車科", "商用資訊科", "烘焙食品科", "觀光事業科", "表演藝術科"],
-  "新北市私立 能仁高級家事商業職業學校": ["資料處理科", "餐飲管理科", "美容美髮科", "流行服飾科", "多媒體設計科"],
-  "高雄市私立 高苑高級工業商業職業學校": ["資訊科", "電機科", "機械科", "汽車科", "餐飲管理科", "烘焙食品科"],
-  "新北市私立 莊敬高級工業家事職業學校": ["資訊科", "資料處理科", "餐飲管理科", "汽車科", "食品加工科", "表演藝術科", "電影電視科", "音樂科"],
-  "臺中市私立 慈明高級中學": ["資訊科", "烘焙食品科", "餐飲管理科", "航空電子科", "幼兒保育科", "美容科"],
-  "嘉義縣私立 萬能高級工商職業學校": ["資訊科", "烘焙食品科", "餐飲管理科", "汽車科", "電機科"],
-  "臺中市私立 嶺東高級中學": ["商業經營科", "觀光事業科", "資訊科", "汽車科", "電子商務科"],
+  // High Schools & Vocational Schools (33 schools)
+  "高雄市私立 三信高級家事商業職業學校": ["資料處理科", "烘焙食品科", "餐飲管理科"],
+  "臺北市私立 大同高級中學": ["資料處理科"],
+  "桃園市私立 方曙商工高級中等學校": ["照顧服務科", "資訊科"],
+  "桃園市私立 永平工商高級中等學校": ["資料處理科", "烘焙科", "餐飲管理科"],
+  "高雄市 立志高級中學": ["電子科", "資訊科"],
+  "新竹縣私立 仰德高級中學": ["電子商務科", "餐飲管理科"],
+  "桃園市私立 光啟高級中等學校": ["資訊科", "餐飲管理科"],
+  "新竹市私立 光復高級中學": ["資訊科", "資料處理科"],
+  "臺北市私立 育達高級中等學校": ["烘焙科", "餐飲管理科"],
+  "臺南市私立 育德工業家事職業學校": ["烘焙食品科", "餐飲技術科"],
+  "臺中市私立 致用高級中學": ["資訊科", "機械科", "烘焙食品科", "餐飲管理科", "照護服務科"],
+  "桃園市私立 啟英高級中等學校": ["資訊科", "時尚造型科"],
+  "高雄市私立 華德高級工業家事職業學校": ["資訊科", "烘焙科", "餐飲技術科"],
+  "高雄市 新光高級中學": ["資訊科"],
+  "雲林縣私立 義峰高級中學": ["照顧服務科"],
+  "臺北市私立 稻江高級商業職業學校": ["商業經營科", "觀光事業科"],
+  "新北市私立 樹人高級家事商業職業學校": ["資訊科", "餐飲管理科"],
+  "高雄市私立 樹德高級家事商業職業學校": ["資料處理科", "烘焙食品科", "美容科"],
+  "新北市私立 豫章高級工商職業學校": ["資訊科", "餐飲管理科"],
+  "高雄市私立 中山高級工商職業學校": ["資訊科", "電子科", "餐飲管理科", "汽車科", "商業經營科"],
+  "臺南市私立 六信高級中學": ["資訊科", "烘焙食品科"],
+  "桃園市私立 世紀綠能工商高級中等學校": ["資訊科", "機械科", "資料處理科", "餐飲管理科"],
+  "臺南市私立 亞洲高級餐旅職業學校": ["電子商務科", "烘焙食品科", "餐飲技術科"],
+  "嘉義市私立 東吳高級工業家事職業學校": ["資訊科", "烘焙科", "餐飲管理科"],
+  "新竹縣私立 東泰高級中學": ["資訊科", "微電腦修護科", "餐飲管理科", "商用資訊科", "烘焙食品科"],
+  "臺中市私立 青年高級中學": ["資訊科", "觀光事業科", "餐飲管理科"],
+  "新北市私立 能仁高級家事商業職業學校": ["資料處理科", "餐飲管理科"],
+  "高雄市私立 高苑高級工業商業職業學校": ["資訊科", "餐飲管理科"],
+  "新北市私立 莊敬高級工業家事職業學校": ["資訊科", "資料處理科", "餐飲管理科", "汽車科", "食品加工科"],
+  "臺中市私立 慈明高級中學": ["資訊科", "烘焙食品科", "餐飲管理科", "電子商務科"],
+  "嘉義縣私立 萬能高級工商職業學校": ["資訊科", "餐飲管理科"],
+  "臺中市私立 嶺東高級中學": ["商業經營科", "觀光事業科"],
+  "新北市私立 醒吾高中": ["資料處理科"],
 
   // Universities & Colleges (27 schools)
-  "中信金學校財團法人中信科技大學": ["財務金融學系", "財經法律學系", "企業管理學系", "人工智慧學系", "運動產業管理學系", "金融科技學系"],
-  "中華學校財團法人中華科技大學": ["航空機械系", "航空電子系", "航空服務管理系", "機械工程系", "電機工程系", "建築與室內設計系", "食品科學系", "生物科技系"],
-  "中臺科技大學": ["醫學檢驗生物技術系", "醫學影像暨放射科學系", "護理系", "牙體技術暨材料系", "視光系", "食品科技系", "醫療暨健康產業管理系", "老人照顧系"],
-  "元培醫事科技大學": ["醫事檢驗生物技術系", "醫學影像暨放射技術系", "護理系", "視光系", "醫務管理系", "生物醫學工程系", "食品營養系", "寵物保健系", "環境工程衛生系"],
-  "台南應用科技大學": ["服裝設計系", "美容造型設計系", "室內設計系", "視覺傳達設計系", "旅館管理系", "餐飲系", "商品設計系", "幼兒保育系", "音樂系", "舞蹈系"],
-  "台鋼學校財團法人台鋼科技大學": ["機械與自動化工程系", "電機工程系", "土木工程系", "智慧科技應用系", "休閒運動管理系", "數位機電工程系"],
-  "正修科技大學": ["機械工程系", "電子工程系", "土木與空間資訊系", "數位多媒體設計系", "餐飲管理系", "幼兒保育系", "視覺傳達設計系", "觀光遊憩系", "電機工程系"],
-  "吳鳳科技大學": ["消防學系", "安全科技與管理系", "機械工程系車輛組", "電機工程系", "應用數位媒體系", "觀光餐旅管理系", "幼兒保育系"],
-  "宏國德霖科技大學": ["營建科技系", "室內設計系", "不動產經營系", "機械工程系", "餐旅管理系", "園藝與景觀設計系", "資訊工程系"],
-  "東南科技大學": ["機械工程系(車輛組)", "電機工程系", "數位媒體設計系", "室內設計系", "表演藝術系", "餐旅管理系", "休閒事業管理系"],
-  "南開科技大學": ["機械工程系(先進車輛組)", "自動化工程系", "電機與資訊技術系", "長期照顧與健康促進系", "休閒事業管理系", "多媒體動畫設計系"],
-  "建國科技大學": ["機械工程系", "自動化工程系暨機電光系統", "電子工程系", "美容科技系", "空間設計系", "數位媒體設計系", "觀光與休閒管理系"],
-  "美和科技大學": ["護理系", "健康事業管理系", "食品營養系", "生物科技系", "社會工作系", "運動與休閒系", "餐旅管理系"],
-  "修平科技大學": ["機械工程系", "電機工程系", "電子工程系", "工業工程與管理系", "數位媒體設計系", "觀光與遊憩管理系", "應用日語系"],
-  "國立高雄餐旅大學": ["烘焙管理系", "中餐廚藝系", "西餐廚藝系", "餐飲管理系", "旅館管理系", "航空暨運輸服務管理系", "觀光事業系", "休閒暨遊憩管理系"],
-  "國立勤益科技大學": ["冷凍空調與能源系", "精密機械工程系", "電機工程系", "電子工程系", "人工智慧應用工程系", "資訊工程系", "工業工程與管理系", "企業管理系"],
-  "崑山科技大學": ["視訊傳播設計系", "機械工程系", "電機工程系", "電子工程系", "空間設計系", "餐飲管理及廚藝系", "旅遊文化發展系", "電腦與通訊系"],
-  "景文科技大學": ["餐飲管理系", "旅館管理系", "旅遊管理系", "應用外語系", "行動商務與數位行銷系", "視覺傳達設計系", "電腦與通訊工程系"],
-  "萬能學校財團法人萬能科技大學": ["航空光機電系", "航空暨運輸服務管理系", "精密機械工程系", "觀光與休閒事業管理系", "餐飲管理系", "時尚造型設計系", "商業專案管理系"],
-  "僑光科技大學": ["觀光與餐旅管理系", "國際貿易系", "財務金融系", "企業管理系", "資訊科技系", "多媒體與遊戲設計系", "應用英語系"],
-  "德育學校財團法人德育護理健康學院": ["護理系", "幼兒保育系", "口腔衛生照護系", "餐旅管理系", "美容流行設計系", "高齡照顧福利系", "食品保健系"],
-  "德明財經科技大學": ["財務金融系", "財稅系", "會計資訊系", "國際貿易系", "企業管理系", "行銷管理系", "資訊科技系", "多媒體設計系"],
-  "樹德科技大學": ["動畫與遊戲設計系", "流行設計系", "室內設計系", "視覺傳達設計系", "演藝事業系", "電競產業管理學士學位學程", "資訊工程系", "兒童與家庭服務系"],
-  "龍華科技大學": ["半導體工程系", "機械工程系", "電機工程系", "電子工程系", "資訊網路工程系", "遊戲產學學士學位學程", "數位行銷跨境電商系", "應用外語系"],
-  "亞東科技大學": ["通訊工程系", "材料與纖維系", "機械工程系", "電機工程系", "電子工程系", "護理系", "醫務管理系", "工業設計系"],
-  "弘光科技大學": ["護理系", "物理治療系", "食品科技系(烘培科技)", "餐旅管理系", "美髮造型設計系", "化妝品應用系", "老人福利與長期照顧事業系", "幼兒保育系"],
-  "中國科技大學": ["建築系", "室內設計系", "視覺傳達設計系", "數位多媒體設計系", "觀光與休閒事業管理系", "企業管理系", "資訊工程系"],
+  "中信金學校財團法人中信科技大學": ["半導體工程系(設備維護與資訊應用)", "機械工程系(傳統加工產業)"],
+  "中華學校財團法人中華科技大學": ["電機與資訊工程系"],
+  "中臺科技大學": ["環境與安全衛生工程科系", "高齡健康照護系"],
+  "元培醫事科技大學": ["餐飲管理系", "資訊管理系(製造業資訊管理)", "高齡健康照護系(長照業高齡健康照護)"],
+  "台南應用科技大學": ["資訊管理系", "餐飲系"],
+  "台鋼學校財團法人台鋼科技大學": ["建築系(建築設備工程)"],
+  "正修科技大學": ["機械工程系", "資訊工程系", "電機工程系", "資訊管理系"],
+  "吳鳳科技大學": ["餐旅管理系", "數位科技與媒體設計系", "觀光休閒管理系"],
+  "宏國德霖科技大學": ["餐旅管理系", "休閒事業管理系"],
+  "東南科技大學": ["休閒事業管理系", "餐旅管理系", "室內設計系"],
+  "南開科技大學": ["休閒事業管理系", "車輛工程系(車輛修護及零組件製造訓練)"],
+  "建國科技大學": ["電子工程系"],
+  "美和科技大學": ["觀光系(觀光產業服務)"],
+  "修平科技大學": ["電子工程系"],
+  "國立高雄餐旅大學": ["旅運管理系"],
+  "國立勤益科技大學": ["人工智慧應用工程系"],
+  "崑山科技大學": ["資訊管理系", "智慧機器人工程系", "機械工程系(機電整合製造技術實務)"],
+  "景文科技大學": ["旅遊管理系", "資訊與通訊系"],
+  "萬能學校財團法人萬能科技大學": ["室內設計與營建科技系"],
+  "僑光科技大學": ["旅館與會展管理系", "行銷與流通管理系"],
+  "德育學校財團法人德育護理健康學院": ["高齡照顧福祉系(高齡健康管理)", "觀光休閒與健康系(觀光健康休閒服務)"],
+  "德明財經科技大學": ["流通管理系(智慧流通)"],
+  "樹德科技大學": ["電子競技與電腦娛樂科學系", "會展行銷與活動管理系"],
+  "龍華科技大學": ["資訊網路工程系", "半導體工程系", "觀光休閒系"],
+  "亞東科技大學": ["通訊工程系(智慧通訊科技應用與管理)", "工業管理系"],
+  "弘光科技大學": ["食品科技系(烘培科技)", "老人福利與長期照顧事業系", "餐旅管理系"],
+  "中國科技大學": ["觀光與休閒事業管理系"],
 };
 
-/**
- * Build the complete master dataset of all 59 Taiwan partner schools
- */
-export function getAllDetailedSchools(): DetailedSchool[] {
-  const result: DetailedSchool[] = [];
+function buildDetailedSchoolRecord(
+  rawName: string,
+  index: number,
+  entryOverride?: SchoolMajorEntry
+): DetailedSchool {
+  const schoolName = canonicalizeSchoolName(rawName);
+  const hsSpec = HIGH_SCHOOL_SPECS[schoolName];
+  const univSpec = UNIVERSITY_SPECS[schoolName];
+  const sTrans = getSchoolTranslation(schoolName);
 
-  // 1. Process High Schools
-  for (const [schoolName, spec] of Object.entries(HIGH_SCHOOL_SPECS)) {
-    const sTrans = getSchoolTranslation(schoolName);
-    const majors = AUTHENTIC_SCHOOL_MAJORS[schoolName] || [
-      "資訊科", "餐飲管理科", "烘焙食品科", "電子商務科"
-    ];
-    const cityInfo = extractCity(spec.address, schoolName);
+  const isUniv = Boolean(
+    univSpec ||
+      (!hsSpec &&
+        (schoolName.includes('大學') ||
+          schoolName.includes('學院') ||
+          schoolName.includes('專科') ||
+          entryOverride?.ageRequirementEn?.toLowerCase().includes('university') ||
+          entryOverride?.ageRequirementEn?.toLowerCase().includes('college')))
+  );
 
-    result.push({
-      id: `sch-hs-${result.length + 1}`,
+  const spec = hsSpec || univSpec;
+  const fallbackAddress =
+    spec?.address ||
+    (sTrans?.locationEn?.match(/\(([^)]+)\)/)?.[1] ?? '') ||
+    schoolName;
+  const cityInfo = extractCity(fallbackAddress + ' ' + schoolName, schoolName);
+  const websiteUrl =
+    spec?.domain ||
+    `https://www.google.com/search?q=${encodeURIComponent(schoolName + ' 官方網站')}`;
+  const majors =
+    entryOverride?.majors && entryOverride.majors.length > 0
+      ? entryOverride.majors
+      : AUTHENTIC_SCHOOL_MAJORS[schoolName] || [];
+  const logoUrl = entryOverride?.logoUrl || sTrans?.logoUrl;
+
+  if (!isUniv) {
+    return {
+      id: `sch-hs-${index + 1}-${schoolName}`,
       name: schoolName,
       nameKm: sTrans ? sTrans.km : schoolName,
       nameEn: sTrans ? sTrans.en : schoolName,
@@ -576,71 +606,115 @@ export function getAllDetailedSchools(): DetailedSchool[] {
       categoryLabelKm: 'អនុវិទ្យាល័យ / វិទ្យាល័យវិជ្ជាជីវៈ (High School / Vocational)',
       categoryLabelZh: '高級中等職業學校（高中職 3+4）',
       categoryLabelEn: 'Senior Vocational High School (3+4)',
-      address: spec.address,
+      address: fallbackAddress,
       city: cityInfo.zh,
       cityKm: cityInfo.km,
       cityEn: cityInfo.en,
-      websiteUrl: spec.domain,
-      googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(schoolName + ' ' + spec.address)}`,
-      ageRequirementKm: "អាយុ ចាប់ពី ១៦ឆ្នាំ ដល់ ២២ឆ្នាំ (សំរាប់ថ្នាក់វិទ្យាល័យ)",
-      ageRequirementEn: "Age 16 to 22 years old (For High School)",
-      ageRequirementZh: "年齡 16 至 22 歲（高中職專班）",
+      websiteUrl,
+      googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        schoolName + ' ' + fallbackAddress
+      )}`,
+      ageRequirementKm:
+        entryOverride?.ageRequirementKm ||
+        'អាយុ ចាប់ពី ១៦ឆ្នាំ ដល់ ២២ឆ្នាំ (សំរាប់ថ្នាក់វិទ្យាល័យ)',
+      ageRequirementEn:
+        entryOverride?.ageRequirementEn || 'Age 16 to 22 years old (For High School)',
+      ageRequirementZh: '年齡 16 至 22 歲（高中職專班）',
       majors,
-      admissionsOverviewKm: "កម្មវិធីសហប្រតិបត្តិការអប់រំ ៣+៤ (រៀនវិទ្យាល័យ ៣ឆ្នាំ + សាកលវិទ្យាល័យ ៤ឆ្នាំ)។ ទទួលបានការលើកលែងថ្លៃសិក្សា ៣ឆ្នាំដំបូង ព្រមទាំងការងារកម្មសិក្សាស្របច្បាប់ទទួលបានប្រាក់បៀវត្សរ៍ប្រចាំខែ។",
-      admissionsOverviewZh: "僑生建教合作專班（3+4 升學模式）：三年高職免學雜費補助，直升合作科技大學四年，就學期間安排合法帶薪實習。",
-      admissionsOverviewEn: "3+4 Vocational Program: 3 years vocational high school with tuition-free grant + 4 years direct university pathway with paid internship stipend.",
-      scholarshipKm: "អាហារូបករណ៍លើកលែងថ្លៃសិក្សាពេញលេញ ៣ឆ្នាំ + ប្រាក់ឧបត្ថម្ភការងារកម្មសិក្សា តាមច្បាប់ការងារតៃវ៉ាន់ (ប្រហែល ២៧,៤៧០ NTD/ខែ)",
-      scholarshipZh: "三年學雜費全額補助 + 實習津貼依台灣勞基法最低工資發給（約 NT$27,470/月）",
-      scholarshipEn: "100% Tuition Waiver for 3 years + Monthly paid internship stipend in accordance with Taiwan Labor Standards.",
-      dormitoryKm: "អន្តេវាសិកដ្ឋានទំនើបក្នុងបរិវេណសាលា មានម៉ាស៊ីនត្រជាក់ អ៊ីនធឺណិតល្បឿនលឿន និងគ្រូបង្រៀនមើលថែ ២៤ម៉ោង។",
-      dormitoryZh: "校內學生宿舍，配備冷氣空調、高速Wi-Fi網路，24小時舍監安全管理與生活照應。",
-      dormitoryEn: "On-campus student dormitory equipped with AC, high-speed Wi-Fi, and 24/7 student care supervisors.",
-      phone: spec.phone,
-      logoUrl: sTrans?.logoUrl
-    });
+      admissionsOverviewKm:
+        'កម្មវិធីសហប្រតិបត្តិការអប់រំ ៣+៤ (រៀនវិទ្យាល័យ ៣ឆ្នាំ + សាកលវិទ្យាល័យ ៤ឆ្នាំ)។ ទទួលបានការលើកលែងថ្លៃសិក្សា ៣ឆ្នាំដំបូង ព្រមទាំងការងារកម្មសិក្សាស្របច្បាប់ទទួលបានប្រាក់បៀវត្សរ៍ប្រចាំខែ។',
+      admissionsOverviewZh:
+        '僑生建教合作專班（3+4 升學模式）：三年高職免學雜費補助，直升合作科技大學四年，就學期間安排合法帶薪實習。',
+      admissionsOverviewEn:
+        '3+4 Vocational Program: 3 years vocational high school with tuition-free grant + 4 years direct university pathway with paid internship stipend.',
+      scholarshipKm:
+        'អាហារូបករណ៍លើកលែងថ្លៃសិក្សាពេញលេញ ៣ឆ្នាំ + ប្រាក់ឧបត្ថម្ភការងារកម្មសិក្សា តាមច្បាប់ការងារតៃវ៉ាន់ (ប្រហែល ២៧,៤៧០ NTD/ខែ)',
+      scholarshipZh:
+        '三年學雜費全額補助 + 實習津貼依台灣勞基法最低工資發給（約 NT$27,470/月）',
+      scholarshipEn:
+        '100% Tuition Waiver for 3 years + Monthly paid internship stipend in accordance with Taiwan Labor Standards.',
+      dormitoryKm:
+        'អន្តេវាសិកដ្ឋានទំនើបក្នុងបរិវេណសាលា មានម៉ាស៊ីនត្រជាក់ អ៊ីនធឺណិតល្បឿនលឿន និងគ្រូបង្រៀនមើលថែ ២៤ម៉ោង។',
+      dormitoryZh:
+        '校內學生宿舍，配備冷氣空調、高速Wi-Fi網路，24小時舍監安全管理與生活照應。',
+      dormitoryEn:
+        'On-campus student dormitory equipped with AC, high-speed Wi-Fi, and 24/7 student care supervisors.',
+      phone: spec?.phone,
+      logoUrl,
+    };
   }
 
-  // 2. Process Universities & Colleges
-  for (const [schoolName, spec] of Object.entries(UNIVERSITY_SPECS)) {
-    const sTrans = getSchoolTranslation(schoolName);
-    const majors = AUTHENTIC_SCHOOL_MAJORS[schoolName] || [
-      "資訊工程系", "餐旅管理系", "企業管理系", "電子工程系"
-    ];
-    const cityInfo = extractCity(spec.address, schoolName);
+  return {
+    id: `sch-univ-${index + 1}-${schoolName}`,
+    name: schoolName,
+    nameKm: sTrans ? sTrans.km : schoolName,
+    nameEn: sTrans ? sTrans.en : schoolName,
+    shortNameZh: sTrans ? sTrans.shortZh : undefined,
+    category: 'university',
+    categoryLabelKm: 'មហាវិទ្យាល័យ / សាកលវិទ្យាល័យបច្ចេកវិទ្យា (University / College)',
+    categoryLabelZh: '科技大學 / 技術學院（四年制學士學位）',
+    categoryLabelEn: 'Technological University / College (Bachelor Degree)',
+    address: fallbackAddress,
+    city: cityInfo.zh,
+    cityKm: cityInfo.km,
+    cityEn: cityInfo.en,
+    websiteUrl,
+    googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      schoolName + ' ' + fallbackAddress
+    )}`,
+    ageRequirementKm:
+      entryOverride?.ageRequirementKm ||
+      'អាយុ ២៥ឆ្នាំ ចុះក្រោម (កើតក្រោយថ្ងៃទី ០១ ខែកក្កដា) (សំរាប់ថ្នាក់មហាវិទ្យាល័យ និង សកលវិទ្យាល័យ)',
+    ageRequirementEn:
+      entryOverride?.ageRequirementEn ||
+      'Age 25 and under (Born after July 1st) for University / College',
+    ageRequirementZh: '年齡 25 歲以下（7月1日後出生，大學部招生）',
+    majors,
+    admissionsOverviewKm:
+      'ថ្នាក់បរិញ្ញាបត្រ ៤ឆ្នាំពេញសិទ្ធិ ទទួលស្គាល់ដោយក្រសួងអប់រំតៃវ៉ាន់ (Taiwan MOE)។ សិក្សាទ្រឹស្តីផ្សារភ្ជាប់ការអនុវត្តផ្ទាល់ក្នុងសហគ្រាសបច្ចេកវិទ្យា និងឧស្សាហកម្មល្បីៗ។',
+    admissionsOverviewZh:
+      '四年制科技大學正式學士學位，教育部認證。產學合作緊密，大三、大四提供高科技與服務業帶薪實習機會。',
+    admissionsOverviewEn:
+      '4-Year Bachelor Degree accredited by the Ministry of Education Taiwan. Industry-academia collaboration with top tech & hospitality corporations.',
+    scholarshipKm:
+      'អាហារូបករណ៍ថ្នាក់បរិញ្ញាបត្រឆមាសទី១ (រហូតដល់ ១០០%) + ឱកាសការងារកម្មសិក្សាស្របច្បាប់រហូតដល់បញ្ចប់ការសិក្សា។',
+    scholarshipZh:
+      '入學新生第一學期學雜費全免或高額獎助金 + 產學合作保障企業實習薪資。',
+    scholarshipEn:
+      'Freshmen scholarship grant up to 100% tuition waiver + Guaranteed industry internship stipend.',
+    dormitoryKm:
+      'អន្តេវាសិកដ្ឋានស្តង់ដារអន្តរជាតិ បន្ទប់ទឹកដាច់ដោយឡែក បន្ទប់អានសៀវភៅ និងអាហារដ្ឋានចម្រុះ។',
+    dormitoryZh:
+      '現代化國際學生宿舍，獨立衛浴、自修閱覽室與校園美食街。',
+    dormitoryEn:
+      'International student dormitory featuring private bathroom, study lounges, and campus food court.',
+    phone: spec?.phone,
+    logoUrl,
+  };
+}
 
-    result.push({
-      id: `sch-univ-${result.length + 1}`,
-      name: schoolName,
-      nameKm: sTrans ? sTrans.km : schoolName,
-      nameEn: sTrans ? sTrans.en : schoolName,
-      shortNameZh: sTrans ? sTrans.shortZh : undefined,
-      category: 'university',
-      categoryLabelKm: 'មហាវិទ្យាល័យ / សាកលវិទ្យាល័យបច្ចេកវិទ្យា (University / College)',
-      categoryLabelZh: '科技大學 / 技術學院（四年制學士學位）',
-      categoryLabelEn: 'Technological University / College (Bachelor Degree)',
-      address: spec.address,
-      city: cityInfo.zh,
-      cityKm: cityInfo.km,
-      cityEn: cityInfo.en,
-      websiteUrl: spec.domain,
-      googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(schoolName + ' ' + spec.address)}`,
-      ageRequirementKm: "អាយុ ២៥ឆ្នាំ ចុះក្រោម (កើតក្រោយថ្ងៃទី ០១ ខែកក្កដា) (សំរាប់ថ្នាក់មហាវិទ្យាល័យ និង សកលវិទ្យាល័យ)",
-      ageRequirementEn: "Age 25 and under (Born after July 1st) for University / College",
-      ageRequirementZh: "年齡 25 歲以下（7月1日後出生，大學部招生）",
-      majors,
-      admissionsOverviewKm: "ថ្នាក់បរិញ្ញាបត្រ ៤ឆ្នាំពេញសិទ្ធិ ទទួលស្គាល់ដោយក្រសួងអប់រំតៃវ៉ាន់ (Taiwan MOE)។ សិក្សាទ្រឹស្តីផ្សារភ្ជាប់ការអនុវត្តផ្ទាល់ក្នុងសហគ្រាសបច្ចេកវិទ្យា និងឧស្សាហកម្មល្បីៗ។",
-      admissionsOverviewZh: "四年制科技大學正式學士學位，教育部認證。產學合作緊密，大三、大四提供高科技與服務業帶薪實習機會。",
-      admissionsOverviewEn: "4-Year Bachelor Degree accredited by the Ministry of Education Taiwan. Industry-academia collaboration with top tech & hospitality corporations.",
-      scholarshipKm: "អាហារូបករណ៍ថ្នាក់បរិញ្ញាបត្រឆមាសទី១ (រហូតដល់ ១០០%) + ឱកាសការងារកម្មសិក្សាស្របច្បាប់រហូតដល់បញ្ចប់ការសិក្សា។",
-      scholarshipZh: "入學新生第一學期學雜費全免或高額獎助金 + 產學合作保障企業實習薪資。",
-      scholarshipEn: "Freshmen scholarship grant up to 100% tuition waiver + Guaranteed industry internship stipend.",
-      dormitoryKm: "អន្តេវាសិកដ្ឋានស្តង់ដារអន្តរជាតិ បន្ទប់ទឹកដាច់ដោយឡែក បន្ទប់អានសៀវភៅ និងអាហារដ្ឋានចម្រុះ។",
-      dormitoryZh: "現代化國際學生宿舍，獨立衛浴、自修閱覽室與校園美食街。",
-      dormitoryEn: "International student dormitory featuring private bathroom, study lounges, and campus food court.",
-      phone: spec.phone,
-      logoUrl: sTrans?.logoUrl
+/**
+ * Build the complete dataset of Taiwan partner schools, synchronized with schoolMajorService
+ * when activeEntries are supplied.
+ */
+export function getAllDetailedSchools(activeEntries?: SchoolMajorEntry[]): DetailedSchool[] {
+  if (Array.isArray(activeEntries)) {
+    const seen = new Set<string>();
+    const list: DetailedSchool[] = [];
+    activeEntries.forEach((entry) => {
+      if (!entry?.school) return;
+      const cName = canonicalizeSchoolName(entry.school);
+      const lower = cName.toLowerCase();
+      if (!cName || seen.has(lower)) return;
+      seen.add(lower);
+      list.push(buildDetailedSchoolRecord(cName, list.length, entry));
     });
+    return list;
   }
 
-  return result;
+  const staticNames = [
+    ...Object.keys(HIGH_SCHOOL_SPECS),
+    ...Object.keys(UNIVERSITY_SPECS),
+  ];
+  return staticNames.map((name, idx) => buildDetailedSchoolRecord(name, idx));
 }

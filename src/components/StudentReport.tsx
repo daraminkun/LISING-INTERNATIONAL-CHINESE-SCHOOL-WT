@@ -24,9 +24,9 @@ import {
 } from 'lucide-react';
 import { Student, Language, ReportFilterState, SortConfig, SortField } from '../types';
 import { translations } from '../translations';
-import { MAJORS, TARGET_SCHOOLS } from '../constants/studentOptions';
 import { areAllRequiredDocumentsUploaded, countUploadedCategories, getEffectiveStudentDocuments } from '../utils/documentUtils';
-import { stripCloudEnvelopeFromNotes } from '../utils/cloudDocSyncUtils';
+import { stripCloudEnvelopeFromNotes, isMockStudentDocuments } from '../utils/cloudDocSyncUtils';
+import { canonicalizeSchoolName } from '../utils/imageUtils';
 import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { TranslationTooltip } from './TranslationTooltip';
@@ -37,6 +37,12 @@ import { Loader2 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { SchoolMajorManageModal, ManageActionType } from './SchoolMajorManageModal';
 import { useInstitution } from '../services/institutionService';
+import {
+  computeStudentNumbersList,
+  compareStudentsBySchoolMajorOrder,
+  buildCatalogOrderMaps,
+  triggerSafeBlobDownload,
+} from '../utils/studentOrderUtils';
 
 interface StudentReportProps {
   students: Student[];
@@ -100,46 +106,40 @@ export const StudentReport: React.FC<StudentReportProps> = ({
     actionType: 'add_school',
   });
 
-  // Unique majors for filter dropdown
+  // Unique majors for filter dropdown (dynamically synchronized with schoolMajorService)
   const majorList = useMemo(() => {
     const set = new Set<string>();
-    // 1. From schoolMajorService (includes all custom & pre-configured majors)
     schoolMajorService.getAllMajors().forEach(m => {
       if (m && m.trim()) set.add(m.trim());
     });
-    // 2. From standard MAJORS list
-    MAJORS.forEach(m => {
-      if (m && m.trim()) set.add(m.trim());
-    });
-    // 3. From students records (including custom entered majors)
     students.forEach(s => {
-      if (s.major?.trim()) set.add(s.major.trim());
+      if (!isMockStudentDocuments(s.documents) && s.major?.trim()) {
+        set.add(s.major.trim());
+      }
     });
     return Array.from(set);
   }, [students, schoolsVersion]);
 
-  // Unique schools for filter dropdown
+  // Unique schools for filter dropdown (dynamically synchronized with schoolMajorService)
   const schoolList = useMemo(() => {
-    const isExcluded = (name: string) => 
-      !name || 
-      name.trim() === '日興國際學校' || 
+    const isExcluded = (name: string) =>
+      !name ||
+      name.trim() === '日興國際學校' ||
       name.trim() === 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ' ||
       name.trim() === 'សាលារៀនចិនលីស៊ីងអន្តរជាតិ' ||
       name.toLowerCase().includes('lising international');
 
     const set = new Set<string>();
-    // 1. From schoolMajorService (includes all newly added schools)
     schoolMajorService.getSchoolNames().forEach(s => {
-      if (s && s.trim() && !isExcluded(s)) set.add(s.trim());
+      const c = canonicalizeSchoolName(s);
+      if (c && !isExcluded(c)) set.add(c);
     });
-    // 2. From standard TARGET_SCHOOLS list
-    TARGET_SCHOOLS.forEach(s => {
-      if (s && s.trim() && !isExcluded(s)) set.add(s.trim());
-    });
-    // 3. From students records (including custom entered schools)
     students.forEach(s => {
-      if (s.targetSchool?.trim() && !isExcluded(s.targetSchool.trim())) {
-        set.add(s.targetSchool.trim());
+      if (!isMockStudentDocuments(s.documents) && s.targetSchool?.trim()) {
+        const c = canonicalizeSchoolName(s.targetSchool.trim());
+        if (c && !isExcluded(c)) {
+          set.add(c);
+        }
       }
     });
     return Array.from(set);
@@ -204,14 +204,15 @@ export const StudentReport: React.FC<StudentReportProps> = ({
 
       // Target School filter
       if (filters.targetSchool && filters.targetSchool !== 'all') {
-        const selSchool = filters.targetSchool.trim().toLowerCase();
-        const stuSchool = (student.targetSchool || '').trim().toLowerCase();
+        const selCanonical = canonicalizeSchoolName(filters.targetSchool).toLowerCase();
+        const stuCanonical = canonicalizeSchoolName(student.targetSchool || '').toLowerCase();
         const selTrans = getSchoolTranslation(filters.targetSchool);
         const stuTrans = getSchoolTranslation(student.targetSchool);
-        const isMatch = stuSchool === selSchool ||
+        const isMatch =
+          stuCanonical === selCanonical ||
           (selTrans && stuTrans && selTrans.zh.toLowerCase() === stuTrans.zh.toLowerCase()) ||
-          (selTrans && (stuSchool === selTrans.km.toLowerCase() || stuSchool === selTrans.en.toLowerCase() || stuSchool === selTrans.zh.toLowerCase())) ||
-          (stuTrans && (selSchool === stuTrans.km.toLowerCase() || selSchool === stuTrans.en.toLowerCase() || selSchool === stuTrans.zh.toLowerCase()));
+          (selTrans && (stuCanonical === selTrans.km.toLowerCase() || stuCanonical === selTrans.en.toLowerCase() || stuCanonical === selTrans.zh.toLowerCase())) ||
+          (stuTrans && (selCanonical === stuTrans.km.toLowerCase() || selCanonical === stuTrans.en.toLowerCase() || selCanonical === stuTrans.zh.toLowerCase()));
         if (!isMatch) return false;
       }
 
@@ -266,34 +267,14 @@ export const StudentReport: React.FC<StudentReportProps> = ({
     }));
   };
 
-  // Sort computation
+  // Sort computation — preserves exact (School -> Major -> No -> លេខរៀង) order by default
   const sortedStudents = useMemo(() => {
+    const maps = buildCatalogOrderMaps();
     return [...filteredStudents].sort((a, b) => {
       const field = sortConfig.field;
-      if (field === 'studentId') {
-        const numA = parseInt(a.studentId.replace(/\D/g, '') || '0', 10);
-        const numB = parseInt(b.studentId.replace(/\D/g, '') || '0', 10);
-        if (numA !== numB) {
-          return sortConfig.order === 'asc' ? numA - numB : numB - numA;
-        }
-      }
-
-      if (field === 'targetSchool') {
-        const schA = (a.targetSchool || '').toLowerCase();
-        const schB = (b.targetSchool || '').toLowerCase();
-        if (schA !== schB) {
-          return sortConfig.order === 'asc' ? schA.localeCompare(schB) : schB.localeCompare(schA);
-        }
-        // Sub-sort by major
-        const majA = (a.major || '').toLowerCase();
-        const majB = (b.major || '').toLowerCase();
-        if (majA !== majB) {
-          return majA.localeCompare(majB);
-        }
-        // Sub-sort by studentId
-        const numA = parseInt(a.studentId.replace(/\D/g, '') || '0', 10);
-        const numB = parseInt(b.studentId.replace(/\D/g, '') || '0', 10);
-        return numA - numB;
+      if (field === 'studentId' || field === 'targetSchool' || field === 'major') {
+        const cmp = compareStudentsBySchoolMajorOrder(a, b, 0, 0, maps);
+        return sortConfig.order === 'asc' ? cmp : -cmp;
       }
 
       const valA = ((a as any)[field] || (field === 'nameKhmer' ? a.name : '') || '').toString().toLowerCase();
@@ -301,14 +282,20 @@ export const StudentReport: React.FC<StudentReportProps> = ({
       const comp = valA.localeCompare(valB, undefined, { numeric: true });
       return sortConfig.order === 'asc' ? comp : -comp;
     });
-  }, [filteredStudents, sortConfig]);
+  }, [filteredStudents, sortConfig, schoolsVersion]);
 
-  // Hierarchical breakdown: School -> Majors -> Student Counts
+  const numberedStudents = useMemo(
+    () => computeStudentNumbersList(sortedStudents),
+    [sortedStudents]
+  );
+
+  // Hierarchical breakdown ordered by Official School & Major Catalog Order
   const schoolMajorHierarchy = useMemo(() => {
+    const maps = buildCatalogOrderMaps();
     const map = new Map<string, { total: number; majors: Map<string, number> }>();
 
     filteredStudents.forEach(s => {
-      const sch = s.targetSchool?.trim() || (language === 'km' ? 'មិនទាន់បញ្ជាក់សាលា' : language === 'zh-TW' ? '未指定學校' : 'Unspecified School');
+      const sch = (s.targetSchool?.trim() ? canonicalizeSchoolName(s.targetSchool) : '') || (language === 'km' ? 'មិនទាន់បញ្ជាក់សាលា' : language === 'zh-TW' ? '未指定學校' : 'Unspecified School');
       const maj = s.major?.trim() || (language === 'km' ? 'មិនទាន់បញ្ជាក់ជំនាញ' : language === 'zh-TW' ? '未指定專業' : 'Unspecified Major');
 
       if (!map.has(sch)) {
@@ -326,6 +313,8 @@ export const StudentReport: React.FC<StudentReportProps> = ({
     }> = [];
 
     map.forEach((data, school) => {
+      const sKey = school.toLowerCase();
+      const mOrderMap = maps.majorRankBySchool.get(sKey);
       const majorsList: Array<{ major: string; count: number; percentage: number }> = [];
       data.majors.forEach((count, major) => {
         majorsList.push({
@@ -334,7 +323,12 @@ export const StudentReport: React.FC<StudentReportProps> = ({
           percentage: data.total > 0 ? Math.round((count / data.total) * 100) : 0,
         });
       });
-      majorsList.sort((a, b) => b.count - a.count);
+      majorsList.sort((a, b) => {
+        const rA = mOrderMap?.get(a.major.toLowerCase()) ?? 100000;
+        const rB = mOrderMap?.get(b.major.toLowerCase()) ?? 100000;
+        if (rA !== rB) return rA - rB;
+        return a.major.localeCompare(b.major, 'zh-Hant-TW');
+      });
 
       result.push({
         school,
@@ -343,9 +337,14 @@ export const StudentReport: React.FC<StudentReportProps> = ({
       });
     });
 
-    result.sort((a, b) => b.total - a.total);
+    result.sort((a, b) => {
+      const rA = maps.schoolRankMap.get(a.school.toLowerCase()) ?? 100000;
+      const rB = maps.schoolRankMap.get(b.school.toLowerCase()) ?? 100000;
+      if (rA !== rB) return rA - rB;
+      return a.school.localeCompare(b.school, 'zh-Hant-TW');
+    });
     return result;
-  }, [filteredStudents, language]);
+  }, [filteredStudents, language, schoolsVersion]);
 
   // Quick statistics
   const totalCount = filteredStudents.length;
@@ -382,10 +381,11 @@ export const StudentReport: React.FC<StudentReportProps> = ({
 
   // Export CSV
   const handleExportCSV = () => {
-    if (sortedStudents.length === 0) return;
+    if (numberedStudents.length === 0) return;
 
     const headers = [
-      'លេខរៀង (No.)',
+      'លេខរៀង',
+      'No',
       'ឈ្មោះខ្មែរ (Name Khmer)',
       'ឈ្មោះអង់គ្លេស (Name Latin)',
       'ឈ្មោះចិន (Name Chinese)',
@@ -418,7 +418,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
       'កាលបរិច្ឆេទចុះឈ្មោះ (Created At)'
     ];
 
-    const rows = sortedStudents.map(s => {
+    const rows = numberedStudents.map(({ student: s, sequenceNo, schoolMajorNo }) => {
       const docVal = areAllRequiredDocumentsUploaded(getEffectiveStudentDocuments(s));
       const docCount = `${docVal.completedCount}/${docVal.totalRequired}`;
       const studentAgeStr = s.age ? s.age.toString() : (calculateAge(s.dob)?.toString() || '');
@@ -426,7 +426,8 @@ export const StudentReport: React.FC<StudentReportProps> = ({
       const motherAgeStr = s.motherAge ? s.motherAge.toString() : (calculateAge(s.motherDob)?.toString() || '');
 
       return [
-        `"${s.studentId}"`,
+        `"${sequenceNo}"`,
+        `"${schoolMajorNo}"`,
         `"${(s.nameKhmer || s.name || '').replace(/"/g, '""')}"`,
         `"${(s.nameLatin || '').replace(/"/g, '""')}"`,
         `"${(s.nameChinese || '').replace(/"/g, '""')}"`,
@@ -462,12 +463,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Student_Report_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    triggerSafeBlobDownload(blob, `Student_Report_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   // Export Excel (.xlsx)
@@ -1068,7 +1064,13 @@ export const StudentReport: React.FC<StudentReportProps> = ({
                       <span>{t.orderNumber}</span>
                       <ArrowUpDown className="w-3 h-3 text-slate-400 print:hidden" />
                     </div>
-                    <span className="text-[11px] text-slate-500 font-normal">No. / 編號</span>
+                    <span className="text-[11px] text-slate-500 font-normal">Seq / 總序號</span>
+                  </div>
+                </th>
+                <th className="py-3 px-2 w-16 text-center">
+                  <div className="flex flex-col items-center justify-center font-bold">
+                    <span>ល.រ / No</span>
+                    <span className="text-[11px] text-slate-500 font-normal">編號 / No.</span>
                   </div>
                 </th>
                 <th 
@@ -1146,15 +1148,15 @@ export const StudentReport: React.FC<StudentReportProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800">
-              {sortedStudents.length === 0 ? (
+              {numberedStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
+                  <td colSpan={11} className="py-12 text-center text-slate-400">
                     <p className="font-semibold text-sm">{t.noStudentsFound}</p>
                     <p className="text-xs mt-1">{t.noStudentsDesc}</p>
                   </td>
                 </tr>
               ) : (
-                sortedStudents.map(student => {
+                numberedStudents.map(({ student, sequenceNo, schoolMajorNo }) => {
                   const effectiveDocs = getEffectiveStudentDocuments(student);
                   const docVal = areAllRequiredDocumentsUploaded(effectiveDocs);
                   const catCount = countUploadedCategories(effectiveDocs);
@@ -1163,8 +1165,11 @@ export const StudentReport: React.FC<StudentReportProps> = ({
                       key={student.studentId}
                       className="hover:bg-slate-50/80 transition-colors print:hover:bg-transparent"
                     >
-                      <td className="py-3 px-3 text-center font-mono font-bold text-indigo-700">
-                        #{student.studentId}
+                      <td className="py-3 px-2 text-center font-mono font-bold text-indigo-700">
+                        {sequenceNo}
+                      </td>
+                      <td className="py-3 px-2 text-center font-mono font-bold text-emerald-700">
+                        {schoolMajorNo}
                       </td>
                       <td className="py-3 px-3">
                         <div className="space-y-0.5">
@@ -1321,16 +1326,43 @@ export const StudentReport: React.FC<StudentReportProps> = ({
           </table>
         </div>
 
-        {/* Printable Official Signatures Footer */}
-        <div className="p-8 border-t border-slate-200 mt-4 print:mt-12 bg-slate-50/40 print:bg-transparent">
-          <div className="grid grid-cols-2 gap-8 text-center text-xs text-slate-600">
-            <div className="space-y-16">
-              <p className="font-semibold text-slate-800">{t.signatureTeacher}</p>
-              <div className="border-b border-dashed border-slate-400 w-48 mx-auto" />
+        {/* Printable Official 3-Language Signatures Footer */}
+        <div className="p-6 sm:p-8 border-t border-slate-200 mt-4 print:mt-10 bg-slate-50/40 print:bg-transparent">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 text-center text-xs text-slate-700">
+            <div>
+              <div className="font-battambang text-[12.5px] text-slate-800">បានឃើញ និងពិនិត្យត្រឹមត្រូវ</div>
+              <div className="font-biaukai text-[12px] text-slate-700 mt-0.5">已審閱並核對無誤</div>
+              <div className="font-times text-[11px] text-slate-600 mt-0.5">Seen and Verified Correct</div>
+
+              <div className="mt-1.5">
+                <div className="font-battambang font-bold text-[13.5px] text-slate-950">ប្រធានការិយាល័យ / រដ្ឋបាល</div>
+                <div className="font-biaukai font-bold text-[12.5px] text-slate-900 mt-0.5">辦公室主任 / 行政主管</div>
+                <div className="font-times font-bold text-[11px] text-slate-800 mt-0.5">Head of Office / Administration</div>
+              </div>
+
+              <div className="h-12" />
+              <div className="border-b border-dashed border-slate-400 w-48 mx-auto mb-1.5" />
+              <div className="text-[11px] text-slate-500 font-battambang">
+                ( ហត្ថលេខា និងត្រា / 簽名及蓋章 / Signature &amp; Stamp )
+              </div>
             </div>
-            <div className="space-y-16">
-              <p className="font-semibold text-slate-800">{t.signaturePrincipal}</p>
-              <div className="border-b border-dashed border-slate-400 w-48 mx-auto" />
+
+            <div>
+              <div className="font-battambang text-[12.5px] text-slate-800">រាជធានីភ្នំពេញ, ថ្ងៃទី....... ខែ....... ឆ្នាំ២០២...</div>
+              <div className="font-biaukai text-[12px] text-slate-700 mt-0.5">金邊市，202...年......月......日</div>
+              <div className="font-times text-[11px] text-slate-600 mt-0.5">Phnom Penh, Date: ....... / ....... / 202...</div>
+
+              <div className="mt-1.5">
+                <div className="font-battambang font-bold text-[13.5px] text-slate-950">អ្នករៀបចំរបាយការណ៍</div>
+                <div className="font-biaukai font-bold text-[12.5px] text-slate-900 mt-0.5">報表編製人</div>
+                <div className="font-times font-bold text-[11px] text-slate-800 mt-0.5">Report Preparer</div>
+              </div>
+
+              <div className="h-12" />
+              <div className="border-b border-dashed border-slate-400 w-48 mx-auto mb-1.5" />
+              <div className="text-[11px] text-slate-500 font-battambang">
+                ( ហត្ថលេខា / 簽名 / Signature )
+              </div>
             </div>
           </div>
         </div>

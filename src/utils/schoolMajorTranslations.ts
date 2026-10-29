@@ -5,6 +5,7 @@
  */
 
 import { dbStorage } from '../services/dbStorage';
+import { canonicalizeSchoolName } from './imageUtils';
 
 export interface SchoolTranslation {
   zh: string;
@@ -215,8 +216,18 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
   // 14. 弘光科技大學
+  "弘光科技大學": {
+    zh: "弘光科技大學",
+    shortZh: "弘光科大",
+    en: "Hungkuang University (Taichung)",
+    km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ហុងក្វាង (ក្រុងតៃចុង)",
+    locationEn: "Taichung City, Taiwan",
+    locationKm: "ក្រុងតៃចុង ប្រទេសតៃវ៉ាន់",
+    levelEn: "University / College (Age ≤25)",
+    levelKm: "កម្រិតសាកលវិទ្យាល័យ / មហាវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
+  },
   "臺中市沙鹿區臺灣大道六段 弘光科技大學": {
-    zh: "臺中市沙鹿區臺灣大道六段 弘光科技大學",
+    zh: "弘光科技大學",
     shortZh: "弘光科大",
     en: "Hungkuang University (Taichung)",
     km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ហុងក្វាង (ក្រុងតៃចុង)",
@@ -226,8 +237,18 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ / មហាវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   // 15. 中國科技大學
+  "中國科技大學": {
+    zh: "中國科技大學",
+    shortZh: "中國科大",
+    en: "China University of Technology (CUTe, Hsinchu)",
+    km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យាចិន CUTe (ខេត្តស៊ីនជូ)",
+    locationEn: "Hsinchu County, Taiwan",
+    locationKm: "ខេត្តស៊ីនជូ ប្រទេសតៃវ៉ាន់",
+    levelEn: "University / College (Age ≤25)",
+    levelKm: "កម្រិតសាកលវិទ្យាល័យ / មហាវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
+  },
   "新竹縣湖口鄉中山路三段 中國科技大學": {
-    zh: "新竹縣湖口鄉中山路三段 中國科技大學",
+    zh: "中國科技大學",
     shortZh: "中國科大",
     en: "China University of Technology (CUTe, Hsinchu)",
     km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យាចិន CUTe (ខេត្តស៊ីនជូ)",
@@ -237,8 +258,18 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ / មហាវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   // 16. 龍華科技大學
+  "龍華科技大學": {
+    zh: "龍華科技大學",
+    shortZh: "龍華科大",
+    en: "Lunghwa University of Science and Technology (Taoyuan)",
+    km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ឡុងហ័រ (ក្រុងតាវយាន)",
+    locationEn: "Taoyuan City, Taiwan",
+    locationKm: "ក្រុងតាវយាន ប្រទេសតៃវ៉ាន់",
+    levelEn: "University / College (Age ≤25)",
+    levelKm: "កម្រិតសាកលវិទ្យាល័យ / មហាវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
+  },
   "桃園市龜山區萬壽路一段 龍華科技大學": {
-    zh: "桃園市龜山區萬壽路一段 龍華科技大學",
+    zh: "龍華科技大學",
     shortZh: "龍華科大",
     en: "Lunghwa University of Science and Technology (Taoyuan)",
     km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ឡុងហ័រ (ក្រុងតាវយាន)",
@@ -248,8 +279,18 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ / មហាវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   // 17. 亞東科技大學
+  "亞東科技大學": {
+    zh: "亞東科技大學",
+    shortZh: "亞東科大",
+    en: "Asia Eastern University of Science and Technology (New Taipei)",
+    km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យា អាស៊ីបូព៌ា យ៉ាតុន (ក្រុងញូវតៃប៉ិ)",
+    locationEn: "New Taipei City, Taiwan",
+    locationKm: "ក្រុងញូវតៃប៉ិ ប្រទេសតៃវ៉ាន់",
+    levelEn: "University / College (Age ≤25)",
+    levelKm: "កម្រិតសាកលវិទ្យាល័យ / មហាវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
+  },
   "新北市板橋區四川路二段58號 亞東科技大學": {
-    zh: "新北市板橋區四川路二段58號 亞東科技大學",
+    zh: "亞東科技大學",
     shortZh: "亞東科大",
     en: "Asia Eastern University of Science and Technology (New Taipei)",
     km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យា អាស៊ីបូព៌ា យ៉ាតុន (ក្រុងញូវតៃប៉ិ)",
@@ -302,9 +343,19 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
-  // 22. 志高級中學 / 立志中學
+  // 22. 立志高級中學
+  "高雄市 立志高級中學": {
+    zh: "高雄市 立志高級中學",
+    shortZh: "立志中學",
+    en: "Li-Chih Senior High School (Kaohsiung)",
+    km: "វិទ្យាល័យ លីជី (ក្រុងកៅសុង)",
+    locationEn: "Kaohsiung City, Taiwan",
+    locationKm: "រាជធានីកៅសុង ប្រទេសតៃវ៉ាន់",
+    levelEn: "Vocational High School (Age 16-22)",
+    levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
+  },
   "高雄市立 志高級中學": {
-    zh: "高雄市立 志高級中學",
+    zh: "高雄市 立志高級中學",
     shortZh: "立志中學",
     en: "Li-Chih Senior High School (Kaohsiung)",
     km: "វិទ្យាល័យ លីជី (ក្រុងកៅសុង)",
@@ -467,9 +518,40 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelEn: "Vocational High School (Age 16-22)",
     levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
   },
+  // 36b. 醒吾高中
+  "新北市私立 醒吾高中": {
+    zh: "新北市私立 醒吾高中",
+    shortZh: "醒吾高中",
+    en: "Hsing Wu Senior High School (New Taipei)",
+    km: "វិទ្យាល័យ ស៊ីងអ៊ូ (ក្រុងញូវតៃប៉ិ)",
+    locationEn: "Linkou Dist., New Taipei City (新北市林口區粉寮路一段75巷80號)",
+    locationKm: "ខណ្ឌលីនខូវ ក្រុងញូវតៃប៉ិ ប្រទេសតៃវ៉ាន់ (新北市林口區粉寮路一段75巷80號)",
+    levelEn: "Vocational High School (Age 16-22)",
+    levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
+  },
+  "新北市私立 醒吾高級中學": {
+    zh: "新北市私立 醒吾高中",
+    shortZh: "醒吾高中",
+    en: "Hsing Wu Senior High School (New Taipei)",
+    km: "វិទ្យាល័យ ស៊ីងអ៊ូ (ក្រុងញូវតៃប៉ិ)",
+    locationEn: "Linkou Dist., New Taipei City (新北市林口區粉寮路一段75巷80號)",
+    locationKm: "ខណ្ឌលីនខូវ ក្រុងញូវតៃប៉ិ ប្រទេសតៃវ៉ាន់ (新北市林口區粉寮路一段75巷80號)",
+    levelEn: "Vocational High School (Age 16-22)",
+    levelKm: "កម្រិតវិទ្យាល័យវិជ្ជាជីវៈ (អាយុ ១៦-២២ឆ្នាំ)",
+  },
   // 37. 中信科技大學
+  "中信金學校財團法人中信科技大學": {
+    zh: "中信金學校財團法人中信科技大學",
+    shortZh: "中信科大",
+    en: "CTBC University of Science and Technology (Tainan)",
+    km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ជុងស៊ីន (CTBC) (ក្រុងតៃណាន)",
+    locationEn: "Tainan City, Taiwan",
+    locationKm: "ក្រុងតៃណាន ប្រទេសតៃវ៉ាន់",
+    levelEn: "University (Age ≤25)",
+    levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
+  },
   "臺南市新市區中華路49號 中信金學校財團法人中信科技大學": {
-    zh: "臺南市新市區中華路49號 中信金學校財團法人中信科技大學",
+    zh: "中信金學校財團法人中信科技大學",
     shortZh: "中信科大",
     en: "CTBC University of Science and Technology (Tainan)",
     km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ជុងស៊ីន (CTBC) (ក្រុងតៃណាន)",
@@ -479,7 +561,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   "中信科技大學": {
-    zh: "中信科技大學",
+    zh: "中信金學校財團法人中信科技大學",
     shortZh: "中信科大",
     en: "CTBC University of Science and Technology (Tainan)",
     km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ជុងស៊ីន (CTBC) (ក្រុងតៃណាន)",
@@ -489,8 +571,18 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   // 38. 中華科技大學
+  "中華學校財團法人中華科技大學": {
+    zh: "中華學校財團法人中華科技大學",
+    shortZh: "中華科大",
+    en: "China University of Science and Technology (Taipei)",
+    km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ជុងហ័រ (ក្រុងតៃប៉ិ)",
+    locationEn: "Taipei City, Taiwan",
+    locationKm: "រាជធានីតៃប៉ិ ប្រទេសតៃវ៉ាន់",
+    levelEn: "University (Age ≤25)",
+    levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
+  },
   "臺北市南港區研究院路三段 245號 中華學校財團法人中華科技大學": {
-    zh: "臺北市南港區研究院路三段 245號 中華學校財團法人中華科技大學",
+    zh: "中華學校財團法人中華科技大學",
     shortZh: "中華科大",
     en: "China University of Science and Technology (Taipei)",
     km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ជុងហ័រ (ក្រុងតៃប៉ិ)",
@@ -500,7 +592,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   "中華科技大學": {
-    zh: "中華科技大學",
+    zh: "中華學校財團法人中華科技大學",
     shortZh: "中華科大",
     en: "China University of Science and Technology (Taipei)",
     km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ជុងហ័រ (ក្រុងតៃប៉ិ)",
@@ -511,7 +603,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
   },
   // 39. 中臺科技大學
   "臺中市北屯區廍子路666號 中臺科技大學": {
-    zh: "臺中市北屯區廍子路666號 中臺科技大學",
+    zh: "中臺科技大學",
     shortZh: "中臺科大",
     en: "Central Taiwan University of Science and Technology (Taichung)",
     km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា ចុងតៃ (ក្រុងតៃចុង)",
@@ -532,7 +624,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
   },
   // 40. 元培醫事科技大學
   "新竹市元培街306號 元培醫事科技大學": {
-    zh: "新竹市元培街306號 元培醫事科技大學",
+    zh: "元培醫事科技大學",
     shortZh: "元培醫事科大",
     en: "Yuanpei University of Medical Technology (Hsinchu)",
     km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យាវេជ្ជសាស្ត្រ យានភើយ (ក្រុងស៊ីនជូ)",
@@ -553,7 +645,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
   },
   // 41. 台南應用科技大學
   "臺南市永康區中正路529號 台南應用科技大學": {
-    zh: "臺南市永康區中正路529號 台南應用科技大學",
+    zh: "台南應用科技大學",
     shortZh: "台南應科大",
     en: "Tainan University of Technology (Tainan)",
     km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យាអនុវត្តតៃណាន (ក្រុងតៃណាន)",
@@ -573,8 +665,18 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   // 42. 台鋼科技大學
+  "台鋼學校財團法人台鋼科技大學": {
+    zh: "台鋼學校財團法人台鋼科技大學",
+    shortZh: "台鋼科大",
+    en: "Taiwan Steel University of Science and Technology (Kaohsiung)",
+    km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា តៃកាង (ក្រុងកៅសុង)",
+    locationEn: "Kaohsiung City, Taiwan",
+    locationKm: "ក្រុងកៅសុង ប្រទេសតៃវ៉ាន់",
+    levelEn: "University (Age ≤25)",
+    levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
+  },
   "高雄市路竹區中山路1821號 台鋼學校財團法人台鋼科技大學": {
-    zh: "高雄市路竹區中山路1821號 台鋼學校財團法人台鋼科技大學",
+    zh: "台鋼學校財團法人台鋼科技大學",
     shortZh: "台鋼科大",
     en: "Taiwan Steel University of Science and Technology (Kaohsiung)",
     km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា តៃកាង (ក្រុងកៅសុង)",
@@ -584,7 +686,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   "台鋼科技大學": {
-    zh: "台鋼科技大學",
+    zh: "台鋼學校財團法人台鋼科技大學",
     shortZh: "台鋼科大",
     en: "Taiwan Steel University of Science and Technology (Kaohsiung)",
     km: "សាកលវិទ្យាល័យវិទ្យាសាស្ត្រ និងបច្ចេកវិទ្យា តៃកាង (ក្រុងកៅសុង)",
@@ -846,8 +948,18 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   // 58. 萬能科技大學
+  "萬能學校財團法人萬能科技大學": {
+    zh: "萬能學校財團法人萬能科技大學",
+    shortZh: "萬能科大",
+    en: "Vanung University (Taoyuan)",
+    km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យា វ៉ាន់ណឹង (ក្រុងតាវយាន)",
+    locationEn: "Taoyuan City, Taiwan",
+    locationKm: "ក្រុងតាវយាន ប្រទេសតៃវ៉ាន់",
+    levelEn: "University (Age ≤25)",
+    levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
+  },
   "桃園市中壢區萬能路1號 萬能學校財團法人萬能科技大學": {
-    zh: "桃園市中壢區萬能路1號 萬能學校財團法人萬能科技大學",
+    zh: "萬能學校財團法人萬能科技大學",
     shortZh: "萬能科大",
     en: "Vanung University (Taoyuan)",
     km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យា វ៉ាន់ណឹង (ក្រុងតាវយាន)",
@@ -857,7 +969,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   "萬能科技大學": {
-    zh: "萬能科技大學",
+    zh: "萬能學校財團法人萬能科技大學",
     shortZh: "萬能科大",
     en: "Vanung University (Taoyuan)",
     km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យា វ៉ាន់ណឹង (ក្រុងតាវយាន)",
@@ -868,7 +980,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
   },
   // 59. 僑光科技大學
   "臺中市西屯區僑光路 100 號 僑光科技大學": {
-    zh: "臺中市西屯區僑光路 100 號 僑光科技大學",
+    zh: "僑光科技大學",
     shortZh: "僑光科大",
     en: "Overseas Chinese University (Taichung)",
     km: "សាកលវិទ្យាល័យបច្ចេកវិទ្យា ឆាវគ័ង (ក្រុងតៃចុង)",
@@ -888,8 +1000,18 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតសាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   // 60. 德育護理健康學院
+  "德育學校財團法人德育護理健康學院": {
+    zh: "德育學校財團法人德育護理健康學院",
+    shortZh: "德育健康學院",
+    en: "Deyu Health and Nursing College (Keelung)",
+    km: "វិទ្យាស្ថានសុខភាព និងថែទាំ ទេយូ (ក្រុងជីឡុង)",
+    locationEn: "Keelung City, Taiwan",
+    locationKm: "ក្រុងជីឡុង ប្រទេសតៃវ៉ាន់",
+    levelEn: "College / University (Age ≤25)",
+    levelKm: "កម្រិតមហាវិទ្យាល័យ/សាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
+  },
   "基隆市中山區復興路 336 號 德育學校財團法人德育護理健康學院": {
-    zh: "基隆市中山區復興路 336 號 德育學校財團法人德育護理健康學院",
+    zh: "德育學校財團法人德育護理健康學院",
     shortZh: "德育健康學院",
     en: "Deyu Health and Nursing College (Keelung)",
     km: "វិទ្យាស្ថានសុខភាព និងថែទាំ ទេយូ (ក្រុងជីឡុង)",
@@ -899,7 +1021,7 @@ export const SCHOOL_TRANSLATIONS: Record<string, SchoolTranslation> = {
     levelKm: "កម្រិតមហាវិទ្យាល័យ/សាកលវិទ្យាល័យ (អាយុ ≤២៥ឆ្នាំ)",
   },
   "德育護理健康學院": {
-    zh: "德育護理健康學院",
+    zh: "德育學校財團法人德育護理健康學院",
     shortZh: "德育健康學院",
     en: "Deyu Health and Nursing College (Keelung)",
     km: "វិទ្យាស្ថានសុខភាព និងថែទាំ ទេយូ (ក្រុងជីឡុង)",
@@ -1355,6 +1477,13 @@ export const MAJOR_TRANSLATIONS: Record<string, MajorTranslation> = {
   // New Majors requested
   "照顧服務科": {
     zh: "照顧服務科",
+    en: "Care Services Division",
+    km: "ផ្នែកសេវាថែទាំសុខភាព និងមនុស្សចាស់",
+    categoryEn: "Healthcare Services",
+    categoryKm: "សេវាថែទាំសុខភាព",
+  },
+  "照護服務科": {
+    zh: "照護服務科",
     en: "Care Services Division",
     km: "ផ្នែកសេវាថែទាំសុខភាព និងមនុស្សចាស់",
     categoryEn: "Healthcare Services",
@@ -2478,41 +2607,49 @@ export function getSchoolTranslation(name?: string): SchoolTranslation | null {
     str.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
   const trimmed = name.trim();
   const normalized = cleanSpacing(trimmed);
+  const canonical = canonicalizeSchoolName(normalized);
 
   const findStaticBase = (): SchoolTranslation | null => {
+    if (SCHOOL_TRANSLATIONS[canonical]) {
+      return SCHOOL_TRANSLATIONS[canonical];
+    }
     if (SCHOOL_TRANSLATIONS[trimmed]) {
       return SCHOOL_TRANSLATIONS[trimmed];
     }
     for (const [key, val] of Object.entries(SCHOOL_TRANSLATIONS)) {
-      if (cleanSpacing(key) === normalized) {
+      const cleanKey = cleanSpacing(key);
+      if (cleanKey === canonical || cleanKey === normalized) {
         return val;
       }
     }
-    if (normalized.includes('中信')) {
-      return SCHOOL_TRANSLATIONS['中信科技大學'] || SCHOOL_TRANSLATIONS['臺南市新市區中華路49號 中信金學校財團法人中信科技大學'] || null;
+    if (canonical.includes('中信')) {
+      return SCHOOL_TRANSLATIONS['中信金學校財團法人中信科技大學'] || SCHOOL_TRANSLATIONS['中信科技大學'] || null;
     }
-    if (normalized.includes('中華科')) {
-      return SCHOOL_TRANSLATIONS['中華科技大學'] || SCHOOL_TRANSLATIONS['臺北市南港區研究院路三段 245號 中華學校財團法人中華科技大學'] || null;
+    if (canonical.includes('中華科')) {
+      return SCHOOL_TRANSLATIONS['中華學校財團法人中華科技大學'] || SCHOOL_TRANSLATIONS['中華科技大學'] || null;
     }
-    if (normalized.includes('中臺') || normalized.includes('中台')) {
-      return SCHOOL_TRANSLATIONS['中臺科技大學'] || SCHOOL_TRANSLATIONS['臺中市北屯區廍子路666號 中臺科技大學'] || null;
+    if (canonical.includes('中臺') || canonical.includes('中台')) {
+      return SCHOOL_TRANSLATIONS['中臺科技大學'] || null;
     }
-    if (normalized.includes('立志') || normalized.includes('志高級')) {
-      return SCHOOL_TRANSLATIONS['高雄市立 志高級中學'] || SCHOOL_TRANSLATIONS['高雄市立 立志高級中學'] || null;
+    if (canonical.includes('立志') || canonical.includes('志高級')) {
+      return SCHOOL_TRANSLATIONS['高雄市 立志高級中學'] || null;
+    }
+    if (canonical.includes('醒吾')) {
+      return SCHOOL_TRANSLATIONS['新北市私立 醒吾高中'] || null;
     }
     for (const [key, val] of Object.entries(SCHOOL_TRANSLATIONS)) {
       const cleanKey = cleanSpacing(key);
-      if (normalized.includes(cleanKey) || cleanKey.includes(normalized)) {
+      if (canonical.includes(cleanKey) || cleanKey.includes(canonical)) {
         return val;
       }
-      if (val.shortZh && normalized.includes(val.shortZh)) {
+      if (val.shortZh && canonical.includes(val.shortZh)) {
         return val;
       }
-      if (val.en.toLowerCase().includes(normalized.toLowerCase()) || normalized.toLowerCase().includes(val.en.toLowerCase())) {
+      if (val.en.toLowerCase().includes(canonical.toLowerCase()) || canonical.toLowerCase().includes(val.en.toLowerCase())) {
         return val;
       }
     }
-    const coreKey = normalized
+    const coreKey = canonical
       .replace(/(高雄市|臺北市|臺南市|桃園市|嘉義市|新竹縣|新竹市|臺中市|新北市|嘉義縣|雲林縣|台湾|宜蘭縣|私立|市立|區|鄉|路|段|號|臺灣大道六段|沙鹿區|湖口鄉|中山路三段|龜山區|萬壽路一段|板橋區|四川路二段58號|大寮區|泰山區|三星鄉|三星路二段|新市區|中華路49號|南港區|研究院路三段|245號|北屯區|廍子路666號|中信金學校財團法人|中華學校財團法人)/g, '')
       .trim();
 
@@ -2525,21 +2662,24 @@ export function getSchoolTranslation(name?: string): SchoolTranslation | null {
   };
 
   const base = findStaticBase();
-  const cachedLogo = dbStorage.getCachedSchoolLogo(normalized);
-  const logoDeleted = dbStorage.isSchoolLogoDeleted(normalized);
+  const cachedLogo = dbStorage.getCachedSchoolLogo(canonical);
+  const logoDeleted = dbStorage.isSchoolLogoDeleted(canonical);
 
   // Merge custom translation overrides if present
   try {
     const customRaw = localStorage.getItem('sms_custom_translations_v2');
     if (customRaw) {
       const customStore = JSON.parse(customRaw);
-      const c = customStore?.schools?.[normalized] || customStore?.schools?.[trimmed];
+      const c =
+        customStore?.schools?.[canonical] ||
+        customStore?.schools?.[normalized] ||
+        customStore?.schools?.[trimmed];
       if (c) {
         return {
-          zh: base?.zh || trimmed,
-          shortZh: c.shortZh || base?.shortZh || trimmed,
-          en: c.en || base?.en || trimmed,
-          km: c.km || base?.km || trimmed,
+          zh: base?.zh || canonical,
+          shortZh: c.shortZh || base?.shortZh || canonical,
+          en: c.en || base?.en || canonical,
+          km: c.km || base?.km || canonical,
           locationEn: c.locationEn || base?.locationEn || "Taiwan",
           locationKm: c.locationKm || base?.locationKm || "ប្រទេសតៃវ៉ាន់",
           levelEn: c.levelEn || base?.levelEn || "Institution",

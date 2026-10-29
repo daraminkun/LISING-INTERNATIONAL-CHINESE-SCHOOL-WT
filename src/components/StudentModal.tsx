@@ -54,6 +54,7 @@ import { AdminPinModal } from './AdminPinModal';
 import { downloadAllDocumentsForStudent, generateStandardDocFilename } from '../utils/documentDownloadUtils';
 import { useInstitution } from '../services/institutionService';
 import { stripCloudEnvelopeFromNotes } from '../utils/cloudDocSyncUtils';
+import { canonicalizeSchoolName } from '../utils/imageUtils';
 
 interface StudentModalProps {
   isOpen: boolean;
@@ -365,7 +366,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
 
         setPreviousSchoolKhmer(studentToEdit.previousSchoolKhmer || '');
         setPreviousSchoolAddressKhmer(studentToEdit.previousSchoolAddressKhmer || '');
-        setTargetSchool(studentToEdit.targetSchool || '');
+        setTargetSchool(studentToEdit.targetSchool ? canonicalizeSchoolName(studentToEdit.targetSchool) : '');
         setMajor(studentToEdit.major || '');
         setNotes(stripCloudEnvelopeFromNotes(studentToEdit.notes));
         setDocuments(getEffectiveStudentDocuments(studentToEdit) || {});
@@ -399,7 +400,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
 
         setPreviousSchoolKhmer('');
         setPreviousSchoolAddressKhmer('');
-        setTargetSchool(typeof initialSchool === 'string' ? initialSchool : '');
+        setTargetSchool(typeof initialSchool === 'string' && initialSchool ? canonicalizeSchoolName(initialSchool) : '');
         setMajor('');
         setNotes('');
         setDocuments({});

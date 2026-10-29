@@ -41,6 +41,13 @@ import {
   isMockStudentDocuments,
 } from './utils/cloudDocSyncUtils';
 import { countUploadedCategories } from './utils/documentUtils';
+import { canonicalizeSchoolName } from './utils/imageUtils';
+import {
+  sortAndSequenceStudents,
+  getStudentSchoolMajorNoMap,
+  safeGetLocalStorage,
+  safeSetLocalStorage,
+} from './utils/studentOrderUtils';
 
 const STORAGE_KEY_STUDENTS = 'sms_students_data_v1';
 const STORAGE_KEY_CONFIG = 'sms_appscript_config_v1';
@@ -75,30 +82,20 @@ function isSameStudentIdentity(a: Student, b: Student): boolean {
 }
 
 /**
- * Re-sequences student order numbers (លេខរៀង Auto: 1, 2, 3...)
- * When a student at any index is deleted or loaded with gaps (e.g. starts from 2, or missing 4),
- * the numbers shift and reorder sequentially (1, 2, 3, 4, 5...).
- * e.g., If we have 2, 3, 4, 5 -> becomes 1, 2, 3, 4.
- * e.g., If we have 1, 2, 3, 5 -> becomes 1, 2, 3, 4.
+ * Automatically sorts students by:
+ * 1. Partner School catalog order (តាមលំដាប់ឈ្មោះសាលារៀននីមួយៗ)
+ * 2. Major catalog order within each school (តាមលំដាប់ជំនាញនីមួយៗ)
+ * 3. Registration sequence (តាម No និង លេខរៀង)
+ * And re-numbers លេខរៀង (studentId = 1, 2, 3...) with zero gaps.
  */
 export const resequenceStudentsList = (list: Student[]): Student[] => {
-  const sorted = [...list].sort((a, b) => {
-    const numA = parseInt((a.studentId || '').replace(/\D/g, '') || '0', 10);
-    const numB = parseInt((b.studentId || '').replace(/\D/g, '') || '0', 10);
-    if (numA !== numB) return numA - numB;
-    return (a.createdAt || '').localeCompare(b.createdAt || '');
-  });
-
-  return sorted.map((student, index) => ({
-    ...student,
-    studentId: String(index + 1),
-  }));
+  return sortAndSequenceStudents(list);
 };
 
 export default function App() {
   // Language state (defaults to Khmer 'km')
   const [language, setLanguage] = useState<Language>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_LANG);
+    const saved = safeGetLocalStorage(STORAGE_KEY_LANG);
     return (saved === 'en' || saved === 'km' || saved === 'zh-TW') ? saved : 'km';
   });
 
@@ -114,9 +111,9 @@ export default function App() {
     return u?.role === 'Admin' ? 'dashboard' : 'student_portal';
   });
 
-  // Students list state (strictly re-sequenced 1, 2, 3... with zero gaps)
+  // Students list state (strictly sorted by School -> Major -> No and re-sequenced 1, 2, 3...)
   const [students, setStudents] = useState<Student[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_STUDENTS);
+    const saved = safeGetLocalStorage(STORAGE_KEY_STUDENTS);
     let list: Student[] = INITIAL_STUDENTS;
     if (saved) {
       try {
@@ -131,6 +128,7 @@ export default function App() {
       const dbDocs = isMock ? undefined : dbStorage.getCachedDocumentsForStudent(s);
       return {
         ...s,
+        targetSchool: s.targetSchool ? canonicalizeSchoolName(s.targetSchool) : s.targetSchool,
         notes: stripCloudEnvelopeFromNotes(s.notes),
         dob: formatDobOnly(s.dob),
         fatherDob: formatDobOnly(s.fatherDob),
@@ -147,7 +145,7 @@ export default function App() {
 
   // Google Apps Script Configuration (auto-connects with built-in default URL)
   const [appScriptConfig, setAppScriptConfig] = useState<AppScriptConfig>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
+    const saved = safeGetLocalStorage(STORAGE_KEY_CONFIG);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -206,9 +204,13 @@ export default function App() {
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  // Coupled per-(School, Major) No lookup map
+  const schoolMajorNoMap = useMemo(() => getStudentSchoolMajorNoMap(students), [students]);
 
   // Listen to Auth Changes
   useEffect(() => {
@@ -233,8 +235,27 @@ export default function App() {
     setConnectionStatus('syncing');
     try {
       const result = await AppsScriptService.fetchAllData(appScriptConfig.webAppUrl);
+
+      // Update Schools & Majors catalog first so student sorting uses the latest school/major order
+      if (result.schools && result.schools.length > 0) {
+        schoolMajorService.setSchoolsFromRemote(
+          result.schools, 
+          result.customTranslations,
+          result.deletedSchools,
+          result.deletedMajors
+        );
+      } else if (result.schools === null && authService.isAdmin() && appScriptConfig.webAppUrl) {
+        AppsScriptService.syncSchools(
+          appScriptConfig.webAppUrl,
+          schoolMajorService.getSchools(),
+          schoolMajorService.getCustomTranslations(),
+          schoolMajorService.getDeletedSchools(),
+          schoolMajorService.getDeletedMajors()
+        ).catch(e => console.warn('Initial school sync warning:', e));
+      }
+
       if (Array.isArray(result.students)) {
-        // Automatically re-sequence so there are never any gaps or starting from 2
+        // Automatically sort by (School -> Major -> Registration) and re-sequence 1..N with zero gaps
         const resequenced = resequenceStudentsList(result.students);
         const studentsNeedingCloudBackfill: Student[] = [];
 
@@ -247,6 +268,7 @@ export default function App() {
 
           const nextStudent: Student = {
             ...s,
+            targetSchool: s.targetSchool ? canonicalizeSchoolName(s.targetSchool) : s.targetSchool,
             notes: stripCloudEnvelopeFromNotes(s.notes),
             documents: mergedDocs,
           };
@@ -274,9 +296,17 @@ export default function App() {
           });
         });
 
-        // If Google Sheets had gaps OR local browser had unsynced documents, push back to Google Sheets
-        const hasGap = result.students.some((s, idx) => String(s.studentId).trim() !== String(idx + 1));
-        if (hasGap) {
+        // Keep Google Sheets synchronized if row order, canonical school names, or IDs changed
+        const needsSheetOrderSync = result.students.some((orig, idx) => {
+          const target = preHydrated[idx];
+          if (!target) return true;
+          return (
+            String(orig.studentId).trim() !== String(idx + 1) ||
+            !isSameStudentIdentity(orig, target)
+          );
+        });
+
+        if (needsSheetOrderSync && preHydrated.length > 0) {
           AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, preHydrated).catch(e => {
             console.warn('Auto re-sequence sheets sync notice:', e);
           });
@@ -289,23 +319,6 @@ export default function App() {
             console.warn('Auto document cloud backfill notice:', e);
           });
         }
-      }
-      if (result.schools && result.schools.length > 0) {
-        schoolMajorService.setSchoolsFromRemote(
-          result.schools, 
-          result.customTranslations,
-          result.deletedSchools,
-          result.deletedMajors
-        );
-      } else if (result.schools === null && authService.isAdmin() && appScriptConfig.webAppUrl) {
-        // Seed schools once so SchoolsMajors tab is created in Google Sheets
-        AppsScriptService.syncSchools(
-          appScriptConfig.webAppUrl,
-          schoolMajorService.getSchools(),
-          schoolMajorService.getCustomTranslations(),
-          schoolMajorService.getDeletedSchools(),
-          schoolMajorService.getDeletedMajors()
-        ).catch(e => console.warn('Initial school sync warning:', e));
       }
 
       // Sync Users (Accounts, Passwords, Roles) across all devices and browsers
@@ -322,7 +335,7 @@ export default function App() {
       lastSyncTimeRef.current = Date.now();
       if (!silent) {
         const studentCount = result.students?.length || 0;
-        const schoolCount = result.schools?.length || 0;
+        const schoolCount = schoolMajorService.getSchools().length;
         showNotification(
           'success',
           language === 'km'
@@ -429,7 +442,7 @@ export default function App() {
           webAppUrl: decodedUrl,
           autoSync: true,
         }));
-        localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify({
+        safeSetLocalStorage(STORAGE_KEY_CONFIG, JSON.stringify({
           webAppUrl: decodedUrl,
           sheetName: 'Students',
           autoSync: true,
@@ -508,58 +521,64 @@ export default function App() {
       }
     });
 
-    // 2. Safe save to localStorage without hitting 5MB quota
-    try {
-      const cleanForLs = students.map(s => ({
-        ...s,
-        notes: stripCloudEnvelopeFromNotes(s.notes),
-      }));
-      localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(cleanForLs));
-    } catch (quotaErr) {
-      console.warn('LocalStorage quota limit reached, saving lightweight student manifest with full IndexedDB storage backup:', quotaErr);
-      try {
-        const lightweight = students.map(s => {
-          const base = { ...s, notes: stripCloudEnvelopeFromNotes(s.notes) };
-          if (!base.documents) return base;
-          const lightDocs: any = {};
-          Object.entries(base.documents).forEach(([cat, docPages]) => {
-            if (Array.isArray(docPages)) {
-              lightDocs[cat] = docPages.map(p => ({
-                name: p.name,
-                size: p.size,
-                type: p.type,
-                uploadedAt: p.uploadedAt,
-                pageNumber: p.pageNumber,
-                dataUrl: 'STORED_IN_INDEXEDDB',
-              }));
-            } else if (docPages && typeof docPages === 'object') {
-              lightDocs[cat] = {
-                name: (docPages as any).name,
-                size: (docPages as any).size,
-                type: (docPages as any).type,
-                uploadedAt: (docPages as any).uploadedAt,
-                pageNumber: (docPages as any).pageNumber,
-                dataUrl: 'STORED_IN_INDEXEDDB',
-              };
-            }
-          });
-          return { ...base, documents: lightDocs };
+    // 2. Safe save to localStorage without hitting 5MB quota or crashing in Private Browsing
+    const cleanForLs = students.map(s => ({
+      ...s,
+      notes: stripCloudEnvelopeFromNotes(s.notes),
+    }));
+    const wroteFull = safeSetLocalStorage(STORAGE_KEY_STUDENTS, JSON.stringify(cleanForLs));
+    if (!wroteFull) {
+      const lightweight = students.map(s => {
+        const base = { ...s, notes: stripCloudEnvelopeFromNotes(s.notes) };
+        if (!base.documents) return base;
+        const lightDocs: any = {};
+        Object.entries(base.documents).forEach(([cat, docPages]) => {
+          if (Array.isArray(docPages)) {
+            lightDocs[cat] = docPages.map(p => ({
+              name: p.name,
+              size: p.size,
+              type: p.type,
+              uploadedAt: p.uploadedAt,
+              pageNumber: p.pageNumber,
+              dataUrl: 'STORED_IN_INDEXEDDB',
+            }));
+          } else if (docPages && typeof docPages === 'object') {
+            lightDocs[cat] = {
+              name: (docPages as any).name,
+              size: (docPages as any).size,
+              type: (docPages as any).type,
+              uploadedAt: (docPages as any).uploadedAt,
+              pageNumber: (docPages as any).pageNumber,
+              dataUrl: 'STORED_IN_INDEXEDDB',
+            };
+          }
         });
-        localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(lightweight));
-      } catch (e2) {
-        console.error('Critical localStorage write notice:', e2);
-      }
+        return { ...base, documents: lightDocs };
+      });
+      safeSetLocalStorage(STORAGE_KEY_STUDENTS, JSON.stringify(lightweight));
     }
   }, [students]);
 
-  // Persist config to localStorage
+  // Re-sort students automatically whenever the School & Major catalog order changes
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(appScriptConfig));
+    const unsub = schoolMajorService.subscribe(() => {
+      setStudents(prev => {
+        const next = resequenceStudentsList(prev);
+        const changed = next.some((s, i) => s.studentId !== prev[i]?.studentId || !isSameStudentIdentity(s, prev[i]));
+        return changed ? next : prev;
+      });
+    });
+    return unsub;
+  }, []);
+
+  // Persist config to localStorage safely
+  useEffect(() => {
+    safeSetLocalStorage(STORAGE_KEY_CONFIG, JSON.stringify(appScriptConfig));
   }, [appScriptConfig]);
 
   // Persist language and update document attributes
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_LANG, language);
+    safeSetLocalStorage(STORAGE_KEY_LANG, language);
     document.documentElement.lang = language;
     document.documentElement.setAttribute('data-lang', language);
   }, [language]);
@@ -610,6 +629,7 @@ export default function App() {
       showNotification('error', 'សិទ្ធិសិស្ស មិនអាចលុបទិន្នន័យបានទេ (Only Admin can delete student records)');
       return;
     }
+    setBulkDeleteIds([]);
     setStudentToDelete(student);
     setIsDeleteModalOpen(true);
   };
@@ -622,15 +642,21 @@ export default function App() {
     setCurrentTab('students');
   };
 
-  // Save (Create or Update) Student
+  // Save (Create or Update) Student — automatically sorts by (School -> Major -> No) and re-numbers លេខរៀង
   const handleSaveStudent = async (studentData: Student, isEdit: boolean) => {
-    // Ensure school and major are registered in catalog
-    if (studentData.targetSchool?.trim()) {
-      schoolMajorService.ensureSchoolAndMajor(studentData.targetSchool, studentData.major);
+    const canonSchool = studentData.targetSchool?.trim()
+      ? canonicalizeSchoolName(studentData.targetSchool.trim())
+      : studentData.targetSchool;
+
+    if (canonSchool?.trim()) {
+      schoolMajorService.ensureSchoolAndMajor(canonSchool, studentData.major);
     }
 
     const cleanStudentData: Student = {
       ...studentData,
+      targetSchool: canonSchool,
+      major: studentData.major?.trim() || '',
+      createdAt: studentData.createdAt || new Date().toISOString(),
       notes: stripCloudEnvelopeFromNotes(studentData.notes),
     };
 
@@ -640,17 +666,39 @@ export default function App() {
     }
 
     if (isEdit) {
-      setStudents(prev =>
-        prev.map(s => (s.studentId === cleanStudentData.studentId ? cleanStudentData : s))
-      );
+      const baseReal = students.map(s => {
+        if (
+          (studentToEdit && isSameStudentIdentity(s, studentToEdit)) ||
+          (studentToEdit && s.studentId === studentToEdit.studentId) ||
+          s.studentId === cleanStudentData.studentId
+        ) {
+          return cleanStudentData;
+        }
+        return s;
+      });
+      const reordered = resequenceStudentsList(baseReal);
+      setStudents(reordered);
 
-      if (selectedStudentForDetail?.studentId === cleanStudentData.studentId) {
-        setSelectedStudentForDetail(cleanStudentData);
+      const updatedSelf =
+        reordered.find(s => isSameStudentIdentity(s, cleanStudentData)) || cleanStudentData;
+
+      if (
+        selectedStudentForDetail &&
+        (isSameStudentIdentity(selectedStudentForDetail, cleanStudentData) ||
+          selectedStudentForDetail.studentId === cleanStudentData.studentId)
+      ) {
+        setSelectedStudentForDetail(updatedSelf);
       }
 
       if (appScriptConfig.webAppUrl) {
         try {
-          await AppsScriptService.updateStudent(appScriptConfig.webAppUrl, cleanStudentData);
+          const orderShifted = reordered.some((s, idx) => students[idx]?.studentId !== s.studentId || !isSameStudentIdentity(students[idx], s));
+          if (orderShifted) {
+            await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, reordered);
+            await AppsScriptService.saveStudentFullDocs(appScriptConfig.webAppUrl, updatedSelf);
+          } else {
+            await AppsScriptService.updateStudent(appScriptConfig.webAppUrl, updatedSelf);
+          }
           lastSyncTimeRef.current = Date.now();
         } catch (err: any) {
           console.warn('Apps Script update sync warning:', err);
@@ -667,7 +715,7 @@ export default function App() {
     } else {
       let savedStudent = cleanStudentData;
 
-      // Sync to Google Sheets first while submit spinner is active so mobile WebViews never abort upload
+      // 1. Append safely to Google Sheets first while submit spinner is active (prevents concurrent loss on mobile)
       if (appScriptConfig.webAppUrl) {
         try {
           savedStudent = await AppsScriptService.createStudent(appScriptConfig.webAppUrl, cleanStudentData);
@@ -678,11 +726,21 @@ export default function App() {
         }
       }
 
-      setStudents(prev => {
-        const realPrev = prev.filter(p => !isBuiltInMockStudent(p));
-        const nextList = [...realPrev, savedStudent];
-        return resequenceStudentsList(nextList);
-      });
+      // 2. Place student into exact (School -> Major -> No) order and re-sequence លេខរៀង 1..N
+      const realPrev = students.filter(p => !isBuiltInMockStudent(p) && !isSameStudentIdentity(p, savedStudent));
+      const reordered = resequenceStudentsList([...realPrev, savedStudent]);
+      setStudents(reordered);
+
+      // 3. Synchronize re-sequenced order (1..N) to Google Sheets in background
+      if (appScriptConfig.webAppUrl) {
+        AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, reordered)
+          .then(() => {
+            lastSyncTimeRef.current = Date.now();
+          })
+          .catch(e => {
+            console.warn('Post-registration order sync notice:', e);
+          });
+      }
 
       const addSuccessText = language === 'km'
         ? 'ជោគជ័យ'
@@ -693,32 +751,64 @@ export default function App() {
     }
   };
 
-  // Confirm Delete Student with Auto-resequence (លេខរៀង Auto)
+  // Confirm Delete (Single or Bulk) with Auto-resequence of both លេខរៀង and No
   const handleConfirmDelete = async () => {
-    if (!studentToDelete) return;
+    if (!studentToDelete && bulkDeleteIds.length === 0) return;
     setIsDeleting(true);
 
-    const targetStudent = studentToDelete;
-    const targetId = targetStudent.studentId;
-
     try {
-      const remaining = students.filter(s => s.studentId !== targetId);
+      if (bulkDeleteIds.length > 0) {
+        const count = bulkDeleteIds.length;
+        const deletedStudents = students.filter(s => bulkDeleteIds.includes(s.studentId));
+        await Promise.all(deletedStudents.map(st => dbStorage.deleteStudentDocumentsForStudent(st)));
+
+        const remaining = students.filter(s => !bulkDeleteIds.includes(s.studentId));
+        const finalResequenced = resequenceStudentsList(remaining);
+        setStudents(finalResequenced);
+
+        if (selectedStudentForDetail && bulkDeleteIds.includes(selectedStudentForDetail.studentId)) {
+          setIsDetailModalOpen(false);
+          setSelectedStudentForDetail(null);
+        }
+
+        setIsDeleteModalOpen(false);
+        setBulkDeleteIds([]);
+
+        const bulkDelText = language === 'km'
+          ? `ជោគជ័យ (បានលុបសិស្ស ${count} នាក់ និងរៀបលេខរៀងឡើងវិញ)`
+          : language === 'zh-TW'
+          ? `刪除成功 (${count} 位學生)`
+          : `Successfully deleted ${count} students.`;
+        showNotification('success', bulkDelText);
+
+        if (appScriptConfig.webAppUrl) {
+          try {
+            await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, finalResequenced);
+            lastSyncTimeRef.current = Date.now();
+          } catch (err: any) {
+            console.warn('Failed bulk sync delete:', err);
+          }
+        }
+        return;
+      }
+
+      const targetStudent = studentToDelete!;
+      const targetId = targetStudent.studentId;
+
+      const remaining = students.filter(s => s.studentId !== targetId && !isSameStudentIdentity(s, targetStudent));
       const finalResequenced = resequenceStudentsList(remaining);
 
-      // Delete documents from IndexedDB
       await dbStorage.deleteStudentDocumentsForStudent(targetStudent);
-
-      // Immediately update local state
       setStudents(finalResequenced);
 
       setIsDeleteModalOpen(false);
       setStudentToDelete(null);
 
       const delSuccessText = language === 'km'
-        ? 'ជោគជ័យ (បានលុបសិស្សដោយជោគជ័យ)'
+        ? 'ជោគជ័យ (បានលុបសិស្ស និងរៀបលេខរៀងឡើងវិញដោយស្វ័យប្រវត្តិ)'
         : language === 'zh-TW'
-        ? '刪除成功'
-        : 'Deleted successfully';
+        ? '刪除成功並已自動重新排序'
+        : 'Deleted and re-sequenced successfully';
       showNotification('success', delSuccessText);
 
       if (selectedStudentForDetail?.studentId === targetId) {
@@ -733,6 +823,7 @@ export default function App() {
           } else {
             await AppsScriptService.deleteStudent(appScriptConfig.webAppUrl, targetId, targetStudent);
           }
+          lastSyncTimeRef.current = Date.now();
         } catch (err: any) {
           console.warn('Apps Script sync warning after delete:', err);
           try {
@@ -749,42 +840,12 @@ export default function App() {
     }
   };
 
-  // Bulk Delete with Auto-resequence (លេខរៀង Auto)
-  // FIXED: Synchronously compute remaining and resequence to prevent wiping
-  const handleBulkDelete = async (studentIds: string[]) => {
-    const count = studentIds.length;
-    if (count === 0) return;
-
-    const confirmed = window.confirm(
-      language === 'km'
-        ? `តើអ្នកពិតជាចង់លុបសិស្សទាំង ${count} នាក់នេះមែនទេ?`
-        : language === 'zh-TW'
-        ? `您確定要刪除這 ${count} 位學生嗎？`
-        : `Are you sure you want to delete these ${count} students?`
-    );
-    if (!confirmed) return;
-
-    const deletedStudents = students.filter(s => studentIds.includes(s.studentId));
-    await Promise.all(deletedStudents.map(st => dbStorage.deleteStudentDocumentsForStudent(st)));
-
-    const remaining = students.filter(s => !studentIds.includes(s.studentId));
-    const finalResequenced = resequenceStudentsList(remaining);
-    setStudents(finalResequenced);
-
-    const bulkDelText = language === 'km'
-      ? `ជោគជ័យ (បានលុបសិស្ស ${count} នាក់)`
-      : language === 'zh-TW'
-      ? `刪除成功 (${count} 位學生)`
-      : `Successfully deleted ${count} students.`;
-    showNotification('success', bulkDelText);
-
-    if (appScriptConfig.webAppUrl) {
-      try {
-        await AppsScriptService.syncAllStudents(appScriptConfig.webAppUrl, finalResequenced);
-      } catch (err: any) {
-        console.warn('Failed bulk sync delete:', err);
-      }
-    }
+  // Bulk Delete trigger using modal (safe in iframes and mobile WebViews — no window.confirm)
+  const handleBulkDelete = (studentIds: string[]) => {
+    if (!authService.isAdmin() || studentIds.length === 0) return;
+    setStudentToDelete(null);
+    setBulkDeleteIds(studentIds);
+    setIsDeleteModalOpen(true);
   };
 
   // Manual Re-sequence all student order numbers (Admin Only)
@@ -1131,9 +1192,12 @@ export default function App() {
       <DeleteConfirmModal
         isOpen={isDeleteModalOpen}
         student={studentToDelete}
+        bulkCount={bulkDeleteIds.length}
+        schoolMajorNo={studentToDelete ? schoolMajorNoMap.get(studentToDelete.studentId) : undefined}
         onClose={() => {
           setIsDeleteModalOpen(false);
           setStudentToDelete(null);
+          setBulkDeleteIds([]);
         }}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}

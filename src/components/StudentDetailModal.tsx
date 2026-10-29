@@ -39,6 +39,7 @@ import { TranslationTooltip } from './TranslationTooltip';
 import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
 import { downloadDocumentWithStandardName, downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
 import { AppsScriptService } from '../services/appsScriptService';
+import { safeCopyToClipboard } from '../utils/studentOrderUtils';
 
 interface StudentDetailModalProps {
   student: Student | null;
@@ -93,7 +94,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   if (!isOpen || !student) return null;
 
   const handleCopy = (text: string, type: string) => {
-    navigator.clipboard.writeText(text);
+    void safeCopyToClipboard(text);
     setCopied(type);
     setTimeout(() => setCopied(null), 2000);
   };

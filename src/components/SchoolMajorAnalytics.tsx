@@ -23,6 +23,8 @@ import { getMajorTranslation, getSchoolTranslation } from '../utils/schoolMajorT
 import { areAllRequiredDocumentsUploaded } from '../utils/documentUtils';
 import { TranslationTooltip } from './TranslationTooltip';
 import { formatNumberByLanguage, formatPercentByLanguage } from '../utils/numberUtils';
+import { canonicalizeSchoolName } from '../utils/imageUtils';
+import { isMockStudentDocuments } from '../utils/cloudDocSyncUtils';
 
 interface SchoolMajorAnalyticsProps {
   students: Student[];
@@ -69,12 +71,14 @@ export const SchoolMajorAnalytics: React.FC<SchoolMajorAnalyticsProps> = ({
     return unsub;
   }, []);
 
-  // List of all schools available from service and from students data
+  // List of all schools available from service and from real students data
   const schoolOptions = useMemo(() => {
-    const fromService = schoolMajorService.getSchools().map(e => e.school);
-    const fromStudents = students.map(s => s.targetSchool).filter((s): s is string => !!s && s.trim().length > 0);
-    const combined = Array.from(new Set([...fromService, ...fromStudents]));
-    return combined;
+    const fromService = schoolMajorService.getSchools().map(e => canonicalizeSchoolName(e.school));
+    const fromRealStudents = students
+      .filter(s => !isMockStudentDocuments(s.documents))
+      .map(s => (s.targetSchool ? canonicalizeSchoolName(s.targetSchool) : ''))
+      .filter(s => s.length > 0);
+    return Array.from(new Set([...fromService, ...fromRealStudents]));
   }, [students, schoolsVersion]);
 
   // Selected School filter state ('all' or specific school name)
@@ -86,7 +90,8 @@ export const SchoolMajorAnalytics: React.FC<SchoolMajorAnalyticsProps> = ({
   // Filter students based on selected school
   const schoolStudents = useMemo(() => {
     if (selectedSchool === 'all') return students;
-    return students.filter(s => s.targetSchool === selectedSchool);
+    const selCanonical = canonicalizeSchoolName(selectedSchool);
+    return students.filter(s => canonicalizeSchoolName(s.targetSchool || '') === selCanonical);
   }, [students, selectedSchool]);
 
   // Compute majors data for the selected school (including all known majors of this school)
@@ -270,11 +275,15 @@ export const SchoolMajorAnalytics: React.FC<SchoolMajorAnalyticsProps> = ({
               className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-indigo-200 bg-indigo-50/40 text-slate-800 focus:bg-white focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer truncate shadow-2xs"
             >
               <option value="all">
-                {language === 'km' ? '🏫 គ្រប់សាលារៀនចិនទាំងអស់ (All Schools)' : language === 'zh-TW' ? '🏫 所有學校總覽 (All Schools)' : '🏫 All Target Schools'}
+                {language === 'km'
+                  ? `🏫 គ្រប់សាលារៀនទាំងអស់ (${formatNumberByLanguage(schoolOptions.length, language)})`
+                  : language === 'zh-TW'
+                  ? `🏫 所有合作學校總覽 (${formatNumberByLanguage(schoolOptions.length, language)})`
+                  : `🏫 All Target Schools (${formatNumberByLanguage(schoolOptions.length, language)})`}
               </option>
               {schoolOptions.map(sch => {
-                const sTrans = getSchoolTranslation(sch);
-                const count = students.filter(s => s.targetSchool === sch).length;
+                const schCanonical = canonicalizeSchoolName(sch);
+                const count = students.filter(s => canonicalizeSchoolName(s.targetSchool || '') === schCanonical).length;
                 return (
                   <option key={sch} value={sch}>
                     {sch} ({count} {t.students})
