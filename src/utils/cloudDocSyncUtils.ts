@@ -9,6 +9,7 @@ const MAX_SHEETS_NOTES_CELL_CHARS = 47800;
 const MAX_SHEETS_DOCS_COLUMN_CHARS = 45000;
 
 export const ALL_DOCUMENT_KEYS: DocumentKey[] = [
+  'photo',
   'idCard',
   'birthCert',
   'familyBook',

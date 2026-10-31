@@ -24,25 +24,32 @@ import {
 } from 'lucide-react';
 import { Student, Language, ReportFilterState, SortConfig, SortField } from '../types';
 import { translations } from '../translations';
-import { areAllRequiredDocumentsUploaded, countUploadedCategories, getEffectiveStudentDocuments } from '../utils/documentUtils';
-import { stripCloudEnvelopeFromNotes, isMockStudentDocuments } from '../utils/cloudDocSyncUtils';
+import { areAllRequiredDocumentsUploaded, countUploadedCategories, getEffectiveStudentDocuments, getStudentPhotoDataUrl } from '../utils/documentUtils';
+import { stripCloudEnvelopeFromNotes, isMockStudentDocuments, isValidDataUrl } from '../utils/cloudDocSyncUtils';
 import { canonicalizeSchoolName } from '../utils/imageUtils';
 import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { TranslationTooltip } from './TranslationTooltip';
 import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
 import { schoolMajorService } from '../services/schoolMajorService';
-import { PrintReportModal } from './PrintReportModal';
-import { Loader2 } from 'lucide-react';
+import { PrintReportModal, PrintModalMode } from './PrintReportModal';
+import { Loader2, User } from 'lucide-react';
 import { authService } from '../services/authService';
 import { SchoolMajorManageModal, ManageActionType } from './SchoolMajorManageModal';
 import { useInstitution } from '../services/institutionService';
 import {
+  NumberedStudentItem,
   computeStudentNumbersList,
   compareStudentsBySchoolMajorOrder,
   buildCatalogOrderMaps,
   triggerSafeBlobDownload,
 } from '../utils/studentOrderUtils';
+import {
+  saveIndividualStudentPDF,
+  printIndividualStudentDocument,
+  saveBlankFormAsPDF,
+  printBlankRegistrationForm,
+} from '../utils/studentFormPdfUtils';
 
 interface StudentReportProps {
   students: Student[];
@@ -371,12 +378,69 @@ export const StudentReport: React.FC<StudentReportProps> = ({
 
   // Print & PDF modal state
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printModalMode, setPrintModalMode] = useState<PrintModalMode>('summary');
+  const [printModalStudentId, setPrintModalStudentId] = useState<string | undefined>(undefined);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState('');
+  const [busyIndividualId, setBusyIndividualId] = useState<string | null>(null);
+  const [isSavingBlankForm, setIsSavingBlankForm] = useState(false);
 
   // Print trigger: opens Print & PDF Center with direct print attempt & preview
   const handlePrint = () => {
+    setPrintModalMode('summary');
+    setPrintModalStudentId(undefined);
     setIsPrintModalOpen(true);
+  };
+
+  const handleOpenIndividualCenter = (studentId?: string) => {
+    setPrintModalMode('individual');
+    setPrintModalStudentId(studentId);
+    setIsPrintModalOpen(true);
+  };
+
+  const handleRowSaveIndividualPdf = async (item: NumberedStudentItem) => {
+    setBusyIndividualId(item.student.studentId);
+    try {
+      await saveIndividualStudentPDF(item, language);
+    } catch (err) {
+      console.error('Row individual PDF error:', err);
+    } finally {
+      setBusyIndividualId(null);
+    }
+  };
+
+  const handleRowPrintIndividual = async (item: NumberedStudentItem) => {
+    setBusyIndividualId(item.student.studentId);
+    try {
+      const res = await printIndividualStudentDocument(item, language);
+      if (!res.success) {
+        handleOpenIndividualCenter(item.student.studentId);
+      }
+    } catch {
+      handleOpenIndividualCenter(item.student.studentId);
+    } finally {
+      setBusyIndividualId(null);
+    }
+  };
+
+  const handleQuickSaveBlankForm = async () => {
+    setIsSavingBlankForm(true);
+    try {
+      await saveBlankFormAsPDF(language);
+    } catch (err) {
+      console.error('Blank form PDF error:', err);
+    } finally {
+      setIsSavingBlankForm(false);
+    }
+  };
+
+  const handleQuickPrintBlankForm = async () => {
+    const res = await printBlankRegistrationForm(language);
+    if (!res.success) {
+      setPrintModalMode('blank_form');
+      setPrintModalStudentId(undefined);
+      setIsPrintModalOpen(true);
+    }
   };
 
   // Export CSV
@@ -584,9 +648,59 @@ export const StudentReport: React.FC<StudentReportProps> = ({
                 </button>
               </div>
 
+              {/* Blank Form PDF & Print Group */}
+              <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={handleQuickSaveBlankForm}
+                  disabled={isSavingBlankForm}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-700 hover:text-[#701014] hover:bg-rose-50 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                  title={language === 'km' ? 'ទាញយកទម្រង់បំពេញព័ត៌មានសិស្សដោយដៃ (PDF)' : 'Save Blank Form as PDF'}
+                >
+                  {isSavingBlankForm ? (
+                    <Loader2 className="w-3.5 h-3.5 text-[#701014] animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 text-[#701014]" />
+                  )}
+                  <span>{language === 'km' ? 'Save Form PDF' : language === 'zh-TW' ? '空白表 PDF' : 'Save Form PDF'}</span>
+                </button>
+                <span className="w-px h-4 bg-slate-200" />
+                <button
+                  type="button"
+                  onClick={handleQuickPrintBlankForm}
+                  disabled={isSavingBlankForm}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                  title={language === 'km' ? 'បោះពុម្ពទម្រង់បំពេញព័ត៌មានសិស្សដោយដៃ' : 'Print Blank Form'}
+                >
+                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>{language === 'km' ? 'Print Form' : language === 'zh-TW' ? '列印空白表' : 'Print Form'}</span>
+                </button>
+              </div>
+
+              {/* Individual Student Info PDF & Print Center Button */}
+              <button
+                type="button"
+                onClick={() => handleOpenIndividualCenter()}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#701014] hover:bg-[#580c10] text-white text-xs font-semibold transition-all shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
+                title={
+                  language === 'km'
+                    ? 'Save PDF និង Print ព័ត៌មានលម្អិតសិស្សម្នាក់ៗ'
+                    : 'Save PDF & Print Individual Student Information'
+                }
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>
+                  {language === 'km'
+                    ? 'ព័ត៌មានសិស្សម្នាក់ៗ (PDF / Print)'
+                    : language === 'zh-TW'
+                    ? '學生個人資料 (PDF / 列印)'
+                    : 'Individual Student (PDF / Print)'}
+                </span>
+              </button>
+
               <button
                 onClick={handlePrint}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-all shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-all shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
                 title={language === 'km' ? 'បើកផ្ទាំងបោះពុម្ព និងទាញយករបាយការណ៍' : 'Open Print & PDF Export Center'}
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -1145,49 +1259,71 @@ export const StudentReport: React.FC<StudentReportProps> = ({
                     <span className="text-[11px] text-slate-500 font-normal">Phone / 電話</span>
                   </div>
                 </th>
+                <th className="py-3 px-3 whitespace-nowrap text-center print:hidden">
+                  <div className="flex flex-col items-center justify-center font-bold">
+                    <span>{language === 'km' ? 'សិស្សម្នាក់ៗ (PDF & Print)' : language === 'zh-TW' ? '個人表 PDF/列印' : 'Individual PDF & Print'}</span>
+                    <span className="text-[11px] text-slate-500 font-normal">Save PDF · Print</span>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800">
               {numberedStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-slate-400">
+                  <td colSpan={12} className="py-12 text-center text-slate-400">
                     <p className="font-semibold text-sm">{t.noStudentsFound}</p>
                     <p className="text-xs mt-1">{t.noStudentsDesc}</p>
                   </td>
                 </tr>
               ) : (
-                numberedStudents.map(({ student, sequenceNo, schoolMajorNo }) => {
+                numberedStudents.map((numberedItem) => {
+                  const { student, sequenceNo, schoolMajorNo } = numberedItem;
                   const effectiveDocs = getEffectiveStudentDocuments(student);
                   const docVal = areAllRequiredDocumentsUploaded(effectiveDocs);
                   const catCount = countUploadedCategories(effectiveDocs);
+                  const photoUrl = getStudentPhotoDataUrl(student);
+                  const isRowBusy = busyIndividualId === student.studentId;
                   return (
                     <tr 
                       key={student.studentId}
                       className="hover:bg-slate-50/80 transition-colors print:hover:bg-transparent"
                     >
-                      <td className="py-3 px-2 text-center font-mono font-bold text-indigo-700">
+                      <td className="py-3 px-2 text-center font-mono font-bold text-indigo-700 tabular-nums">
                         {sequenceNo}
                       </td>
-                      <td className="py-3 px-2 text-center font-mono font-bold text-emerald-700">
+                      <td className="py-3 px-2 text-center font-mono font-bold text-emerald-700 tabular-nums">
                         {schoolMajorNo}
                       </td>
                       <td className="py-3 px-3">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-slate-900 text-sm">
-                              {student.nameKhmer || student.name || '-'}
-                            </span>
-                            {student.nameChinese && (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 font-semibold border border-amber-200">
-                                {student.nameChinese}
+                        <div className="flex items-center gap-2.5">
+                          {photoUrl && isValidDataUrl(photoUrl) && (
+                            <img
+                              src={photoUrl}
+                              alt={student.nameKhmer || student.nameLatin || 'Student'}
+                              referrerPolicy="no-referrer"
+                              className="w-9 h-11 rounded-md object-cover border border-slate-300 shrink-0 bg-slate-100"
+                            />
+                          )}
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                onClick={() => onViewStudent && onViewStudent(student)}
+                                className={`font-bold text-slate-900 text-sm ${onViewStudent ? 'hover:text-indigo-600 cursor-pointer' : ''}`}
+                              >
+                                {student.nameKhmer || student.name || '-'}
                               </span>
+                              {student.nameChinese && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 font-semibold border border-amber-200">
+                                  {student.nameChinese}
+                                </span>
+                              )}
+                            </div>
+                            {student.nameLatin && (
+                              <p className="text-xs text-slate-600 font-medium">
+                                {student.nameLatin}
+                              </p>
                             )}
                           </div>
-                          {student.nameLatin && (
-                            <p className="text-xs text-slate-600 font-medium">
-                              {student.nameLatin}
-                            </p>
-                          )}
                         </div>
                       </td>
                       <td className="py-3 px-3 whitespace-nowrap">
@@ -1318,6 +1454,47 @@ export const StudentReport: React.FC<StudentReportProps> = ({
                           )}
                         </div>
                       </td>
+                      <td className="py-3 px-3 text-center print:hidden">
+                        {isAdmin ? (
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={isRowBusy}
+                              onClick={() => handleRowSaveIndividualPdf(numberedItem)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200 hover:border-rose-600 text-[11px] font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                              title={
+                                language === 'km'
+                                  ? `រក្សាទុក PDF ព័ត៌មានសិស្ស #${sequenceNo}`
+                                  : `Save Individual PDF (#${sequenceNo})`
+                              }
+                            >
+                              {isRowBusy ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Download className="w-3 h-3" />
+                              )}
+                              <span>Save PDF</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isRowBusy}
+                              onClick={() => handleRowPrintIndividual(numberedItem)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 text-[11px] font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                              title={
+                                language === 'km'
+                                  ? `បោះពុម្ពព័ត៌មានសិស្ស #${sequenceNo}`
+                                  : `Print Individual Student (#${sequenceNo})`
+                              }
+                            >
+                              <Printer className="w-3 h-3" />
+                              <span>Print</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">Admin</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })
@@ -1375,6 +1552,8 @@ export const StudentReport: React.FC<StudentReportProps> = ({
         onClose={() => setIsPrintModalOpen(false)}
         students={sortedStudents}
         language={language}
+        initialMode={printModalMode}
+        initialStudentId={printModalStudentId}
         reportTitle={
           language === 'zh-TW' 
             ? '學生報表統計 (Student Comprehensive Report)' 

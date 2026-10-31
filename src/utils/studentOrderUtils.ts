@@ -293,6 +293,8 @@ export interface StudentNumberedItem {
   schoolMajorNo: number;  // No (1, 2, 3, ... gapless within each School + Major group)
 }
 
+export type NumberedStudentItem = StudentNumberedItem;
+
 /**
  * Computes gapless លេខរៀង (sequenceNo) and coupled per-(School, Major) No (schoolMajorNo).
  * Deleting any row automatically shifts both លេខរៀង and No with zero gaps.

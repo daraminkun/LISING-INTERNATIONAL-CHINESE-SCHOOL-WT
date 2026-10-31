@@ -26,17 +26,19 @@ import {
   Loader2,
   MapPin,
   LayoutGrid,
-  ListOrdered
+  ListOrdered,
+  Printer
 } from 'lucide-react';
 import { Student, FilterState, SortConfig, SortField, Language } from '../types';
 import { translations } from '../translations';
 import { schoolMajorService } from '../services/schoolMajorService';
 import { canonicalizeSchoolName } from '../utils/imageUtils';
-import { isMockStudentDocuments } from '../utils/cloudDocSyncUtils';
-import { areAllRequiredDocumentsUploaded, countUploadedCategories, getEffectiveStudentDocuments } from '../utils/documentUtils';
+import { isMockStudentDocuments, isValidDataUrl } from '../utils/cloudDocSyncUtils';
+import { areAllRequiredDocumentsUploaded, countUploadedCategories, getEffectiveStudentDocuments, getStudentPhotoDataUrl } from '../utils/documentUtils';
 import { stripCloudEnvelopeFromNotes } from '../utils/cloudDocSyncUtils';
 import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
+import { saveBlankFormAsPDF, printBlankRegistrationForm } from '../utils/studentFormPdfUtils';
 import { TranslationTooltip } from './TranslationTooltip';
 import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorTranslations';
 import { downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
@@ -91,6 +93,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isSavingBlankForm, setIsSavingBlankForm] = useState(false);
 
   // View Mode: 'table' or 'cards' (Cards mode is ideal for mobile phones and compact screens)
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -491,7 +494,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
           </div>
 
           {/* Action Buttons: Export & Add Student */}
-          <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+          <div className="flex items-center gap-2 flex-wrap justify-end self-end md:self-auto">
             {isAdmin && selectedIds.length > 0 && onBulkDelete && (
               <button
                 onClick={() => onBulkDelete(selectedIds)}
@@ -594,9 +597,55 @@ export const StudentTable: React.FC<StudentTableProps> = ({
               </button>
             )}
 
+            {/* Blank Manual Form: Save Form PDF & Print Form */}
+            <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs">
+              <button
+                type="button"
+                disabled={isSavingBlankForm}
+                onClick={async () => {
+                  setIsSavingBlankForm(true);
+                  try {
+                    await saveBlankFormAsPDF(language);
+                  } finally {
+                    setIsSavingBlankForm(false);
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-700 hover:text-[#701014] hover:bg-rose-50 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                title={language === 'km' ? 'Save Form ជា PDF (សម្រាប់បំពេញដោយដៃ)' : 'Save Blank Form as PDF'}
+              >
+                {isSavingBlankForm ? (
+                  <Loader2 className="w-3.5 h-3.5 text-[#701014] animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5 text-[#701014]" />
+                )}
+                <span>{language === 'km' ? 'Save Form PDF' : language === 'zh-TW' ? '空白表 PDF' : 'Save Form PDF'}</span>
+              </button>
+              <span className="w-px h-4 bg-slate-200" />
+              <button
+                type="button"
+                disabled={isSavingBlankForm}
+                onClick={async () => {
+                  const res = await printBlankRegistrationForm(language);
+                  if (!res.success) {
+                    setIsSavingBlankForm(true);
+                    try {
+                      await saveBlankFormAsPDF(language);
+                    } finally {
+                      setIsSavingBlankForm(false);
+                    }
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                title={language === 'km' ? 'Print Form (បោះពុម្ពទម្រង់បំពេញដោយដៃ)' : 'Print Blank Form'}
+              >
+                <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{language === 'km' ? 'Print Form' : language === 'zh-TW' ? '列印空白表' : 'Print Form'}</span>
+              </button>
+            </div>
+
             <button
               onClick={onAddStudent}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-xs hover:shadow-indigo-500/20 transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-xs hover:shadow-indigo-500/20 transition-all whitespace-nowrap shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>{t.addStudent}</span>
@@ -1223,6 +1272,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                   const effectiveDocs = getEffectiveStudentDocuments(student);
                   const docValidation = areAllRequiredDocumentsUploaded(effectiveDocs);
                   const uploadedCategoryCount = countUploadedCategories(effectiveDocs);
+                  const photoUrl = getStudentPhotoDataUrl(student);
 
                   return (
                     <tr 
@@ -1243,27 +1293,37 @@ export const StudentTable: React.FC<StudentTableProps> = ({
 
                       {/* Order Number (លេខរៀង) */}
                       <td className="py-3.5 px-2.5 text-center">
-                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 inline-block">
+                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 inline-block tabular-nums">
                           {sequenceNo}
                         </span>
                       </td>
 
                       {/* Coupled School & Major No */}
                       <td className="py-3.5 px-2 text-center">
-                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200/70 inline-block">
+                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200/70 inline-block tabular-nums">
                           {schoolMajorNo}
                         </span>
                       </td>
 
                       {/* Name Details */}
                       <td className="py-3.5 px-3">
-                        <div className="space-y-1">
-                          <button
-                            onClick={() => onViewStudent(student)}
-                            className="font-bold text-slate-900 hover:text-indigo-600 text-left transition-colors block text-sm"
-                          >
-                            {displayName}
-                          </button>
+                        <div className="flex items-center gap-2.5">
+                          {photoUrl && isValidDataUrl(photoUrl) && (
+                            <img
+                              src={photoUrl}
+                              alt={displayName}
+                              referrerPolicy="no-referrer"
+                              onClick={() => onViewStudent(student)}
+                              className="w-9 h-11 rounded-md object-cover border border-slate-300 shrink-0 bg-slate-100 cursor-pointer hover:opacity-90"
+                            />
+                          )}
+                          <div className="space-y-1 min-w-0">
+                            <button
+                              onClick={() => onViewStudent(student)}
+                              className="font-bold text-slate-900 hover:text-indigo-600 text-left transition-colors block text-sm"
+                            >
+                              {displayName}
+                            </button>
                           
                           <div className="flex items-center gap-2 flex-wrap text-xs">
                             {student.nameLatin && (
@@ -1276,6 +1336,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                                 {student.nameChinese}
                               </span>
                             )}
+                          </div>
                           </div>
                         </div>
                       </td>

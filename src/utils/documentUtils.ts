@@ -97,11 +97,12 @@ export function areAllRequiredDocumentsUploaded(documents?: StudentDocuments): {
 }
 
 /**
- * Counts total categories uploaded (including traineeBook and passport).
+ * Counts total categories uploaded (including photo, traineeBook and passport).
  */
 export function countUploadedCategories(documents?: StudentDocuments): number {
   if (!documents) return 0;
   const allKeys: (keyof StudentDocuments)[] = [
+    'photo',
     'idCard',
     'birthCert',
     'familyBook',
@@ -119,6 +120,7 @@ export function countUploadedCategories(documents?: StudentDocuments): number {
 export function countTotalPages(documents?: StudentDocuments): number {
   if (!documents) return 0;
   const allKeys: (keyof StudentDocuments)[] = [
+    'photo',
     'idCard',
     'birthCert',
     'familyBook',
@@ -149,4 +151,20 @@ export function getEffectiveStudentDocuments(
   );
 
   return mergeBestStudentDocuments(cachedDocs, student.documents, unpackedDocs);
+}
+
+/**
+ * Resolves the student's portrait photo Data URL from effective documents or photoUrl field.
+ */
+export function getStudentPhotoDataUrl(student?: Partial<Student> | null): string | undefined {
+  if (!student) return undefined;
+  const effectiveDocs = getEffectiveStudentDocuments(student);
+  const photoPage = getFirstDocPage(effectiveDocs?.photo);
+  if (photoPage?.dataUrl && photoPage.dataUrl !== 'STORED_IN_INDEXEDDB') {
+    return photoPage.dataUrl;
+  }
+  if (student.photoUrl && student.photoUrl !== 'STORED_IN_INDEXEDDB') {
+    return student.photoUrl;
+  }
+  return undefined;
 }

@@ -12,6 +12,7 @@ export interface UploadedDocument {
 export type DocumentPages = UploadedDocument[];
 
 export interface StudentDocuments {
+  photo?: UploadedDocument | UploadedDocument[];          // រូបថតសិស្ស / ស្គេនមុខ (Student Portrait Photo)
   idCard?: UploadedDocument | UploadedDocument[];         // អត្តសញ្ញាបណ្ណ * (១ ដល់ ៥ ទំព័រ)
   birthCert?: UploadedDocument | UploadedDocument[];      // សំបុត្រកំណើត * (១ ដល់ ៥ ទំព័រ)
   familyBook?: UploadedDocument | UploadedDocument[];     // សៀវភៅគ្រួសារ * (១ ដល់ ៥ ទំព័រ)
@@ -58,7 +59,8 @@ export interface Student {
   phone: string;               // លេខទូរស័ព្ទសិស្ស
   email?: string;              // E-mail សិស្ស
   
-  // Uploaded Documents (ឯកសារ upload ទាំង ៥)
+  photoUrl?: string;           // រូបថតសិស្ស (Student Portrait Photo URL)
+  // Uploaded Documents (ឯកសារ upload)
   documents?: StudentDocuments;
 
   notes?: string;              // កំណត់សម្គាល់

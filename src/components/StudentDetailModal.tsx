@@ -20,7 +20,9 @@ import {
   Download,
   FileCheck,
   AlertCircle,
-  Mail
+  Mail,
+  Printer,
+  Loader2
 } from 'lucide-react';
 import { Student, Language, UploadedDocument } from '../types';
 import { translations } from '../translations';
@@ -31,7 +33,8 @@ import {
   areAllRequiredDocumentsUploaded, 
   countUploadedCategories, 
   formatDocFileSize,
-  getEffectiveStudentDocuments
+  getEffectiveStudentDocuments,
+  getStudentPhotoDataUrl
 } from '../utils/documentUtils';
 import { isValidDataUrl } from '../utils/cloudDocSyncUtils';
 import { calculateAge, formatAge, formatDobOnly } from '../utils/ageUtils';
@@ -40,6 +43,7 @@ import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorT
 import { downloadDocumentWithStandardName, downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
 import { AppsScriptService } from '../services/appsScriptService';
 import { safeCopyToClipboard } from '../utils/studentOrderUtils';
+import { saveIndividualStudentPDF, printIndividualStudentDocument } from '../utils/studentFormPdfUtils';
 
 interface StudentDetailModalProps {
   student: Student | null;
@@ -70,6 +74,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   } | null>(null);
 
   const [, setDocsVersion] = useState(0);
+  const [isSavingIndividualPdf, setIsSavingIndividualPdf] = useState(false);
 
   useEffect(() => {
     const handleDocsUpdated = () => setDocsVersion(v => v + 1);
@@ -112,7 +117,14 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
     : '-';
 
   const docs = getEffectiveStudentDocuments(student) || {};
+  const studentPhotoUrl = getStudentPhotoDataUrl(student);
   const docList = [
+    {
+      key: 'photo' as const,
+      label: language === 'km' ? 'រូបថតសិស្ស (4×6)' : language === 'zh-TW' ? '學生證件照 (4×6)' : 'Student Photo (4×6)',
+      doc: docs.photo,
+      required: false,
+    },
     { key: 'idCard' as const, label: t.docIdCard, doc: docs.idCard, required: true },
     { key: 'birthCert' as const, label: t.docBirthCert, doc: docs.birthCert, required: true },
     { key: 'familyBook' as const, label: t.docFamilyBook, doc: docs.familyBook, required: true },
@@ -142,15 +154,45 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
             </button>
 
             <div className="flex items-start gap-4">
-              <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-extrabold text-2xl shadow-md border-2 border-white/30 shrink-0 ${
-                student.gender === 'Female' 
-                  ? 'bg-rose-100 text-rose-700' 
-                  : student.gender === 'Male'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-amber-100 text-amber-700'
-              }`}>
-                {displayName.charAt(0)}
-              </div>
+              {studentPhotoUrl && isValidDataUrl(studentPhotoUrl) ? (
+                <div
+                  onClick={() => {
+                    const photoPages = getDocPages(docs.photo);
+                    const docItem: UploadedDocument = photoPages[0] || {
+                      name: `${displayName}_Photo.jpg`,
+                      type: 'image/jpeg',
+                      size: 0,
+                      dataUrl: studentPhotoUrl,
+                      uploadedAt: student.createdAt || new Date().toISOString(),
+                    };
+                    setPreviewDoc({
+                      doc: docItem,
+                      title: language === 'km' ? 'រូបថតសិស្ស (4×6)' : 'Student Photo',
+                      pageIndex: 0,
+                      allPages: [docItem],
+                    });
+                  }}
+                  title={language === 'km' ? 'ចុចមើលរូបថតសិស្សពេញ' : 'Click to enlarge photo'}
+                  className="w-15 h-20 sm:w-16 sm:h-21 rounded-xl overflow-hidden shadow-md border-2 border-white/60 shrink-0 bg-white cursor-pointer hover:scale-[1.03] transition-transform"
+                >
+                  <img
+                    src={studentPhotoUrl}
+                    alt={displayName}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-extrabold text-2xl shadow-md border-2 border-white/30 shrink-0 ${
+                  student.gender === 'Female' 
+                    ? 'bg-rose-100 text-rose-700' 
+                    : student.gender === 'Male'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {displayName.charAt(0)}
+                </div>
+              )}
 
               <div className="space-y-1 min-w-0 pr-8">
                 <div className="flex flex-wrap items-center gap-2">
@@ -608,8 +650,8 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   }`}>
                     {docValidation.completedCount} / {docValidation.totalRequired} {language === 'km' ? 'ឯកសារចាំបាច់ (*)' : 'required (*)'}
                   </span>
-                  <span className="text-xs text-slate-500 font-medium">
-                    ({totalUploadedCategories} / 7 {language === 'km' ? 'សរុប' : 'total'})
+                  <span className="text-xs text-slate-500 font-medium tabular-nums">
+                    ({totalUploadedCategories} / 8 {language === 'km' ? 'សរុប' : 'total'})
                   </span>
 
                   {totalUploadedCategories > 0 && (
@@ -792,12 +834,55 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
               <span>{t.delete}</span>
             </button>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <button
+                type="button"
+                disabled={isSavingIndividualPdf}
+                onClick={async () => {
+                  setIsSavingIndividualPdf(true);
+                  try {
+                    await saveIndividualStudentPDF(student, language);
+                  } finally {
+                    setIsSavingIndividualPdf(false);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                title={language === 'km' ? 'Save PDF ព័ត៌មានសិស្សម្នាក់នេះ' : 'Save Student Info as PDF'}
+              >
+                {isSavingIndividualPdf ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                <span>{language === 'km' ? 'Save PDF សិស្សនេះ' : language === 'zh-TW' ? '個人表 PDF' : 'Save PDF'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isSavingIndividualPdf}
+                onClick={async () => {
+                  const res = await printIndividualStudentDocument(student, language);
+                  if (!res.success) {
+                    setIsSavingIndividualPdf(true);
+                    try {
+                      await saveIndividualStudentPDF(student, language);
+                    } finally {
+                      setIsSavingIndividualPdf(false);
+                    }
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                title={language === 'km' ? 'Print ព័ត៌មានសិស្សម្នាក់នេះ' : 'Print Student Info'}
+              >
+                <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{language === 'km' ? 'Print សិស្សនេះ' : language === 'zh-TW' ? '列印個人表' : 'Print'}</span>
+              </button>
+
               {totalUploadedCategories > 0 && (
                 <button
                   type="button"
                   onClick={() => downloadAllDocumentsForStudent(student)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                   title={language === 'km' ? 'ទាញយកឯកសារទាំងអស់របស់សិស្សនេះ' : 'Download all student documents'}
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -807,7 +892,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
 
               <a
                 href={`tel:${student.phone.replace(/\s+/g, '')}`}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors whitespace-nowrap shrink-0"
               >
                 <Phone className="w-3.5 h-3.5" />
                 <span>{t.callNow}</span>
@@ -818,7 +903,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                   onClose();
                   onEdit(student);
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-xs"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-xs whitespace-nowrap shrink-0"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>{t.editStudent}</span>

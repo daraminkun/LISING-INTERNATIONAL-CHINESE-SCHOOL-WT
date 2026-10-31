@@ -12,6 +12,7 @@ import { dbStorage } from '../services/dbStorage';
 import { triggerSafeBlobDownload } from './studentOrderUtils';
 
 export const CATEGORY_NAMES: Record<string, { km: string; en: string; short: string }> = {
+  photo: { km: 'រូបថតសិស្ស', en: 'Student_Photo', short: 'Student_Photo' },
   idCard: { km: 'អត្តសញ្ញាបណ្ណ', en: 'National_ID_Card', short: 'ID_Card' },
   birthCert: { km: 'សំបុត្រកំណើត', en: 'Birth_Certificate', short: 'Birth_Cert' },
   familyBook: { km: 'សៀវភៅគ្រួសារ', en: 'Family_Book', short: 'Family_Book' },
@@ -118,6 +119,7 @@ export async function downloadAllDocumentsForStudent(student: Student): Promise<
     ) || {};
 
   const categories: (keyof StudentDocuments)[] = [
+    'photo',
     'idCard',
     'birthCert',
     'familyBook',

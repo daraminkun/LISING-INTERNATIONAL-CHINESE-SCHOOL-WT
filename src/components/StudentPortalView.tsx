@@ -11,12 +11,17 @@ import {
   Building2,
   FileCheck2,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Printer,
+  Download,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { Language } from '../types';
 import { UserAccount } from '../services/authService';
 import { translations } from '../translations';
 import { formatNumberByLanguage } from '../utils/numberUtils';
+import { saveBlankFormAsPDF, printBlankRegistrationForm } from '../utils/studentFormPdfUtils';
 
 interface StudentPortalViewProps {
   onAddStudent: () => void;
@@ -34,6 +39,51 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
   onOpenSchoolInfo
 }) => {
   const t = translations[language];
+  const [isSavingBlankPdf, setIsSavingBlankPdf] = React.useState(false);
+  const [portalNotice, setPortalNotice] = React.useState<{ type: 'success' | 'warning'; text: string } | null>(null);
+
+  const handleSaveBlankForm = async () => {
+    setIsSavingBlankPdf(true);
+    setPortalNotice(null);
+    try {
+      await saveBlankFormAsPDF(language);
+      setPortalNotice({
+        type: 'success',
+        text:
+          language === 'km'
+            ? 'បានទាញយកទម្រង់ពាក្យចុះឈ្មោះ (PDF) សម្រាប់បំពេញដោយដៃរួចរាល់!'
+            : language === 'zh-TW'
+            ? '已下載手寫空白報名表 (PDF)！'
+            : 'Blank registration form PDF downloaded!',
+      });
+    } catch {
+      setPortalNotice({
+        type: 'warning',
+        text:
+          language === 'km'
+            ? 'មិនអាចទាញយក PDF បានទេ សូមព្យាយាមម្ដងទៀត។'
+            : 'Failed to download blank form PDF.',
+      });
+    } finally {
+      setIsSavingBlankPdf(false);
+    }
+  };
+
+  const handlePrintBlankForm = async () => {
+    setPortalNotice(null);
+    const res = await printBlankRegistrationForm(language);
+    if (!res.success) {
+      setPortalNotice({
+        type: 'warning',
+        text:
+          language === 'km'
+            ? 'សូមចុចប៊ូតុង «Save Form ជា PDF» ដើម្បីទាញយកទម្រង់យកទៅព្រីន!'
+            : language === 'zh-TW'
+            ? '請點擊「Save Form PDF」下載空白報名表後列印！'
+            : 'Click "Save Form as PDF" to download and print!',
+      });
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -124,6 +174,47 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
               </button>
             )}
             
+            {/* Blank Handwritten Form: Save Form as PDF & Print Form */}
+            <div className="grid grid-cols-2 gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={handleSaveBlankForm}
+                disabled={isSavingBlankPdf}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs text-white bg-white/15 hover:bg-white/25 border border-white/25 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                title={language === 'km' ? 'ទាញយកទម្រង់ពាក្យចុះឈ្មោះសម្រាប់បំពេញដោយដៃ (PDF)' : 'Save Blank Form as PDF'}
+              >
+                {isSavingBlankPdf ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5 text-amber-300" />
+                )}
+                <span>
+                  {language === 'km'
+                    ? 'Save Form ជា PDF'
+                    : language === 'zh-TW'
+                    ? '空白表 PDF'
+                    : 'Save Form PDF'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrintBlankForm}
+                disabled={isSavingBlankPdf}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs text-white bg-white/15 hover:bg-white/25 border border-white/25 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                title={language === 'km' ? 'បោះពុម្ពទម្រង់ពាក្យចុះឈ្មោះសម្រាប់បំពេញដោយដៃ' : 'Print Blank Form'}
+              >
+                <Printer className="w-3.5 h-3.5 text-amber-300" />
+                <span>
+                  {language === 'km'
+                    ? 'Print Form'
+                    : language === 'zh-TW'
+                    ? '列印空白表'
+                    : 'Print Form'}
+                </span>
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={onLogout}
@@ -134,6 +225,26 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
             </button>
           </div>
         </div>
+
+        {portalNotice && (
+          <div className="relative z-10 mt-4 px-4 py-2.5 rounded-xl bg-black/25 border border-white/20 text-xs text-amber-100 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {portalNotice.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-amber-300 shrink-0" />
+              )}
+              <span>{portalNotice.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPortalNotice(null)}
+              className="text-white/70 hover:text-white text-xs font-bold px-1.5"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Enrollment Guide Steps */}
@@ -148,10 +259,10 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
           </h2>
           <p className="text-xs text-slate-600 leading-relaxed font-battambang">
             {language === 'km'
-              ? 'បញ្ចូលឈ្មោះខ្មែរ ឈ្មោះអង់គ្លេស ឈ្មោះចិន (បើមាន) ភេទ ថ្ងៃខែឆ្នាំកំណើត និងលេខទូរស័ព្ទទំនាក់ទំនង។'
+              ? 'ថតរូប ស្គេនមុខ ឬ Upload រូបថតសិស្ស និងបញ្ចូលឈ្មោះខ្មែរ អង់គ្លេស ចិន ភេទ ថ្ងៃខែឆ្នាំកំណើត និងលេខទូរស័ព្ទទំនាក់ទំនង។'
               : language === 'zh-TW'
-              ? '輸入高棉姓名、英文姓名、中文姓名、性別、出生日期與聯絡電話。'
-              : 'Enter your Khmer, English, and Chinese names, gender, date of birth, and phone number.'}
+              ? '拍攝照片、人臉掃描或上傳學生相片，並輸入高棉、英文、中文姓名、性別、生日與聯絡電話。'
+              : 'Take photo, face scan, or upload a portrait, and enter Khmer, English, Chinese names, DOB, and phone.'}
           </p>
         </div>
 

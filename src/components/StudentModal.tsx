@@ -23,12 +23,16 @@ import {
   CheckCircle2,
   Lock,
   Eye,
-  EyeOff
+  EyeOff,
+  Printer,
+  Loader2
 } from 'lucide-react';
 import { Student, Gender, Language, StudentDocuments, UploadedDocument } from '../types';
 import { translations } from '../translations';
 import { DocumentUploadCard } from './DocumentUploadCard';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { StudentPhotoCapture } from './StudentPhotoCapture';
+import { saveBlankFormAsPDF, printBlankRegistrationForm } from '../utils/studentFormPdfUtils';
 import { OptionSelector } from './OptionSelector';
 import { 
   PLACES_OF_BIRTH, 
@@ -136,6 +140,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({
   const [submittedAttempt, setSubmittedAttempt] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAllMajors, setShowAllMajors] = useState(false);
+  const [isSavingBlankPdf, setIsSavingBlankPdf] = useState(false);
+  const [blankFormNotice, setBlankFormNotice] = useState<{ type: 'success' | 'warning'; text: string } | null>(null);
 
   // 4-Step Wizard Form Navigation (1 -> 2 -> 3 -> 4)
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -826,6 +832,64 @@ export const StudentModal: React.FC<StudentModalProps> = ({
   const docValidation = areAllRequiredDocumentsUploaded(documents);
   const uploadedCategoryCount = countUploadedCategories(documents);
 
+  const handleSaveBlankFormPdf = async () => {
+    setIsSavingBlankPdf(true);
+    setBlankFormNotice(null);
+    try {
+      await saveBlankFormAsPDF(language);
+      setBlankFormNotice({
+        type: 'success',
+        text:
+          language === 'km'
+            ? 'បានទាញយកទម្រង់ពាក្យចុះឈ្មោះ (PDF) សម្រាប់បំពេញដោយដៃរួចរាល់!'
+            : language === 'zh-TW'
+            ? '已成功下載手寫空白報名表 (PDF)！'
+            : 'Blank registration form PDF downloaded successfully!',
+      });
+    } catch (err) {
+      console.error('Blank form PDF error:', err);
+      setBlankFormNotice({
+        type: 'warning',
+        text:
+          language === 'km'
+            ? 'មានបញ្ហាក្នុងការបង្កើត PDF សូមព្យាយាមម្ដងទៀត។'
+            : language === 'zh-TW'
+            ? '產生 PDF 失敗，請重試。'
+            : 'Could not generate blank form PDF. Please try again.',
+      });
+    } finally {
+      setIsSavingBlankPdf(false);
+    }
+  };
+
+  const handlePrintBlankForm = async () => {
+    setBlankFormNotice(null);
+    try {
+      const res = await printBlankRegistrationForm(language);
+      if (!res.success) {
+        setBlankFormNotice({
+          type: 'warning',
+          text:
+            language === 'km'
+              ? 'កម្មវិធីរុករកនេះមិនគាំទ្រផ្ទាំង Print ផ្ទាល់ទេ សូមចុចប៊ូតុង «Save Form ជា PDF» ដើម្បីទាញយកយកទៅព្រីន!'
+              : language === 'zh-TW'
+              ? '此瀏覽器限制直接列印，請點擊「Save Form PDF」下載後列印！'
+              : 'Direct print is restricted in this view. Click "Save Form as PDF" to download and print!',
+        });
+      }
+    } catch {
+      setBlankFormNotice({
+        type: 'warning',
+        text:
+          language === 'km'
+            ? 'សូមចុចប៊ូតុង «Save Form ជា PDF» ដើម្បីទាញយកទម្រង់យកទៅព្រីន!'
+            : language === 'zh-TW'
+            ? '請點擊「Save Form PDF」下載空白報名表！'
+            : 'Please click "Save Form as PDF" to download the printable form!',
+      });
+    }
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -869,6 +933,84 @@ export const StudentModal: React.FC<StudentModalProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Manual Handwritten Form Bar: Save Form as PDF & Print Form */}
+          <div className="relative z-20 px-3.5 sm:px-6 py-2.5 bg-amber-50/80 border-b border-amber-200/80 flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText className="w-4 h-4 text-[#701014] shrink-0" />
+              <span className="text-xs font-semibold text-slate-800 truncate">
+                {language === 'km'
+                  ? 'ទម្រង់ពាក្យចុះឈ្មោះសម្រាប់បំពេញព័ត៌មានសិស្សដោយដៃ (A4):'
+                  : language === 'zh-TW'
+                  ? '手寫空白入學報名表 (A4 直向)：'
+                  : 'Blank Registration Form for Manual Fill (A4):'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleSaveBlankFormPdf}
+                disabled={isSavingBlankPdf}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#701014] hover:bg-[#580c10] text-white text-xs font-bold shadow-2xs transition-colors disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                {isSavingBlankPdf ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {language === 'km'
+                    ? 'Save Form ជា PDF'
+                    : language === 'zh-TW'
+                    ? '下載空白表 PDF'
+                    : 'Save Form as PDF'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrintBlankForm}
+                disabled={isSavingBlankPdf}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold shadow-2xs transition-colors disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5 text-indigo-700" />
+                <span>
+                  {language === 'km'
+                    ? 'Print Form'
+                    : language === 'zh-TW'
+                    ? '列印空白表 (Print)'
+                    : 'Print Form'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {blankFormNotice && (
+            <div
+              className={`relative z-20 px-4 sm:px-6 py-2 text-xs font-medium flex items-center justify-between gap-2 border-b shrink-0 ${
+                blankFormNotice.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-amber-50 text-amber-900 border-amber-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {blankFormNotice.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                )}
+                <span>{blankFormNotice.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBlankFormNotice(null)}
+                className="p-0.5 rounded hover:bg-black/5 text-current shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Official Lising International Chinese School Background Watermark */}
           <div
@@ -952,6 +1094,25 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                       {language === 'km' ? 'ព័ត៌មានផ្ទាល់ខ្លួន' : t.personalInfo}
                     </h4>
                   </div>
+
+                  {/* Student Portrait Photo Capture, Biometric Face Scan & Photo Upload */}
+                  <StudentPhotoCapture
+                    photoDoc={documents.photo}
+                    onChangePhoto={(pages) => {
+                      if (pages && pages.length > 0) {
+                        handleDocumentUploadPages('photo', pages);
+                      } else {
+                        handleDocumentRemoveAll('photo');
+                      }
+                    }}
+                    onPreviewPhoto={(doc, title) =>
+                      setPreviewDoc({ doc, title, pageIndex: 0, allPages: [doc] })
+                    }
+                    studentId={isOrderMasked ? undefined : studentId}
+                    maskStudentId={isOrderMasked}
+                    studentName={nameKhmer || nameLatin}
+                    language={language}
+                  />
 
                   {/* Order Number (លេខរៀង) - Masked with symbols to hide sequence number from students */}
               <div>
