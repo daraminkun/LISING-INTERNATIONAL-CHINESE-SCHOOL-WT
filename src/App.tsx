@@ -947,7 +947,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900">
+    <div className="min-h-screen bg-[#d2c3c3] flex flex-col md:flex-row font-sans text-slate-900">
       
       {/* Left Sidebar Navigation */}
       <Sidebar
@@ -993,7 +993,7 @@ export default function App() {
 
       {/* Main Content Area with Desktop Left Padding */}
       <div className="flex-1 md:pl-64 lg:pl-72 flex flex-col min-w-0 min-h-screen">
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 bg-[#f2eae8]">
           
           {/* Floating Notification Toast */}
           {notification && (

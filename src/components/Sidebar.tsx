@@ -195,8 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Sidebar Brand Header */}
         <div 
-          className="p-5 border-b border-red-700/50 flex items-center justify-between"
-          style={{ backgroundColor: '#991b1b', color: '#ffffff' }}
+          className="p-5 border-b border-red-700/50 flex items-center justify-between bg-[#701014] text-white"
         >
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-12 h-12 rounded-full bg-white p-0.5 shadow-md ring-2 ring-amber-300/80 shrink-0 overflow-hidden flex items-center justify-center">
@@ -304,7 +303,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Primary Action: Add Student & School Info */}
-        <div className="p-4 pb-2 space-y-2" style={{ backgroundColor: '#b91c1c' }}>
+        <div className="p-4 pb-2 space-y-2 bg-[#701014]">
           <button
             type="button"
             onClick={handleAddClick}
@@ -337,8 +336,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Menu */}
         <div 
-          className="flex-1 overflow-y-auto px-4 py-3 space-y-6"
-          style={{ backgroundColor: '#881337' }}
+          className="flex-1 overflow-y-auto px-4 py-3 space-y-6 bg-[#701014]"
         >
           
           {/* Main Navigation Group (Admin Only) */}
@@ -496,8 +494,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   type="button"
                   onClick={() => handleTabSelect('student_portal')}
-                  style={{ backgroundColor: currentTab === 'student_portal' ? '#dc2626' : '#9f1239' }}
-                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border ${
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-bold transition-all border bg-[#701014] ${
                     currentTab === 'student_portal'
                       ? 'border-white/50 text-white shadow-md'
                       : 'border-white/10 text-rose-100 hover:border-white/30 hover:bg-red-700/60'

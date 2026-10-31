@@ -139,7 +139,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
       {/* Enrollment Guide Steps */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Step 1 */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
+        <div className="p-5 rounded-2xl bg-[#b3b9ba] border border-slate-200/80 shadow-xs space-y-3">
           <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center font-black text-base font-battambang">
             {formatNumberByLanguage(1, language)}
           </div>
@@ -156,7 +156,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
         </div>
 
         {/* Step 2 */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
+        <div className="p-5 rounded-2xl bg-[#b3b9ba] border border-slate-200/80 shadow-xs space-y-3">
           <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-base font-battambang">
             {formatNumberByLanguage(2, language)}
           </div>
@@ -173,7 +173,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
         </div>
 
         {/* Step 3 */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
+        <div className="p-5 rounded-2xl bg-[#b3b9ba] border border-slate-200/80 shadow-xs space-y-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-base font-battambang">
             {formatNumberByLanguage(3, language)}
           </div>
