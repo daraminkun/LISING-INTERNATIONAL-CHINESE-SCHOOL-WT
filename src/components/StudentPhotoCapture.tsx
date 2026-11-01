@@ -650,7 +650,7 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
             ? 'bg-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/20'
             : hasPhoto
             ? 'bg-emerald-50/45 border-emerald-300/90'
-            : 'bg-slate-50/75 border-slate-200'
+            : 'bg-white/60 border-slate-200'
         }`}
       >
         {/* Hidden File Inputs */}
@@ -676,9 +676,9 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
           }}
         />
 
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-          {/* Portrait 3:4 Photo Frame */}
-          <div className="relative w-28 h-36 sm:w-30 sm:h-38 rounded-xl border-2 border-dashed border-slate-300 bg-white overflow-hidden shrink-0 flex flex-col items-center justify-center shadow-2xs group">
+        <div className="flex flex-col items-center justify-center gap-3">
+          {/* Centered Portrait 4x6 Photo Frame */}
+          <div className="relative w-28 h-36 sm:w-30 sm:h-38 rounded-xl border-2 border-dashed border-slate-300 bg-white overflow-hidden shrink-0 flex flex-col items-center justify-center shadow-xs group">
             {isProcessing ? (
               <div className="flex flex-col items-center justify-center gap-1.5 text-indigo-600 p-2 text-center">
                 <Loader2 className="w-6 h-6 animate-spin" />
@@ -694,6 +694,9 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
                   className="w-full h-full object-cover cursor-pointer"
                   onClick={() => onPreviewPhoto?.(currentPhoto, photoTitle)}
                 />
+                <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs pointer-events-none">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </span>
                 <div className="absolute inset-x-0 bottom-0 p-1.5 bg-gradient-to-t from-black/75 via-black/40 to-transparent flex items-center justify-center gap-1.5 opacity-95 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   {onPreviewPhoto && (
                     <button
@@ -726,88 +729,55 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
                 <span className="text-[11px] font-bold text-slate-700 leading-tight">
                   {language === 'zh-TW' ? '學生照片' : language === 'en' ? 'Photo 4×6' : 'រូបថត 4×6'}
                 </span>
-                <span className="text-[10px] text-slate-400 mt-0.5">
-                  {language === 'zh-TW' ? '點擊或拖放' : language === 'en' ? 'Click / Drop' : 'ចុច ឬ ទម្លាក់រូប'}
-                </span>
               </div>
             )}
           </div>
 
-          {/* Controls & Instructions */}
-          <div className="flex-1 min-w-0 space-y-2.5 text-center sm:text-left w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <div className="font-bold text-slate-800 text-xs sm:text-sm flex items-center justify-center sm:justify-start gap-1.5">
-                <Camera className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span>{photoTitle}</span>
-              </div>
-              {hasPhoto && (
-                <span className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-emerald-700">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>
-                    {language === 'zh-TW'
-                      ? '已附加學生照片'
-                      : language === 'en'
-                      ? 'Photo Attached'
-                      : 'បានបញ្ចូលរូបថតរួចរាល់'}
-                  </span>
-                </span>
-              )}
-            </div>
+          {/* 3 Primary Action Buttons Centered Directly Underneath Photo Frame */}
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => openCameraWithMode('photo')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Camera className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                {language === 'zh-TW' ? '拍照' : language === 'en' ? 'Take Photo' : 'ថតរូប'}
+              </span>
+            </button>
 
-            <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed">
-              {language === 'zh-TW'
-                ? '可使用相機直接拍照、開啟人臉掃描對準框自動擷取，或從電腦／手機相簿上傳證件照。'
-                : language === 'en'
-                ? 'Take a live photo with your camera, use Face Scan with alignment guide, or upload an image file from your device.'
-                : 'អាចថតរូបផ្ទាល់តាមកាមេរ៉ា ប្រើមុខងារស្គេនមុខឱ្យចំរង្វង់ស្វ័យប្រវត្តិ ឬ Upload រូបថត 4×6 ពីទូរស័ព្ទ និងកុំព្យូទ័រ។'}
-            </p>
+            <button
+              type="button"
+              onClick={() => openCameraWithMode('face_scan')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <ScanFace className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                {language === 'zh-TW' ? '人臉掃描' : language === 'en' ? 'Face Scan' : 'ស្គេនមុខ'}
+              </span>
+            </button>
 
-            {/* 3 Primary Action Buttons: Take Photo | Face Scan | Upload Photo */}
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span>
+                {language === 'zh-TW' ? '上傳照片' : language === 'en' ? 'Upload Photo' : 'Upload រូបថត'}
+              </span>
+            </button>
+
+            {hasPhoto && (
               <button
                 type="button"
-                onClick={() => openCameraWithMode('photo')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                onClick={() => onChangePhoto(undefined)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
-                <Camera className="w-3.5 h-3.5 shrink-0" />
-                <span>
-                  {language === 'zh-TW' ? '拍照' : language === 'en' ? 'Take Photo' : 'ថតរូប'}
-                </span>
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                <span>{language === 'zh-TW' ? '移除' : language === 'en' ? 'Remove' : 'លុបរូប'}</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => openCameraWithMode('face_scan')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                <ScanFace className="w-3.5 h-3.5 shrink-0" />
-                <span>
-                  {language === 'zh-TW' ? '人臉掃描' : language === 'en' ? 'Face Scan' : 'ស្គេនមុខ'}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                <span>
-                  {language === 'zh-TW' ? '上傳照片' : language === 'en' ? 'Upload Photo' : 'Upload រូបថត'}
-                </span>
-              </button>
-
-              {hasPhoto && (
-                <button
-                  type="button"
-                  onClick={() => onChangePhoto(undefined)}
-                  className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>{language === 'zh-TW' ? '移除' : language === 'en' ? 'Remove' : 'លុបរូប'}</span>
-                </button>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>

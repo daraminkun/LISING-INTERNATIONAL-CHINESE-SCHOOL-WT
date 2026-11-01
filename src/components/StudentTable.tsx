@@ -44,6 +44,7 @@ import { getSchoolTranslation, getMajorTranslation } from '../utils/schoolMajorT
 import { downloadAllDocumentsForStudent } from '../utils/documentDownloadUtils';
 import { authService } from '../services/authService';
 import { SchoolMajorManageModal, ManageActionType } from './SchoolMajorManageModal';
+import { PrintReportModal } from './PrintReportModal';
 import {
   computeStudentNumbersList,
   compareStudentsBySchoolMajorOrder,
@@ -94,6 +95,8 @@ export const StudentTable: React.FC<StudentTableProps> = ({
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isSavingBlankForm, setIsSavingBlankForm] = useState(false);
+  const [isPrintingBlankForm, setIsPrintingBlankForm] = useState(false);
+  const [isBlankFormPreviewOpen, setIsBlankFormPreviewOpen] = useState(false);
 
   // View Mode: 'table' or 'cards' (Cards mode is ideal for mobile phones and compact screens)
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -601,7 +604,7 @@ export const StudentTable: React.FC<StudentTableProps> = ({
             <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs">
               <button
                 type="button"
-                disabled={isSavingBlankForm}
+                disabled={isSavingBlankForm || isPrintingBlankForm}
                 onClick={async () => {
                   setIsSavingBlankForm(true);
                   try {
@@ -623,22 +626,28 @@ export const StudentTable: React.FC<StudentTableProps> = ({
               <span className="w-px h-4 bg-slate-200" />
               <button
                 type="button"
-                disabled={isSavingBlankForm}
+                disabled={isSavingBlankForm || isPrintingBlankForm}
                 onClick={async () => {
-                  const res = await printBlankRegistrationForm(language);
-                  if (!res.success) {
-                    setIsSavingBlankForm(true);
-                    try {
-                      await saveBlankFormAsPDF(language);
-                    } finally {
-                      setIsSavingBlankForm(false);
+                  setIsPrintingBlankForm(true);
+                  try {
+                    const res = await printBlankRegistrationForm(language);
+                    if (!res.success) {
+                      setIsBlankFormPreviewOpen(true);
                     }
+                  } catch {
+                    setIsBlankFormPreviewOpen(true);
+                  } finally {
+                    setIsPrintingBlankForm(false);
                   }
                 }}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
                 title={language === 'km' ? 'Print Form (បោះពុម្ពទម្រង់បំពេញដោយដៃ)' : 'Print Blank Form'}
               >
-                <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                {isPrintingBlankForm ? (
+                  <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+                ) : (
+                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                )}
                 <span>{language === 'km' ? 'Print Form' : language === 'zh-TW' ? '列印空白表' : 'Print Form'}</span>
               </button>
             </div>
@@ -1607,6 +1616,17 @@ export const StudentTable: React.FC<StudentTableProps> = ({
               }
             }
           }}
+        />
+      )}
+
+      {/* Blank Form Print & A4 Preview Modal */}
+      {isBlankFormPreviewOpen && (
+        <PrintReportModal
+          isOpen={isBlankFormPreviewOpen}
+          onClose={() => setIsBlankFormPreviewOpen(false)}
+          students={filteredAndSortedStudents}
+          language={language}
+          initialMode="blank_form"
         />
       )}
     </div>

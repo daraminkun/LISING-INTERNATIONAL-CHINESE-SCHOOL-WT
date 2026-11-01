@@ -67,6 +67,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [studentQuery, setStudentQuery] = useState<string>('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [pdfProgress, setPdfProgress] = useState('');
   const [statusMessage, setStatusMessage] = useState<{
     type: 'success' | 'warning' | 'error';
@@ -153,26 +154,53 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
 
   if (!isOpen) return null;
 
-  const showPrintRestrictedWarning = () => {
+  const showPrintReadyPdfDownloadedMessage = (docLabelKm: string) => {
     setStatusMessage({
-      type: 'warning',
+      type: 'success',
       text:
         language === 'zh-TW'
-          ? '此瀏覽器環境限制直接列印視窗，請點擊紅色按鈕「Save PDF」下載完整 A4 檔案後列印！'
+          ? '此預覽視窗限制直接彈出列印對話框，系統已自動為您下載 A4 可列印 PDF 檔案，開啟即可直接列印！（正式網站連結將直接彈出列印視窗）'
           : language === 'en'
-          ? 'Direct print dialog is restricted in this browser view. Please click "Save PDF" to download and print!'
-          : 'កម្មវិធីរុករកនៅលើឧបករណ៍នេះមិនគាំទ្រផ្ទាំង Print ផ្ទាល់ទេ។ សូមចុចប៊ូតុងពណ៌ក្រហម «Save PDF» ដើម្បីទាញយកឯកសារ A4 ច្បាស់ ១០០% យកទៅព្រីន!',
+          ? 'Direct print dialog is restricted in this preview frame — your print-ready A4 PDF has been downloaded automatically! Open it to print immediately.'
+          : `កម្មវិធីរុករកនេះបិទផ្ទាំង Print ផ្ទាល់ — ប្រព័ន្ធបានរៀបចំ និងទាញយកឯកសារ ${docLabelKm} (A4 PDF) រួចរាល់សម្រាប់បើក Print ភ្លាមៗ! (នៅលើ Link វេបសាយផ្ទាល់ ផ្ទាំង Print នឹងលោតឡើងដោយស្វ័យប្រវត្តិ)`,
     });
   };
 
   // --- SUMMARY HANDLERS ---
   const handleDirectPrintSummary = async () => {
     setStatusMessage(null);
+    setIsPrinting(true);
     try {
       const res = await executePrintDocument(students, reportTitle, language);
-      if (!res.success) showPrintRestrictedWarning();
+      if (!res.success) {
+        await generateHighQualityPDF(
+          students,
+          reportTitle,
+          'Student_Registration_Report',
+          language,
+          (msg) => setPdfProgress(msg)
+        );
+        showPrintReadyPdfDownloadedMessage('តារាងរបាយការណ៍សិស្ស');
+      }
     } catch {
-      showPrintRestrictedWarning();
+      try {
+        await generateHighQualityPDF(
+          students,
+          reportTitle,
+          'Student_Registration_Report',
+          language,
+          (msg) => setPdfProgress(msg)
+        );
+        showPrintReadyPdfDownloadedMessage('តារាងរបាយការណ៍សិស្ស');
+      } catch {
+        setStatusMessage({
+          type: 'error',
+          text: language === 'km' ? 'មានបញ្ហាក្នុងការបោះពុម្ពរបាយការណ៍' : 'Error preparing printable report',
+        });
+      }
+    } finally {
+      setIsPrinting(false);
+      setPdfProgress('');
     }
   };
 
@@ -257,11 +285,26 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   const handlePrintSingleStudent = async () => {
     if (!selectedItem) return;
     setStatusMessage(null);
+    setIsPrinting(true);
     try {
       const res = await printIndividualStudentDocument(selectedItem, language);
-      if (!res.success) showPrintRestrictedWarning();
+      if (!res.success) {
+        await saveIndividualStudentPDF(selectedItem, language, (msg) => setPdfProgress(msg));
+        showPrintReadyPdfDownloadedMessage('ព័ត៌មានសិស្សម្នាក់នេះ');
+      }
     } catch {
-      showPrintRestrictedWarning();
+      try {
+        await saveIndividualStudentPDF(selectedItem, language, (msg) => setPdfProgress(msg));
+        showPrintReadyPdfDownloadedMessage('ព័ត៌មានសិស្សម្នាក់នេះ');
+      } catch {
+        setStatusMessage({
+          type: 'error',
+          text: language === 'km' ? 'មានបញ្ហាក្នុងការបោះពុម្ពព័ត៌មានសិស្ស' : 'Failed to print student info',
+        });
+      }
+    } finally {
+      setIsPrinting(false);
+      setPdfProgress('');
     }
   };
 
@@ -295,11 +338,26 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   const handlePrintAllIndividual = async () => {
     if (numberedItems.length === 0) return;
     setStatusMessage(null);
+    setIsPrinting(true);
     try {
       const res = await printIndividualStudentDocument(numberedItems, language);
-      if (!res.success) showPrintRestrictedWarning();
+      if (!res.success) {
+        await saveIndividualStudentPDF(numberedItems, language, (msg) => setPdfProgress(msg));
+        showPrintReadyPdfDownloadedMessage('ព័ត៌មានសិស្សម្នាក់ៗទាំងអស់');
+      }
     } catch {
-      showPrintRestrictedWarning();
+      try {
+        await saveIndividualStudentPDF(numberedItems, language, (msg) => setPdfProgress(msg));
+        showPrintReadyPdfDownloadedMessage('ព័ត៌មានសិស្សម្នាក់ៗទាំងអស់');
+      } catch {
+        setStatusMessage({
+          type: 'error',
+          text: language === 'km' ? 'មានបញ្ហាក្នុងការបោះពុម្ពសិស្សទាំងអស់' : 'Failed to print all students',
+        });
+      }
+    } finally {
+      setIsPrinting(false);
+      setPdfProgress('');
     }
   };
 
@@ -331,11 +389,36 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
 
   const handlePrintBlankForm = async () => {
     setStatusMessage(null);
+    setIsPrinting(true);
     try {
       const res = await printBlankRegistrationForm(language);
-      if (!res.success) showPrintRestrictedWarning();
+      if (!res.success) {
+        await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+        showPrintReadyPdfDownloadedMessage('ទម្រង់បំពេញព័ត៌មានសិស្សដោយដៃ (Print Form)');
+      } else {
+        setStatusMessage({
+          type: 'success',
+          text:
+            language === 'zh-TW'
+              ? '已開啟列印視窗！'
+              : language === 'en'
+              ? 'Print dialog opened!'
+              : 'បានបើកផ្ទាំងបោះពុម្ពទម្រង់បំពេញដោយដៃរួចរាល់!',
+        });
+      }
     } catch {
-      showPrintRestrictedWarning();
+      try {
+        await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+        showPrintReadyPdfDownloadedMessage('ទម្រង់បំពេញព័ត៌មានសិស្សដោយដៃ (Print Form)');
+      } catch {
+        setStatusMessage({
+          type: 'error',
+          text: language === 'km' ? 'មានបញ្ហាក្នុងការរៀបចំឯកសារ Print Form' : 'Failed to prepare Print Form',
+        });
+      }
+    } finally {
+      setIsPrinting(false);
+      setPdfProgress('');
     }
   };
 
@@ -480,17 +563,26 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
               <button
                 type="button"
                 onClick={handleDirectPrintSummary}
-                disabled={isGeneratingPdf || students.length === 0}
+                disabled={isGeneratingPdf || isPrinting || students.length === 0}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer"
               >
-                <Printer className="w-4 h-4" />
-                <span>
-                  {language === 'zh-TW'
-                    ? '列印總表 (Print)'
-                    : language === 'en'
-                    ? 'Print Summary'
-                    : 'បោះពុម្ពតារាងរួម (Print)'}
-                </span>
+                {isPrinting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{pdfProgress || (language === 'km' ? 'កំពុងរៀបចំ Print...' : 'Preparing Print...')}</span>
+                  </>
+                ) : (
+                  <>
+                    <Printer className="w-4 h-4" />
+                    <span>
+                      {language === 'zh-TW'
+                        ? '列印總表 (Print)'
+                        : language === 'en'
+                        ? 'Print Summary'
+                        : 'បោះពុម្ពតារាងរួម (Print)'}
+                    </span>
+                  </>
+                )}
               </button>
 
               <button
@@ -622,10 +714,14 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                 <button
                   type="button"
                   onClick={handlePrintSingleStudent}
-                  disabled={isGeneratingPdf || !selectedItem}
+                  disabled={isGeneratingPdf || isPrinting || !selectedItem}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer"
                 >
-                  <Printer className="w-4 h-4" />
+                  {isPrinting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Printer className="w-4 h-4" />
+                  )}
                   <span>
                     {language === 'zh-TW'
                       ? 'Print (列印此位學生)'
@@ -640,7 +736,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveAllIndividualPdfs}
-                  disabled={isGeneratingPdf || numberedItems.length === 0}
+                  disabled={isGeneratingPdf || isPrinting || numberedItems.length === 0}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold transition-all disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-rose-600" />
@@ -656,10 +752,14 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                 <button
                   type="button"
                   onClick={handlePrintAllIndividual}
-                  disabled={isGeneratingPdf || numberedItems.length === 0}
+                  disabled={isGeneratingPdf || isPrinting || numberedItems.length === 0}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold transition-all disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer"
                 >
-                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  {isPrinting ? (
+                    <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+                  ) : (
+                    <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  )}
                   <span>
                     {language === 'zh-TW'
                       ? 'Print 全部個人表'
@@ -679,7 +779,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
               <button
                 type="button"
                 onClick={handleSaveBlankForm}
-                disabled={isGeneratingPdf}
+                disabled={isGeneratingPdf || isPrinting}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#701014] hover:bg-[#580c10] text-white text-xs font-bold shadow-xs transition-all disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer"
               >
                 {isGeneratingPdf ? (
@@ -688,7 +788,9 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                   <Download className="w-4 h-4" />
                 )}
                 <span>
-                  {language === 'zh-TW'
+                  {isGeneratingPdf && pdfProgress
+                    ? pdfProgress
+                    : language === 'zh-TW'
                     ? 'Save Form PDF (下載手寫空白表)'
                     : language === 'en'
                     ? 'Save Form as PDF'
@@ -699,12 +801,18 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
               <button
                 type="button"
                 onClick={handlePrintBlankForm}
-                disabled={isGeneratingPdf}
+                disabled={isGeneratingPdf || isPrinting}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-60 whitespace-nowrap shrink-0 cursor-pointer"
               >
-                <Printer className="w-4 h-4" />
+                {isPrinting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Printer className="w-4 h-4" />
+                )}
                 <span>
-                  {language === 'zh-TW'
+                  {isPrinting && pdfProgress
+                    ? pdfProgress
+                    : language === 'zh-TW'
                     ? 'Print Form (列印空白表)'
                     : language === 'en'
                     ? 'Print Form'
@@ -782,7 +890,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                       <div className="font-bold text-[15px] sm:text-[15.5px] text-indigo-950 font-biaukai mt-0.5">
                         {schoolNameZh}
                       </div>
-                      <div className="font-bold text-[11px] sm:text-[11.5px] text-slate-700 tracking-wide uppercase font-times mt-0.5">
+                      <div className="font-bold text-[11px] sm:text-[11.5px] text-slate-700 tracking-wide uppercase font-times mt-0.5 sm:whitespace-nowrap">
                         {schoolNameEn}
                       </div>
                     </div>
@@ -961,7 +1069,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
             <div className="bg-white shadow-lg border border-slate-300 max-w-[810px] mx-auto p-5 sm:p-6 text-black overflow-x-auto">
               {selectedItem ? (
                 <div
-                  className="min-w-[730px] font-battambang"
+                  className="min-w-[762px] font-battambang"
                   dangerouslySetInnerHTML={{ __html: individualPreviewHtml }}
                 />
               ) : (
@@ -991,7 +1099,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                   </div>
                   <div className="bg-white shadow-lg border border-slate-300 p-5 sm:p-6 text-black overflow-x-auto">
                     <div
-                      className="min-w-[730px] font-battambang"
+                      className="min-w-[762px] font-battambang"
                       dangerouslySetInnerHTML={{ __html: pageHtml }}
                     />
                   </div>

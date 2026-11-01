@@ -40,6 +40,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
 }) => {
   const t = translations[language];
   const [isSavingBlankPdf, setIsSavingBlankPdf] = React.useState(false);
+  const [isPrintingBlankPdf, setIsPrintingBlankPdf] = React.useState(false);
   const [portalNotice, setPortalNotice] = React.useState<{ type: 'success' | 'warning'; text: string } | null>(null);
 
   const handleSaveBlankForm = async () => {
@@ -71,17 +72,42 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
 
   const handlePrintBlankForm = async () => {
     setPortalNotice(null);
-    const res = await printBlankRegistrationForm(language);
-    if (!res.success) {
-      setPortalNotice({
-        type: 'warning',
-        text:
-          language === 'km'
-            ? 'សូមចុចប៊ូតុង «Save Form ជា PDF» ដើម្បីទាញយកទម្រង់យកទៅព្រីន!'
-            : language === 'zh-TW'
-            ? '請點擊「Save Form PDF」下載空白報名表後列印！'
-            : 'Click "Save Form as PDF" to download and print!',
-      });
+    setIsPrintingBlankPdf(true);
+    try {
+      const res = await printBlankRegistrationForm(language);
+      if (!res.success) {
+        await saveBlankFormAsPDF(language);
+        setPortalNotice({
+          type: 'success',
+          text:
+            language === 'km'
+              ? 'បានរៀបចំ និងទាញយកឯកសារ Print Form (A4 PDF) រួចរាល់សម្រាប់បើក Print ភ្លាមៗ!'
+              : language === 'zh-TW'
+              ? '已自動下載可列印之空白報名表 (A4 PDF)，開啟即可列印！'
+              : 'Print-ready Blank Form (A4 PDF) downloaded — open to print immediately!',
+        });
+      }
+    } catch {
+      try {
+        await saveBlankFormAsPDF(language);
+        setPortalNotice({
+          type: 'success',
+          text:
+            language === 'km'
+              ? 'បានទាញយកឯកសារ Print Form (A4 PDF) រួចរាល់សម្រាប់បើក Print!'
+              : 'Print-ready Blank Form PDF downloaded!',
+        });
+      } catch {
+        setPortalNotice({
+          type: 'warning',
+          text:
+            language === 'km'
+              ? 'មានបញ្ហាក្នុងការរៀបចំឯកសារ Print Form សូមព្យាយាមម្ដងទៀត។'
+              : 'Failed to prepare printable form.',
+        });
+      }
+    } finally {
+      setIsPrintingBlankPdf(false);
     }
   };
 
@@ -179,7 +205,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
               <button
                 type="button"
                 onClick={handleSaveBlankForm}
-                disabled={isSavingBlankPdf}
+                disabled={isSavingBlankPdf || isPrintingBlankPdf}
                 className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs text-white bg-white/15 hover:bg-white/25 border border-white/25 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
                 title={language === 'km' ? 'ទាញយកទម្រង់ពាក្យចុះឈ្មោះសម្រាប់បំពេញដោយដៃ (PDF)' : 'Save Blank Form as PDF'}
               >
@@ -200,13 +226,21 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
               <button
                 type="button"
                 onClick={handlePrintBlankForm}
-                disabled={isSavingBlankPdf}
+                disabled={isSavingBlankPdf || isPrintingBlankPdf}
                 className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs text-white bg-white/15 hover:bg-white/25 border border-white/25 transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
                 title={language === 'km' ? 'បោះពុម្ពទម្រង់ពាក្យចុះឈ្មោះសម្រាប់បំពេញដោយដៃ' : 'Print Blank Form'}
               >
-                <Printer className="w-3.5 h-3.5 text-amber-300" />
+                {isPrintingBlankPdf ? (
+                  <Loader2 className="w-3.5 h-3.5 text-amber-300 animate-spin" />
+                ) : (
+                  <Printer className="w-3.5 h-3.5 text-amber-300" />
+                )}
                 <span>
-                  {language === 'km'
+                  {isPrintingBlankPdf
+                    ? language === 'km'
+                      ? 'កំពុង Print...'
+                      : 'Printing...'
+                    : language === 'km'
                     ? 'Print Form'
                     : language === 'zh-TW'
                     ? '列印空白表'

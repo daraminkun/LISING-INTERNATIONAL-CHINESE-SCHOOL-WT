@@ -1133,29 +1133,6 @@ export default function App() {
           )}
 
         </main>
-
-        {/* Footer */}
-        <footer className="mt-auto border-t border-slate-200 bg-white/80 py-4 text-center text-xs text-slate-500">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span>
-              {t.appName} • {t.appSub}
-            </span>
-            {isAdmin && (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setIsSettingsModalOpen(true)}
-                  className="text-indigo-600 hover:underline font-medium"
-                >
-                  {t.setupScript}
-                </button>
-                <span>•</span>
-                <span className="font-mono text-[11px] text-slate-400">
-                  {students.length} {t.students}
-                </span>
-              </div>
-            )}
-          </div>
-        </footer>
       </div>
 
       {/* MODALS */}

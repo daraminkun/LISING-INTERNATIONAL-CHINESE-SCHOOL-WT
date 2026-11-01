@@ -384,6 +384,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
   const [pdfProgress, setPdfProgress] = useState('');
   const [busyIndividualId, setBusyIndividualId] = useState<string | null>(null);
   const [isSavingBlankForm, setIsSavingBlankForm] = useState(false);
+  const [isPrintingBlankForm, setIsPrintingBlankForm] = useState(false);
 
   // Print trigger: opens Print & PDF Center with direct print attempt & preview
   const handlePrint = () => {
@@ -435,11 +436,20 @@ export const StudentReport: React.FC<StudentReportProps> = ({
   };
 
   const handleQuickPrintBlankForm = async () => {
-    const res = await printBlankRegistrationForm(language);
-    if (!res.success) {
+    setIsPrintingBlankForm(true);
+    try {
+      const res = await printBlankRegistrationForm(language);
+      if (!res.success) {
+        setPrintModalMode('blank_form');
+        setPrintModalStudentId(undefined);
+        setIsPrintModalOpen(true);
+      }
+    } catch {
       setPrintModalMode('blank_form');
       setPrintModalStudentId(undefined);
       setIsPrintModalOpen(true);
+    } finally {
+      setIsPrintingBlankForm(false);
     }
   };
 
@@ -653,7 +663,7 @@ export const StudentReport: React.FC<StudentReportProps> = ({
                 <button
                   type="button"
                   onClick={handleQuickSaveBlankForm}
-                  disabled={isSavingBlankForm}
+                  disabled={isSavingBlankForm || isPrintingBlankForm}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-700 hover:text-[#701014] hover:bg-rose-50 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
                   title={language === 'km' ? 'ទាញយកទម្រង់បំពេញព័ត៌មានសិស្សដោយដៃ (PDF)' : 'Save Blank Form as PDF'}
                 >
@@ -668,11 +678,15 @@ export const StudentReport: React.FC<StudentReportProps> = ({
                 <button
                   type="button"
                   onClick={handleQuickPrintBlankForm}
-                  disabled={isSavingBlankForm}
+                  disabled={isSavingBlankForm || isPrintingBlankForm}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
                   title={language === 'km' ? 'បោះពុម្ពទម្រង់បំពេញព័ត៌មានសិស្សដោយដៃ' : 'Print Blank Form'}
                 >
-                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  {isPrintingBlankForm ? (
+                    <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+                  ) : (
+                    <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  )}
                   <span>{language === 'km' ? 'Print Form' : language === 'zh-TW' ? '列印空白表' : 'Print Form'}</span>
                 </button>
               </div>

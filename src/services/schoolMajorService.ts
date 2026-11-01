@@ -435,7 +435,7 @@ class SchoolMajorService {
       }
     }
 
-    return Array.from(listMap.values())
+    const resolvedList = Array.from(listMap.values())
       .filter(s => !isExcluded(s.school))
       .map(s => {
         const cTrans = customTrans.schools[s.school];
@@ -446,6 +446,23 @@ class SchoolMajorService {
           majors: filterMajors(s.school, s.majors),
         };
       });
+
+    const isUniversityEntry = (entry: SchoolMajorEntry): boolean => {
+      const name = entry.school || '';
+      return Boolean(
+        name.includes('大學') ||
+          name.includes('學院') ||
+          name.includes('專科') ||
+          entry.ageRequirementEn?.toLowerCase().includes('university') ||
+          entry.ageRequirementEn?.toLowerCase().includes('college') ||
+          entry.ageRequirementKm?.includes('សកលវិទ្យាល័យ') ||
+          entry.ageRequirementKm?.includes('សាកលវិទ្យាល័យ')
+      );
+    };
+
+    const highSchoolEntries = resolvedList.filter(s => !isUniversityEntry(s));
+    const universityEntries = resolvedList.filter(s => isUniversityEntry(s));
+    return [...highSchoolEntries, ...universityEntries];
   }
 
   /**

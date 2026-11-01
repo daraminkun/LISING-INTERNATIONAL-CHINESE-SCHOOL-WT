@@ -654,13 +654,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          {/* Subtitle & Credits */}
-          <div className="text-center">
-            <p className="text-[11px] text-slate-400">
-              {t.appSub}
-            </p>
-          </div>
-
         </div>
 
       </aside>

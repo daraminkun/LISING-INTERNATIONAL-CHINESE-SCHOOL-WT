@@ -101,6 +101,10 @@ async function resolveImageAsDataUrl(src: string): Promise<string> {
   }
 }
 
+if (typeof window !== 'undefined') {
+  void resolveImageAsDataUrl('/logo.jpg');
+}
+
 function buildOfficialHeaderHtml(options: {
   schoolLogoSrc: string;
   schoolNameKm: string;
@@ -153,7 +157,7 @@ function buildOfficialHeaderHtml(options: {
             <div style="font-family: 'DFKai-SB', 'BiauKai', 'Kaiti TC', 'KaiTi', 'Noto Serif TC', serif; font-size: 15.5px; font-weight: 700; color: #1e1b4b; margin-top: 1px; line-height: 1.22;">
               ${escapeHtml(schoolNameZh)}
             </div>
-            <div style="font-family: 'Times New Roman', Times, serif; font-size: 11.5px; font-weight: 700; color: #334155; letter-spacing: 0.4px; text-transform: uppercase; margin-top: 1px;">
+            <div style="font-family: 'Times New Roman', Times, serif; font-size: 11.5px; font-weight: 700; color: #334155; letter-spacing: 0.4px; text-transform: uppercase; margin-top: 1px; white-space: nowrap;">
               ${escapeHtml(schoolNameEn)}
             </div>
           </div>
@@ -448,6 +452,24 @@ export async function generateHighQualityPDF(
       : 'កំពុងរៀបចំទិន្នន័យក្រដាសបញ្ឈរ A4 ៣ភាសា (Font ទំហំ ១៤)...'
   );
 
+  if (typeof document !== 'undefined' && document.head) {
+    const fixId = 'h2c-main-doc-fontmetrics-fix';
+    if (!document.getElementById(fixId)) {
+      const styleEl = document.createElement('style');
+      styleEl.id = fixId;
+      styleEl.textContent = `
+        img[width="1"][height="1"],
+        img[src^="data:image/gif;base64,R0lGODlhAQAB"] {
+          display: inline !important;
+          vertical-align: baseline !important;
+          position: relative !important;
+          top: -1px !important;
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+  }
+
   // Ensure web fonts are loaded before canvas capture
   try {
     if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
@@ -550,8 +572,7 @@ export async function generateHighQualityPDF(
           isLastPage
             ? buildOfficialSignaturesHtml()
             : `
-          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 10px; font-size: 11px; color: #475569; font-family: 'Battambang', 'Noto Serif TC', 'Times New Roman', sans-serif;">
-            <span>${escapeHtml(schoolNameKm)} • ${escapeHtml(schoolNameZh)} • ${escapeHtml(schoolNameEn)}</span>
+          <div style="display: flex; justify-content: center; align-items: center; border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 10px; font-size: 11px; font-weight: 700; color: #334155; font-family: 'Battambang', 'Noto Serif TC', 'Times New Roman', sans-serif;">
             <span>ទំព័រទី ${pageIdx + 1} នៃ ${totalPages} • 第 ${pageIdx + 1} / ${totalPages} 頁 • Page ${pageIdx + 1} of ${totalPages}</span>
           </div>
         `
@@ -565,10 +586,25 @@ export async function generateHighQualityPDF(
         scale: 2,
         width: PAGE_WIDTH_PX,
         windowWidth: PAGE_WIDTH_PX,
+        scrollX: 0,
+        scrollY: 0,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
         onclone: (clonedDoc) => {
+          if (clonedDoc.head) {
+            const h2cBaselineFix = clonedDoc.createElement('style');
+            h2cBaselineFix.textContent = `
+              img[width="1"][height="1"],
+              img[src^="data:image/gif;base64,R0lGODlhAQAB"] {
+                display: inline !important;
+                vertical-align: baseline !important;
+                position: relative !important;
+                top: -1px !important;
+              }
+            `;
+            clonedDoc.head.appendChild(h2cBaselineFix);
+          }
           const stylesheets = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
           stylesheets.forEach(sheet => {
             if (sheet.textContent && sheet.textContent.includes('oklch')) {
@@ -669,6 +705,12 @@ export async function executePrintDocument(
       doc.write(htmlContent);
       doc.close();
 
+      let beforePrintFired = false;
+      const onBeforePrint = () => {
+        beforePrintFired = true;
+      };
+      iframe.contentWindow.addEventListener('beforeprint', onBeforePrint);
+
       const runPrint = async () => {
         try {
           const win = iframe.contentWindow;
@@ -679,11 +721,21 @@ export async function executePrintDocument(
           if ((win.document as any).fonts?.ready) {
             await Promise.race([
               (win.document as any).fonts.ready,
-              new Promise(r => setTimeout(r, 800)),
+              new Promise(r => setTimeout(r, 160)),
             ]);
           }
           win.focus();
           win.print();
+
+          await new Promise(r => setTimeout(r, 90));
+          if (!beforePrintFired) {
+            resolve({
+              success: false,
+              fallbackNeeded: true,
+              error: 'Print dialog suppressed by sandboxed frame',
+            });
+            return;
+          }
           resolve({ success: true });
         } catch (e: any) {
           console.warn('Iframe print notice:', e);
@@ -693,11 +745,11 @@ export async function executePrintDocument(
             if (document.body.contains(iframe)) {
               document.body.removeChild(iframe);
             }
-          }, 5000);
+          }, 4000);
         }
       };
 
-      setTimeout(runPrint, 450);
+      setTimeout(runPrint, 120);
     });
   } catch (err: any) {
     console.error('Print preparation error:', err);

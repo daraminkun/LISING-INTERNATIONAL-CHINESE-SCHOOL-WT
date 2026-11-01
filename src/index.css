@@ -44,6 +44,15 @@ body {
   overflow-x: hidden;
 }
 
+/* Fix html2canvas v1.4.1 FontMetrics(window.document) 1x1 baseline probe broken by Tailwind Preflight `img { display: block }` */
+img[width="1"][height="1"],
+img[src^="data:image/gif;base64,R0lGODlhAQAB"] {
+  display: inline !important;
+  vertical-align: baseline !important;
+  position: relative !important;
+  top: -1px !important;
+}
+
 /* Ensure Khmer text has sufficient vertical space for vowel marks and subscripts */
 html[lang="km"] input,
 html[lang="km"] select,
