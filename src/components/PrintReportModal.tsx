@@ -13,9 +13,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  Share2,
 } from 'lucide-react';
 import { Student, Language } from '../types';
 import {
+  GeneratedPdfResult,
   generateHighQualityPDF,
   executePrintDocument,
   downloadPrintableHtml,
@@ -35,10 +37,12 @@ import { getStudentPhotoDataUrl } from '../utils/documentUtils';
 import { useInstitution } from '../services/institutionService';
 import { schoolMajorService } from '../services/schoolMajorService';
 import {
+  canSharePdfFile,
   computeStudentNumbersList,
   formatConciseSchoolForReport,
   formatDobDot,
   formatGenderCode,
+  sharePdfBlobNative,
 } from '../utils/studentOrderUtils';
 
 export type PrintModalMode = 'summary' | 'individual' | 'blank_form';
@@ -51,6 +55,7 @@ interface PrintReportModalProps {
   reportTitle?: string;
   initialMode?: PrintModalMode;
   initialStudentId?: string;
+  onlyBlankForm?: boolean;
 }
 
 export const PrintReportModal: React.FC<PrintReportModalProps> = ({
@@ -61,20 +66,23 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   reportTitle = 'តារាងរបាយការណ៍សិស្ស • 學生綜合報表 • STUDENT COMPREHENSIVE REPORT',
   initialMode = 'summary',
   initialStudentId,
+  onlyBlankForm = false,
 }) => {
   const institution = useInstitution();
-  const [mode, setMode] = useState<PrintModalMode>(initialMode);
+  const [mode, setMode] = useState<PrintModalMode>(onlyBlankForm ? 'blank_form' : initialMode);
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [studentQuery, setStudentQuery] = useState<string>('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [pdfProgress, setPdfProgress] = useState('');
+  const [readyPdf, setReadyPdf] = useState<GeneratedPdfResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<{
     type: 'success' | 'warning' | 'error';
     text: string;
   } | null>(null);
   const [docsTick, setDocsTick] = useState(0);
 
+  const canNativeShare = useMemo(() => canSharePdfFile(), []);
   const numberedItems = useMemo(() => computeStudentNumbersList(students), [students]);
 
   useEffect(() => {
@@ -89,8 +97,9 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setMode(initialMode);
+    setMode(onlyBlankForm ? 'blank_form' : initialMode);
     setStatusMessage(null);
+    setReadyPdf(null);
     setStudentQuery('');
     if (initialStudentId && numberedItems.some((it) => it.student.studentId === initialStudentId)) {
       setSelectedStudentId(initialStudentId);
@@ -103,7 +112,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     } else {
       setSelectedStudentId('');
     }
-  }, [isOpen, initialMode, initialStudentId, numberedItems]);
+  }, [isOpen, initialMode, initialStudentId, numberedItems, onlyBlankForm]);
 
   const filteredNumberedItems = useMemo(() => {
     const q = studentQuery.trim().toLowerCase();
@@ -173,24 +182,26 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     try {
       const res = await executePrintDocument(students, reportTitle, language);
       if (!res.success) {
-        await generateHighQualityPDF(
+        const pdfRes = await generateHighQualityPDF(
           students,
           reportTitle,
           'Student_Registration_Report',
           language,
           (msg) => setPdfProgress(msg)
         );
+        setReadyPdf(pdfRes);
         showPrintReadyPdfDownloadedMessage('តារាងរបាយការណ៍សិស្ស');
       }
     } catch {
       try {
-        await generateHighQualityPDF(
+        const pdfRes = await generateHighQualityPDF(
           students,
           reportTitle,
           'Student_Registration_Report',
           language,
           (msg) => setPdfProgress(msg)
         );
+        setReadyPdf(pdfRes);
         showPrintReadyPdfDownloadedMessage('តារាងរបាយការណ៍សិស្ស');
       } catch {
         setStatusMessage({
@@ -208,13 +219,14 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     setIsGeneratingPdf(true);
     setStatusMessage(null);
     try {
-      await generateHighQualityPDF(
+      const pdfRes = await generateHighQualityPDF(
         students,
         reportTitle,
         'Student_Registration_Report',
         language,
         (msg) => setPdfProgress(msg)
       );
+      setReadyPdf(pdfRes);
       setStatusMessage({
         type: 'success',
         text:
@@ -243,6 +255,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
 
   const handleDownloadSummaryHtml = async () => {
     await downloadPrintableHtml(students, reportTitle, 'Student_Report', language);
+    setReadyPdf(null);
     setStatusMessage({
       type: 'success',
       text:
@@ -260,7 +273,8 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     setIsGeneratingPdf(true);
     setStatusMessage(null);
     try {
-      await saveIndividualStudentPDF(selectedItem, language, (msg) => setPdfProgress(msg));
+      const pdfRes = await saveIndividualStudentPDF(selectedItem, language, (msg) => setPdfProgress(msg));
+      setReadyPdf(pdfRes);
       setStatusMessage({
         type: 'success',
         text:
@@ -289,12 +303,14 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     try {
       const res = await printIndividualStudentDocument(selectedItem, language);
       if (!res.success) {
-        await saveIndividualStudentPDF(selectedItem, language, (msg) => setPdfProgress(msg));
+        const pdfRes = await saveIndividualStudentPDF(selectedItem, language, (msg) => setPdfProgress(msg));
+        setReadyPdf(pdfRes);
         showPrintReadyPdfDownloadedMessage('ព័ត៌មានសិស្សម្នាក់នេះ');
       }
     } catch {
       try {
-        await saveIndividualStudentPDF(selectedItem, language, (msg) => setPdfProgress(msg));
+        const pdfRes = await saveIndividualStudentPDF(selectedItem, language, (msg) => setPdfProgress(msg));
+        setReadyPdf(pdfRes);
         showPrintReadyPdfDownloadedMessage('ព័ត៌មានសិស្សម្នាក់នេះ');
       } catch {
         setStatusMessage({
@@ -313,7 +329,8 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     setIsGeneratingPdf(true);
     setStatusMessage(null);
     try {
-      await saveIndividualStudentPDF(numberedItems, language, (msg) => setPdfProgress(msg));
+      const pdfRes = await saveIndividualStudentPDF(numberedItems, language, (msg) => setPdfProgress(msg));
+      setReadyPdf(pdfRes);
       setStatusMessage({
         type: 'success',
         text:
@@ -342,12 +359,14 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     try {
       const res = await printIndividualStudentDocument(numberedItems, language);
       if (!res.success) {
-        await saveIndividualStudentPDF(numberedItems, language, (msg) => setPdfProgress(msg));
+        const pdfRes = await saveIndividualStudentPDF(numberedItems, language, (msg) => setPdfProgress(msg));
+        setReadyPdf(pdfRes);
         showPrintReadyPdfDownloadedMessage('ព័ត៌មានសិស្សម្នាក់ៗទាំងអស់');
       }
     } catch {
       try {
-        await saveIndividualStudentPDF(numberedItems, language, (msg) => setPdfProgress(msg));
+        const pdfRes = await saveIndividualStudentPDF(numberedItems, language, (msg) => setPdfProgress(msg));
+        setReadyPdf(pdfRes);
         showPrintReadyPdfDownloadedMessage('ព័ត៌មានសិស្សម្នាក់ៗទាំងអស់');
       } catch {
         setStatusMessage({
@@ -366,7 +385,8 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     setIsGeneratingPdf(true);
     setStatusMessage(null);
     try {
-      await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+      const pdfRes = await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+      setReadyPdf(pdfRes);
       setStatusMessage({
         type: 'success',
         text:
@@ -376,7 +396,8 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
             ? 'Blank Student Registration Form PDF downloaded successfully!'
             : 'បានរក្សាទុកទម្រង់ពាក្យចុះឈ្មោះ (Save Form ជា PDF) សម្រាប់បំពេញដោយដៃ ជោគជ័យ!',
       });
-    } catch {
+    } catch (err) {
+      console.error('Blank form PDF error:', err);
       setStatusMessage({
         type: 'error',
         text: language === 'km' ? 'មានបញ្ហាក្នុងការបង្កើត PDF ទម្រង់ទទេ' : 'Failed to generate blank form PDF',
@@ -393,9 +414,11 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
     try {
       const res = await printBlankRegistrationForm(language);
       if (!res.success) {
-        await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+        const pdfRes = await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+        setReadyPdf(pdfRes);
         showPrintReadyPdfDownloadedMessage('ទម្រង់បំពេញព័ត៌មានសិស្សដោយដៃ (Print Form)');
       } else {
+        setReadyPdf(null);
         setStatusMessage({
           type: 'success',
           text:
@@ -408,7 +431,8 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
       }
     } catch {
       try {
-        await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+        const pdfRes = await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+        setReadyPdf(pdfRes);
         showPrintReadyPdfDownloadedMessage('ទម្រង់បំពេញព័ត៌មានសិស្សដោយដៃ (Print Form)');
       } catch {
         setStatusMessage({
@@ -437,7 +461,13 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
             <div className="min-w-0">
               <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2 flex-wrap">
                 <span>
-                  {language === 'zh-TW'
+                  {onlyBlankForm
+                    ? language === 'zh-TW'
+                      ? '空白手寫入學報名表 (Save Form & Print Form)'
+                      : language === 'en'
+                      ? 'Blank Registration Form (Save Form & Print Form)'
+                      : 'ទម្រង់ពាក្យចុះឈ្មោះសម្រាប់បំពេញដោយដៃ (Save Form & Print Form)'
+                    : language === 'zh-TW'
                     ? '列印與下載報表中心 (總表 • 學生個人資料 • 空白報名表)'
                     : language === 'en'
                     ? 'Print & PDF Export Center (Summary • Individual Student • Blank Form)'
@@ -445,7 +475,13 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                 </span>
               </h3>
               <p className="text-xs text-slate-500 truncate tabular-nums">
-                {language === 'zh-TW'
+                {onlyBlankForm
+                  ? language === 'zh-TW'
+                    ? `A4 直向 (${blankFormPagesHtml.length} 頁) · 日期：${currentDateDot}`
+                    : language === 'en'
+                    ? `A4 Portrait (${blankFormPagesHtml.length} pages) · Date: ${currentDateDot}`
+                    : `ក្រដាសបញ្ឈរ A4 (${blankFormPagesHtml.length} ទំព័រ) · កាលបរិច្ឆេទ៖ ${currentDateDot}`
+                  : language === 'zh-TW'
                   ? `學生總數 ${students.length} 人 · A4 直向 · 日期：${currentDateDot}`
                   : language === 'en'
                   ? `Total ${students.length} Students · A4 Portrait · Date: ${currentDateDot}`
@@ -462,74 +498,79 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
           </button>
         </div>
 
-        {/* Mode Switcher Segmented Tabs */}
-        <div className="px-4 sm:px-6 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('summary');
-              setStatusMessage(null);
-            }}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-              mode === 'summary'
-                ? 'bg-[#701014] text-white shadow-xs'
-                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>
-              {language === 'zh-TW'
-                ? '1. 學生綜合報表 (總表)'
-                : language === 'en'
-                ? '1. Summary Report Table'
-                : '១. តារាងរបាយការណ៍សិស្សរួម'}
-            </span>
-          </button>
+        {/* Mode Switcher Segmented Tabs (Hidden in registrant-only blank form mode) */}
+        {!onlyBlankForm && (
+          <div className="px-4 sm:px-6 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('summary');
+                setStatusMessage(null);
+                setReadyPdf(null);
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                mode === 'summary'
+                  ? 'bg-[#701014] text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>
+                {language === 'zh-TW'
+                  ? '1. 學生綜合報表 (總表)'
+                  : language === 'en'
+                  ? '1. Summary Report Table'
+                  : '១. តារាងរបាយការណ៍សិស្សរួម'}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setMode('individual');
-              setStatusMessage(null);
-            }}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-              mode === 'individual'
-                ? 'bg-[#701014] text-white shadow-xs'
-                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>
-              {language === 'zh-TW'
-                ? '2. 學生個人資料 (Save PDF & Print)'
-                : language === 'en'
-                ? '2. Individual Student Info (Save PDF & Print)'
-                : '២. ព័ត៌មានសិស្សម្នាក់ៗ (Save PDF & Print)'}
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('individual');
+                setStatusMessage(null);
+                setReadyPdf(null);
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                mode === 'individual'
+                  ? 'bg-[#701014] text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>
+                {language === 'zh-TW'
+                  ? '2. 學生個人資料 (Save PDF & Print)'
+                  : language === 'en'
+                  ? '2. Individual Student Info (Save PDF & Print)'
+                  : '២. ព័ត៌មានសិស្សម្នាក់ៗ (Save PDF & Print)'}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setMode('blank_form');
-              setStatusMessage(null);
-            }}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-              mode === 'blank_form'
-                ? 'bg-[#701014] text-white shadow-xs'
-                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>
-              {language === 'zh-TW'
-                ? '3. 空白手寫報名表 (Save & Print Form)'
-                : language === 'en'
-                ? '3. Blank Form for Manual Fill'
-                : '៣. ទម្រង់បំពេញដោយដៃ (Save & Print Form)'}
-            </span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('blank_form');
+                setStatusMessage(null);
+                setReadyPdf(null);
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                mode === 'blank_form'
+                  ? 'bg-[#701014] text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>
+                {language === 'zh-TW'
+                  ? '3. 空白手寫報名表 (Save & Print Form)'
+                  : language === 'en'
+                  ? '3. Blank Form for Manual Fill'
+                  : '៣. ទម្រង់បំពេញដោយដៃ (Save & Print Form)'}
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Mode-Specific Export Controls */}
         {mode === 'summary' && (
@@ -834,7 +875,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
         {/* Status Banner */}
         {statusMessage && (
           <div
-            className={`px-6 py-2.5 text-xs font-medium flex items-center gap-2 border-b shrink-0 ${
+            className={`px-4 sm:px-6 py-2.5 text-xs font-medium flex flex-wrap items-center justify-between gap-2 border-b shrink-0 ${
               statusMessage.type === 'success'
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                 : statusMessage.type === 'warning'
@@ -842,10 +883,49 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                 : 'bg-rose-50 text-rose-800 border-rose-200'
             }`}
           >
-            {statusMessage.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
-            {statusMessage.type === 'warning' && <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />}
-            {statusMessage.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-            <span className="flex-1">{statusMessage.text}</span>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              {statusMessage.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+              {statusMessage.type === 'warning' && <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />}
+              {statusMessage.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+              <span>{statusMessage.text}</span>
+            </div>
+
+            {readyPdf && readyPdf.url && statusMessage.type === 'success' && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <a
+                  href={readyPdf.url}
+                  download={readyPdf.filename}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold shadow-2xs transition-colors whitespace-nowrap"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>
+                    {language === 'zh-TW'
+                      ? '直接下載 PDF'
+                      : language === 'en'
+                      ? 'Download PDF'
+                      : 'ទាញយក PDF'}
+                  </span>
+                </a>
+                {canNativeShare && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void sharePdfBlobNative(readyPdf.blob, readyPdf.filename, readyPdf.filename);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold shadow-2xs transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    <Share2 className="w-3 h-3" />
+                    <span>
+                      {language === 'zh-TW'
+                        ? '分享 / 列印'
+                        : language === 'en'
+                        ? 'Share / Print'
+                        : 'Share / Print'}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 

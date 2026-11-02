@@ -67,7 +67,7 @@ async function smartAutoCropPortraitFromDataUrl(
           return;
         }
 
-        const targetAspect = 3 / 4;
+        const targetAspect = 3.5 / 4.5;
         let centerXRatio = 0.5;
         let centerYRatio = 0.45;
         let cropHeightRatio = 1;
@@ -91,7 +91,7 @@ async function smartAutoCropPortraitFromDataUrl(
 
           if (detectedBox) {
             centerXRatio = (detectedBox.x + detectedBox.width / 2) / iw;
-            // Shift slightly downward from eye/nose box to include chin & shoulders for 4x6 ID portrait
+            // Shift slightly downward from eye/nose box to include chin & shoulders for 3.5x4.5 cm ID portrait
             centerYRatio = (detectedBox.y + detectedBox.height * 0.58) / ih;
             const idealPortraitHeight = (detectedBox.height * 2.35) / ih;
             cropHeightRatio = Math.min(1, Math.max(0.45, idealPortraitHeight));
@@ -156,8 +156,8 @@ async function smartAutoCropPortraitFromDataUrl(
         const sx = Math.max(0, Math.min(iw - sw, Math.round(cx - sw / 2)));
         const sy = Math.max(0, Math.min(ih - sh, Math.round(cy - sh / 2)));
 
-        const outW = 720;
-        const outH = 960;
+        const outW = 700;
+        const outH = 900;
         const outCanvas = document.createElement('canvas');
         outCanvas.width = outW;
         outCanvas.height = outH;
@@ -252,10 +252,10 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
         setIsStartingCamera(false);
         setCameraError(
           language === 'zh-TW'
-            ? '目前預覽視窗限制直接開啟網頁攝影機，請點選下方按鈕開啟手機相機或選擇照片（支援自動人臉裁切 4×6）。'
+            ? '目前預覽視窗限制直接開啟網頁攝影機，請點選下方按鈕開啟手機相機或選擇照片（支援自動人臉裁切 3.5×4.5 cm）。'
             : language === 'en'
-            ? 'Direct webcam is restricted in this preview frame. Use "Open Device Camera" or "Choose Photo" below (with automatic 4×6 face framing).'
-            : 'ផ្ទាំងមើលជាមុននេះមិនចាំបាច់សុំសិទ្ធិកាមេរ៉ាជាមុនទេ — សូមចុច «បើកកាមេរ៉ាទូរស័ព្ទ» ឬ «ជ្រើសរើសរូបថត» ខាងក្រោម (មានមុខងារស្គេនតម្រឹមមុខ 4×6 ស្វ័យប្រវត្តិ)។'
+            ? 'Direct webcam is restricted in this preview frame. Use "Open Device Camera" or "Choose Photo" below (with automatic 3.5×4.5 cm face framing).'
+            : 'ផ្ទាំងមើលជាមុននេះមិនចាំបាច់សុំសិទ្ធិកាមេរ៉ាជាមុនទេ — សូមចុច «បើកកាមេរ៉ាទូរស័ព្ទ» ឬ «ជ្រើសរើសរូបថត» ខាងក្រោម (មានមុខងារស្គេនតម្រឹមមុខ 3.5×4.5 cm ស្វ័យប្រវត្តិ)។'
         );
         return;
       }
@@ -369,8 +369,8 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
     const vw = video.videoWidth;
     const vh = video.videoHeight;
 
-    // Crop centered 3:4 portrait ID photo frame
-    const targetAspect = 3 / 4;
+    // Crop centered 3.5:4.5 portrait ID photo frame
+    const targetAspect = 3.5 / 4.5;
     const currentAspect = vw / vh;
 
     let sx = 0;
@@ -386,8 +386,8 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
       sy = Math.round((vh - sh) / 2);
     }
 
-    const outW = 720;
-    const outH = 960;
+    const outW = 700;
+    const outH = 900;
     const canvas = document.createElement('canvas');
     canvas.width = outW;
     canvas.height = outH;
@@ -677,8 +677,8 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
         />
 
         <div className="flex flex-col items-center justify-center gap-3">
-          {/* Centered Portrait 4x6 Photo Frame */}
-          <div className="relative w-28 h-36 sm:w-30 sm:h-38 rounded-xl border-2 border-dashed border-slate-300 bg-white overflow-hidden shrink-0 flex flex-col items-center justify-center shadow-xs group">
+          {/* Centered Portrait 3.5x4.5 cm Photo Frame (7:9 aspect ratio) */}
+          <div className="relative w-28 h-36 sm:w-[126px] sm:h-[162px] rounded-xl border-2 border-dashed border-slate-300 bg-white overflow-hidden shrink-0 flex flex-col items-center justify-center shadow-xs group">
             {isProcessing ? (
               <div className="flex flex-col items-center justify-center gap-1.5 text-indigo-600 p-2 text-center">
                 <Loader2 className="w-6 h-6 animate-spin" />
@@ -727,7 +727,10 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
                   <User className="w-5 h-5" />
                 </div>
                 <span className="text-[11px] font-bold text-slate-700 leading-tight">
-                  {language === 'zh-TW' ? '學生照片' : language === 'en' ? 'Photo 4×6' : 'រូបថត 4×6'}
+                  {language === 'zh-TW' ? '學生照片' : language === 'en' ? 'Student Photo' : 'រូបថតសិស្ស'}
+                </span>
+                <span className="text-[10px] font-semibold text-slate-500 mt-0.5 leading-tight">
+                  3.5 cm × 4.5 cm
                 </span>
               </div>
             )}
@@ -850,9 +853,9 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
               </button>
             </div>
 
-            {/* Video Viewport (3:4 Portrait Aspect Frame) */}
+            {/* Video Viewport (3.5:4.5 Portrait Aspect Frame) */}
             <div className="p-4 bg-slate-900 flex flex-col items-center justify-center">
-              <div className="relative w-full max-w-[310px] aspect-[3/4] rounded-2xl overflow-hidden bg-slate-950 border-2 border-slate-700 shadow-inner flex items-center justify-center">
+              <div className="relative w-full max-w-[300px] aspect-[7/9] rounded-2xl overflow-hidden bg-slate-950 border-2 border-slate-700 shadow-inner flex items-center justify-center">
                 {isStartingCamera && (
                   <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-slate-950/90 text-white text-xs">
                     <Loader2 className="w-7 h-7 animate-spin text-indigo-400" />
@@ -970,10 +973,10 @@ export const StudentPhotoCapture: React.FC<StudentPhotoCaptureProps> = ({
                       <div className="pointer-events-none absolute inset-4 border border-white/35 rounded-xl flex items-end justify-center pb-2">
                         <span className="text-[10px] text-white/80 bg-black/45 px-2 py-0.5 rounded">
                           {language === 'zh-TW'
-                            ? '4×6 證件照比例框'
+                            ? '3.5 × 4.5 cm 證件照比例框'
                             : language === 'en'
-                            ? '4×6 Portrait Guide'
-                            : 'ស៊ុមរូបថតស្តង់ដារ 4×6'}
+                            ? '3.5 × 4.5 cm Portrait Guide'
+                            : 'ស៊ុមរូបថតស្តង់ដារ 3.5 × 4.5 cm'}
                         </span>
                       </div>
                     )}

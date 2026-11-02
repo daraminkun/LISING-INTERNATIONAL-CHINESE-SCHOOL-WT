@@ -8,8 +8,7 @@
  * across all Desktop PCs, iPhones, iPads, and Android phones.
  */
 
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { Student, Language } from '../types';
 import { institutionService } from '../services/institutionService';
 import { schoolMajorService } from '../services/schoolMajorService';
@@ -30,7 +29,16 @@ import {
   formatDobDot,
   triggerSafeBlobDownload,
 } from './studentOrderUtils';
-import { formatCurrentReportDateDot } from './pdfRenderUtils';
+import {
+  GeneratedPdfResult,
+  captureHtml2CanvasPage,
+  formatCurrentReportDateDot,
+  getResolvedLogoSync,
+  resolveImageAsDataUrl,
+  triggerDirectPagePrint,
+} from './pdfRenderUtils';
+
+export type { GeneratedPdfResult };
 
 function escapeHtml(raw?: string | number | null): string {
   if (raw === null || raw === undefined) return '';
@@ -42,40 +50,9 @@ function escapeHtml(raw?: string | number | null): string {
     .replace(/'/g, '&#39;');
 }
 
-let cachedDefaultLogoDataUrl: string | null = null;
-
 export async function resolveAssetAsDataUrl(src?: string): Promise<string> {
   if (!src) return '';
-  if (src.startsWith('data:')) return src;
-  if (src === '/logo.jpg' && cachedDefaultLogoDataUrl) {
-    return cachedDefaultLogoDataUrl;
-  }
-
-  try {
-    const res = await fetch(src, { cache: 'force-cache' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : src);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-    if (src === '/logo.jpg' && dataUrl.startsWith('data:')) {
-      cachedDefaultLogoDataUrl = dataUrl;
-    }
-    return dataUrl;
-  } catch {
-    if (src !== '/logo.jpg') {
-      return resolveAssetAsDataUrl('/logo.jpg');
-    }
-    return src;
-  }
-}
-
-// Pre-warm default school logo cache so native print stays within transient user activation
-if (typeof window !== 'undefined') {
-  void resolveAssetAsDataUrl('/logo.jpg');
+  return resolveImageAsDataUrl(src);
 }
 
 function ensureMainDocHtml2CanvasFontFix(): void {
@@ -97,38 +74,6 @@ function ensureMainDocHtml2CanvasFontFix(): void {
   }
 }
 
-function sanitizeClonedDocumentOklch(clonedDoc: Document): void {
-  if (clonedDoc.head) {
-    const h2cBaselineFix = clonedDoc.createElement('style');
-    h2cBaselineFix.textContent = `
-      img[width="1"][height="1"],
-      img[src^="data:image/gif;base64,R0lGODlhAQAB"] {
-        display: inline !important;
-        vertical-align: baseline !important;
-        position: relative !important;
-        top: -1px !important;
-      }
-    `;
-    clonedDoc.head.appendChild(h2cBaselineFix);
-  }
-
-  const stylesheets = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
-  stylesheets.forEach(sheet => {
-    if (sheet.textContent && sheet.textContent.includes('oklch')) {
-      sheet.textContent = sheet.textContent.replace(/oklch\([^)]+\)/g, '#0f172a');
-    }
-  });
-  const allEls = clonedDoc.querySelectorAll('*');
-  allEls.forEach(el => {
-    const htmlEl = el as HTMLElement;
-    if (htmlEl.style) {
-      if (htmlEl.style.color?.includes('oklch')) htmlEl.style.color = '#000000';
-      if (htmlEl.style.backgroundColor?.includes('oklch')) htmlEl.style.backgroundColor = '#ffffff';
-      if (htmlEl.style.borderColor?.includes('oklch')) htmlEl.style.borderColor = '#000000';
-    }
-  });
-}
-
 async function waitForDocumentFonts(): Promise<void> {
   try {
     if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
@@ -142,155 +87,13 @@ async function waitForDocumentFonts(): Promise<void> {
   }
 }
 
-function wrapStandaloneA4Html(title: string, bodyContentHtml: string): string {
-  return `<!DOCTYPE html>
-<html lang="km">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(title)}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700;900&family=Kantumruy+Pro:wght@400;600;700&family=Noto+Sans+Khmer:wght@400;600;700&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>
-    @page {
-      size: A4 portrait;
-      margin: 5mm 6mm;
-    }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    body {
-      font-family: 'Battambang', 'Kantumruy Pro', 'Noto Sans Khmer', 'Noto Serif TC', 'Times New Roman', sans-serif;
-      color: #000000;
-      background: #ffffff;
-      width: 100%;
-      max-width: 794px;
-      margin: 0 auto;
-      padding: 8px 12px;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-    .a4-sheet-page {
-      page-break-after: always;
-      break-after: page;
-      page-break-inside: avoid;
-      break-inside: avoid-page;
-    }
-    .a4-sheet-page:last-child {
-      page-break-after: auto;
-      break-after: auto;
-    }
-    @media print {
-      body {
-        max-width: none;
-        padding: 0;
-      }
-      .no-print {
-        display: none !important;
-      }
-    }
-  </style>
-</head>
-<body>
-  ${bodyContentHtml}
-</body>
-</html>`;
-}
-
-async function printHtmlInHiddenIframe(
-  fullHtml: string
-): Promise<{ success: boolean; fallbackNeeded?: boolean; error?: string }> {
-  return new Promise(resolve => {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.left = '-10000px';
-    iframe.style.top = '0';
-    iframe.style.width = '794px';
-    iframe.style.height = '1123px';
-    iframe.style.border = '0';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-
-    document.body.appendChild(iframe);
-
-    const win = iframe.contentWindow;
-    const doc = win?.document;
-    if (!doc || !win) {
-      if (document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
-      }
-      resolve({ success: false, fallbackNeeded: true, error: 'Cannot access print frame' });
-      return;
-    }
-
-    let beforePrintFired = false;
-    const markBeforePrint = () => {
-      beforePrintFired = true;
-    };
-    win.addEventListener('beforeprint', markBeforePrint);
-    window.addEventListener('beforeprint', markBeforePrint);
-
-    doc.open();
-    doc.write(fullHtml);
-    doc.close();
-
-    const runPrint = async () => {
-      try {
-        const frameWin = iframe.contentWindow;
-        if (!frameWin) {
-          resolve({ success: false, fallbackNeeded: true });
-          return;
-        }
-        if ((frameWin.document as any).fonts?.ready) {
-          await Promise.race([
-            (frameWin.document as any).fonts.ready,
-            new Promise(r => setTimeout(r, 160)),
-          ]);
-        }
-        frameWin.focus();
-        frameWin.print();
-        await new Promise(r => setTimeout(r, 90));
-
-        if (!beforePrintFired) {
-          resolve({
-            success: false,
-            fallbackNeeded: true,
-            error: 'Print dialog suppressed by browser or sandboxed iframe',
-          });
-          return;
-        }
-        resolve({ success: true });
-      } catch (e: any) {
-        resolve({ success: false, fallbackNeeded: true, error: e?.message });
-      } finally {
-        window.removeEventListener('beforeprint', markBeforePrint);
-        try {
-          iframe.contentWindow?.removeEventListener('beforeprint', markBeforePrint);
-        } catch {
-          // ignore
-        }
-        setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-        }, 5000);
-      }
-    };
-
-    setTimeout(runPrint, 120);
-  });
-}
-
 async function renderPagesHtmlToA4Pdf(
   pageHtmlBlocks: string[],
   filename: string,
   language: Language = 'km',
   onProgress?: (status: string) => void,
   options?: { enforceFullPageHeight?: boolean }
-): Promise<void> {
+): Promise<GeneratedPdfResult> {
   ensureMainDocHtml2CanvasFontFix();
   await waitForDocumentFonts();
 
@@ -353,20 +156,9 @@ async function renderPagesHtmlToA4Pdf(
       pageEl.innerHTML = pageHtmlBlocks[i];
 
       container.appendChild(pageEl);
-      await new Promise(r => setTimeout(r, 85));
+      await new Promise(r => setTimeout(r, 60));
 
-      const canvas = await html2canvas(pageEl, {
-        scale: 2,
-        width: PAGE_WIDTH_PX,
-        windowWidth: PAGE_WIDTH_PX,
-        scrollX: 0,
-        scrollY: 0,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        onclone: sanitizeClonedDocumentOklch,
-      });
-
+      const canvas = await captureHtml2CanvasPage(pageEl, PAGE_WIDTH_PX);
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const canvasW = canvas.width;
       const canvasH = canvas.height;
@@ -390,8 +182,16 @@ async function renderPagesHtmlToA4Pdf(
       container.removeChild(pageEl);
     }
 
+    onProgress?.(
+      language === 'zh-TW'
+        ? '正在下載 PDF 檔案...'
+        : language === 'en'
+        ? 'Downloading PDF...'
+        : 'កំពុងទាញយកឯកសារ PDF...'
+    );
     const pdfBlob = pdf.output('blob');
-    triggerSafeBlobDownload(pdfBlob, filename);
+    const url = triggerSafeBlobDownload(pdfBlob, filename);
+    return { blob: pdfBlob, url, filename };
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);
@@ -869,13 +669,13 @@ export function buildBlankRegistrationFormPagesHtml(
   const page1Html = `
     <div style="display: flex; flex-direction: column; justify-content: space-between; min-height: 1040px; color: #000000;">
       <div>
-        <!-- Official Header + Office Metadata Strip alongside True Physical 4x6 cm (160x238px) Photo Paste Box -->
+        <!-- Official Header + Office Metadata Strip alongside True Physical 3.5x4.5 cm (135x173px) Photo Paste Box -->
         <div style="display: flex; align-items: stretch; justify-content: space-between; gap: 12px; border-bottom: 2px solid #0f172a; padding-bottom: 5px; margin-bottom: 4.5px;">
           <!-- Left + Center Column (Upper: Logo + Page-Centered Motto/Title; Bottom: Office Seq. & Date Strip) -->
           <div style="flex: 1 1 0%; min-width: 0; display: flex; flex-direction: column; justify-content: space-between;">
             <div style="flex: 1; display: flex; align-items: center;">
-              <!-- Left: School Logo & Name (flex-basis 172px offsets the 160px+12px right photo column so Center sits at exact 50% of full 762px page) -->
-              <div style="flex: 1 1 172px; min-width: 0; padding-top: 26px; display: flex; align-items: center; justify-content: flex-start; gap: 7px;">
+              <!-- Left: School Logo & Name (flex-basis 147px offsets the 135px+12px right photo column so Center sits at exact 50% of full 762px page) -->
+              <div style="flex: 1 1 147px; min-width: 0; padding-top: 12px; display: flex; align-items: center; justify-content: flex-start; gap: 7px;">
                 <div style="width: 50px; height: 50px; border-radius: 50%; border: 2px solid #1e1b4b; overflow: hidden; background: #ffffff; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
                   <img src="${escapeHtml(schoolLogo)}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain;" />
                 </div>
@@ -904,7 +704,7 @@ export function buildBlankRegistrationFormPagesHtml(
               <div style="flex: 1 1 0px; min-width: 0;"></div>
             </div>
 
-            <!-- Office Metadata Strip (Positioned beside the bottom of the 4x6 Photo Box so physical photo never overlaps it) -->
+            <!-- Office Metadata Strip (Positioned beside the bottom of the 3.5x4.5 cm Photo Box so physical photo never overlaps it) -->
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 10.5px; line-height: 1.35; padding: 4px 8px; background: #f8fafc; border: 1px solid #cbd5e1;">
               <div style="display: flex; align-items: center; white-space: nowrap;">
                 <strong>លេខរៀងសិស្ស (សម្រាប់រដ្ឋបាល / 編號 / Seq. No.):</strong>
@@ -917,11 +717,11 @@ export function buildBlankRegistrationFormPagesHtml(
             </div>
           </div>
 
-          <!-- Right: True-Scale Physical 4x6 cm (42.3mm x 63.0mm = 160px x 238px) Student Photo Paste Box -->
-          <div style="width: 160px; height: 238px; border: 1.6px dashed #0f172a; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 8px; background: #fafafa; flex-shrink: 0;">
-            <div style="font-size: 12px; font-weight: 800; color: #0f172a; line-height: 1.35;">បិទរូបថត</div>
-            <div style="font-family: 'DFKai-SB', 'BiauKai', 'Noto Serif TC', serif; font-size: 12px; font-weight: 700; color: #334155; margin-top: 3px; line-height: 1.25;">貼相片處</div>
-            <div style="font-family: 'Times New Roman', serif; font-size: 10.5px; font-weight: 700; color: #475569; margin-top: 3px; line-height: 1.25;">Photo 4 × 6 cm</div>
+          <!-- Right: True-Scale Physical 3.5x4.5 cm (35mm x 45mm = 135px x 173px) Student Photo Paste Box -->
+          <div style="width: 135px; height: 173px; border: 1.6px dashed #0f172a; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px; background: #fafafa; flex-shrink: 0;">
+            <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; line-height: 1.35;">បិទរូបថត</div>
+            <div style="font-family: 'DFKai-SB', 'BiauKai', 'Noto Serif TC', serif; font-size: 11.5px; font-weight: 700; color: #334155; margin-top: 2px; line-height: 1.25;">貼相片處</div>
+            <div style="font-family: 'Times New Roman', serif; font-size: 10.2px; font-weight: 700; color: #475569; margin-top: 3px; line-height: 1.25;">3.5 cm × 4.5 cm</div>
           </div>
         </div>
 
@@ -1092,7 +892,7 @@ export function buildBlankRegistrationFormPagesHtml(
             <span>៤. បញ្ជីឯកសារភ្ជាប់មកជាមួយ (តាមលំដាប់ ១ ដល់ ៨) • 必備證明文件清單 • 4. Attached Documents Checklist</span>
           </div>
           <div style="border: 1px solid #1e293b; border-top: none; padding: 4px 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 2.5px 14px; font-size: 10.2px; line-height: 1.34; color: #0f172a;">
-            <div style="display: flex; align-items: center; gap: 5px;">${squareCheckboxHtml(10.5)} <span>១. រូបថតសិស្ស 4×6 (學生照片 / Student Photo)</span></div>
+            <div style="display: flex; align-items: center; gap: 5px;">${squareCheckboxHtml(10.5)} <span>១. រូបថតសិស្ស 3.5×4.5 cm (學生照片 / Student Photo)</span></div>
             <div style="display: flex; align-items: center; gap: 5px;">${squareCheckboxHtml(10.5)} <span>២. អត្តសញ្ញាបណ្ណ * (身分證 / National ID Card)</span></div>
             <div style="display: flex; align-items: center; gap: 5px;">${squareCheckboxHtml(10.5)} <span>៣. សំបុត្រកំណើត * (出生證明書 / Birth Certificate)</span></div>
             <div style="display: flex; align-items: center; gap: 5px;">${squareCheckboxHtml(10.5)} <span>៤. សៀវភៅគ្រួសារ * (戶口名簿 / Family Book)</span></div>
@@ -1217,12 +1017,12 @@ export function buildBlankRegistrationFormPageHtml(
 export async function saveBlankFormAsPDF(
   language: Language = 'km',
   onProgress?: (status: string) => void
-): Promise<void> {
+): Promise<GeneratedPdfResult> {
   const inst = institutionService.getSettings();
   const logoDataUrl = await resolveAssetAsDataUrl(inst.logoUrl || '/logo.jpg');
   const pageBlocks = buildBlankRegistrationFormPagesHtml(logoDataUrl, language);
   const dateStr = new Date().toISOString().split('T')[0];
-  await renderPagesHtmlToA4Pdf(
+  return renderPagesHtmlToA4Pdf(
     pageBlocks,
     `Student_Registration_Blank_Form_${dateStr}.pdf`,
     language,
@@ -1231,20 +1031,21 @@ export async function saveBlankFormAsPDF(
   );
 }
 
-export async function printBlankRegistrationForm(
+/**
+ * Invokes `window.print()` synchronously inside the user's click/tap gesture
+ * so Desktop browsers, Android Chrome Print Spooler, and iOS/iPadOS Safari AirPrint
+ * all open the native print dialog cleanly without losing transient user activation.
+ */
+export function printBlankRegistrationForm(
   language: Language = 'km'
 ): Promise<{ success: boolean; fallbackNeeded?: boolean; error?: string }> {
   const inst = institutionService.getSettings();
-  const logoDataUrl = await resolveAssetAsDataUrl(inst.logoUrl || '/logo.jpg');
-  const pageBlocks = buildBlankRegistrationFormPagesHtml(logoDataUrl, language);
+  const logoSrc = getResolvedLogoSync(inst.logoUrl || '/logo.jpg');
+  const pageBlocks = buildBlankRegistrationFormPagesHtml(logoSrc, language);
   const wrappedPages = pageBlocks
     .map((p) => `<div class="a4-sheet-page">${p}</div>`)
     .join('\n');
-  const fullHtml = wrapStandaloneA4Html(
-    'ពាក្យសុំចុះឈ្មោះចូលរៀន • 學生入學申請登記表 • Student Registration Form',
-    wrappedPages
-  );
-  return printHtmlInHiddenIframe(fullHtml);
+  return triggerDirectPagePrint(wrappedPages, '5mm 6mm');
 }
 
 // ============================================================================
@@ -1334,7 +1135,7 @@ export function buildIndividualStudentPageHtml(
   const regDateStr = s.createdAt ? formatDobOnly(s.createdAt) : currentDateDot;
 
   const checklistItems: Array<{ label: string; count: number; req?: boolean }> = [
-    { label: 'រូបថតសិស្ស (學生照片 / Photo)', count: photoUrl ? Math.max(1, getDocPages(effectiveDocs.photo).length) : 0 },
+    { label: 'រូបថតសិស្ស 3.5×4.5 cm (學生照片 / Photo)', count: photoUrl ? Math.max(1, getDocPages(effectiveDocs.photo).length) : 0 },
     { label: 'អត្តសញ្ញាបណ្ណ * (身分證 / ID Card)', count: getDocPages(effectiveDocs.idCard).length, req: true },
     { label: 'សំបុត្រកំណើត * (出生證明 / Birth Cert)', count: getDocPages(effectiveDocs.birthCert).length, req: true },
     { label: 'សៀវភៅគ្រួសារ * (戶口名簿 / Family Book)', count: getDocPages(effectiveDocs.familyBook).length, req: true },
@@ -1367,14 +1168,14 @@ export function buildIndividualStudentPageHtml(
         <div style="padding: 6px; text-align: center;">
           <div style="font-size: 11px; font-weight: 700; color: #334155;">រូបថតសិស្ស</div>
           <div style="font-family: 'DFKai-SB', 'BiauKai', serif; font-size: 11px; color: #475569; margin-top: 2px;">學生相片</div>
-          <div style="font-family: 'Times New Roman', serif; font-size: 9.5px; color: #64748b; margin-top: 2px;">Photo 4 × 6</div>
+          <div style="font-family: 'Times New Roman', serif; font-size: 9.8px; font-weight: 700; color: #64748b; margin-top: 2px;">3.5 cm × 4.5 cm</div>
         </div>
       `;
 
   return `
     <div style="display: flex; flex-direction: column; justify-content: space-between; min-height: 1085px; color: #000000;">
       <div>
-        <!-- Official Trilingual Header + Student 4x6 Portrait -->
+        <!-- Official Trilingual Header + Student 3.5x4.5 cm Portrait -->
         <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 8px;">
           <!-- Left: School Logo & Name (Equal-width 1fr flex wrapper so Center sits at true 50% page center) -->
           <div style="flex: 1 1 0%; min-width: 0; display: flex; align-items: center; justify-content: flex-start; gap: 7px; padding-top: 6px;">
@@ -1402,9 +1203,9 @@ export function buildIndividualStudentPageHtml(
             </div>
           </div>
 
-          <!-- Right: Student 4x6 Portrait Photo (Equal-width 1fr flex wrapper aligned right) -->
+          <!-- Right: Student 3.5x4.5 cm Portrait Photo (Equal-width 1fr flex wrapper aligned right) -->
           <div style="flex: 1 1 0%; min-width: 0; display: flex; justify-content: flex-end;">
-            <div style="width: 102px; height: 128px; border: 1.5px solid #0f172a; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8fafc; flex-shrink: 0;">
+            <div style="width: 135px; height: 173px; border: 1.5px solid #0f172a; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8fafc; flex-shrink: 0;">
               ${photoBoxContent}
             </div>
           </div>
@@ -1573,9 +1374,11 @@ export async function saveIndividualStudentPDF(
   input: Student | Student[] | NumberedStudentItem | NumberedStudentItem[],
   language: Language = 'km',
   onProgress?: (status: string) => void
-): Promise<void> {
+): Promise<GeneratedPdfResult> {
   const items = normalizeNumberedItems(input);
-  if (items.length === 0) return;
+  if (items.length === 0) {
+    throw new Error('No student selected');
+  }
 
   const inst = institutionService.getSettings();
   const logoDataUrl = await resolveAssetAsDataUrl(inst.logoUrl || '/logo.jpg');
@@ -1600,7 +1403,7 @@ export async function saveIndividualStudentPDF(
       ? `[Seq.${items[0].sequenceNo}]_${getSafeStudentName(items[0].student)}_Student_Info_${dateStr}.pdf`
       : `Individual_Students_Profile_Report_${items.length}_${dateStr}.pdf`;
 
-  await renderPagesHtmlToA4Pdf(pageBlocks, filename, language, onProgress);
+  return renderPagesHtmlToA4Pdf(pageBlocks, filename, language, onProgress);
 }
 
 export async function printIndividualStudentDocument(
@@ -1611,26 +1414,26 @@ export async function printIndividualStudentDocument(
   if (items.length === 0) return { success: false, error: 'No student selected' };
 
   const inst = institutionService.getSettings();
-  const logoDataUrl = await resolveAssetAsDataUrl(inst.logoUrl || '/logo.jpg');
+  const logoSrc = getResolvedLogoSync(inst.logoUrl || '/logo.jpg');
   const currentDateDot = formatCurrentReportDateDot();
 
-  const htmlPages: string[] = [];
-  for (const item of items) {
-    const rawPhoto = getStudentPhotoDataUrl(item.student);
-    const resolvedPhoto = rawPhoto ? await resolveAssetAsDataUrl(rawPhoto) : undefined;
+  const rawPhotos = items.map((item) => getStudentPhotoDataUrl(item.student));
+  const needsAsyncPhoto = rawPhotos.some((p) => p && !p.startsWith('data:'));
+
+  const resolvedPhotos = needsAsyncPhoto
+    ? await Promise.all(
+        rawPhotos.map((p) => (p ? resolveAssetAsDataUrl(p) : Promise.resolve(undefined)))
+      )
+    : rawPhotos;
+
+  const htmlPages = items.map((item, idx) => {
     const sheet = buildIndividualStudentPageHtml(item, {
-      logoDataUrl,
-      studentPhotoDataUrl: resolvedPhoto,
+      logoDataUrl: logoSrc,
+      studentPhotoDataUrl: resolvedPhotos[idx],
       reportDateDot: currentDateDot,
     });
-    htmlPages.push(`<div class="a4-sheet-page">${sheet}</div>`);
-  }
+    return `<div class="a4-sheet-page">${sheet}</div>`;
+  });
 
-  const title =
-    items.length === 1
-      ? `${items[0].student.nameLatin || items[0].student.nameKhmer || 'Student'} - ព័ត៌មានសិស្សម្នាក់ៗ`
-      : 'របាយការណ៍ព័ត៌មានសិស្សម្នាក់ៗ • Individual Student Reports';
-
-  const fullHtml = wrapStandaloneA4Html(title, htmlPages.join('\n'));
-  return printHtmlInHiddenIframe(fullHtml);
+  return triggerDirectPagePrint(htmlPages.join('\n'), '5mm 6mm');
 }

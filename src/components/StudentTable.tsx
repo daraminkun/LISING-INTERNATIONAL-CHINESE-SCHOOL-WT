@@ -609,6 +609,9 @@ export const StudentTable: React.FC<StudentTableProps> = ({
                   setIsSavingBlankForm(true);
                   try {
                     await saveBlankFormAsPDF(language);
+                  } catch (err) {
+                    console.error('Blank form PDF error:', err);
+                    setIsBlankFormPreviewOpen(true);
                   } finally {
                     setIsSavingBlankForm(false);
                   }
@@ -1624,9 +1627,10 @@ export const StudentTable: React.FC<StudentTableProps> = ({
         <PrintReportModal
           isOpen={isBlankFormPreviewOpen}
           onClose={() => setIsBlankFormPreviewOpen(false)}
-          students={filteredAndSortedStudents}
+          students={isAdmin ? filteredAndSortedStudents : []}
           language={language}
           initialMode="blank_form"
+          onlyBlankForm={!isAdmin}
         />
       )}
     </div>

@@ -114,26 +114,95 @@ export async function safeCopyToClipboard(text: string): Promise<boolean> {
 
 /**
  * Cross-device safe file download for PDF, CSV, and HTML blobs.
- * Delays URL revocation so iOS Safari, Android Chrome, and mobile WebViews finish reading the blob.
+ * Avoids display:none (ignored by some mobile WebViews), keeps URL alive for 3 minutes
+ * so mobile OS download prompts never hit a revoked blob URL, and returns the blob URL
+ * so UI components can also offer a 1-tap direct <a download> fallback link.
  */
-export function triggerSafeBlobDownload(blob: Blob, filename: string): void {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+export function triggerSafeBlobDownload(blob: Blob, filename: string): string {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return '';
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   link.rel = 'noopener';
-  link.style.display = 'none';
+  link.target = '_self';
+  link.style.position = 'fixed';
+  link.style.left = '-9999px';
+  link.style.top = '0';
+  link.style.opacity = '0';
+  link.style.pointerEvents = 'none';
   document.body.appendChild(link);
-  link.click();
+
+  try {
+    link.click();
+  } catch {
+    const evt = new MouseEvent('click', {
+      view: window,
+      bubbles: true,
+      cancelable: true,
+    });
+    link.dispatchEvent(evt);
+  }
+
   setTimeout(() => {
     if (document.body.contains(link)) {
       document.body.removeChild(link);
     }
-  }, 250);
+  }, 600);
+
   setTimeout(() => {
     URL.revokeObjectURL(url);
-  }, 15000);
+  }, 180000);
+
+  return url;
+}
+
+/**
+ * Checks whether the current browser/device supports native OS file sharing / AirPrint for PDFs
+ * (supported on iOS/iPadOS Safari and Android Chrome).
+ */
+export function canSharePdfFile(filename: string = 'document.pdf'): boolean {
+  try {
+    if (typeof navigator === 'undefined' || typeof File === 'undefined') return false;
+    const nav = navigator as Navigator & {
+      canShare?: (data?: ShareData) => boolean;
+      share?: (data?: ShareData) => Promise<void>;
+    };
+    if (typeof nav.share !== 'function' || typeof nav.canShare !== 'function') return false;
+    const probe = new File([new Uint8Array([37, 80, 68, 70])], filename, {
+      type: 'application/pdf',
+    });
+    return nav.canShare({ files: [probe] });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Opens the native mobile Share / AirPrint / Save to Files sheet for a generated PDF blob.
+ * Must be invoked directly from a user tap/click handler.
+ */
+export async function sharePdfBlobNative(
+  blob: Blob,
+  filename: string,
+  title: string = filename
+): Promise<boolean> {
+  try {
+    if (typeof navigator === 'undefined' || typeof File === 'undefined') return false;
+    const nav = navigator as Navigator & {
+      canShare?: (data?: ShareData) => boolean;
+      share?: (data?: ShareData) => Promise<void>;
+    };
+    if (typeof nav.share !== 'function') return false;
+    const file = new File([blob], filename, { type: 'application/pdf' });
+    if (typeof nav.canShare === 'function' && !nav.canShare({ files: [file] })) {
+      return false;
+    }
+    await nav.share({ files: [file], title });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 interface CatalogOrderMaps {

@@ -121,7 +121,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
   const docList = [
     {
       key: 'photo' as const,
-      label: language === 'km' ? 'រូបថតសិស្ស (4×6)' : language === 'zh-TW' ? '學生證件照 (4×6)' : 'Student Photo (4×6)',
+      label: language === 'km' ? 'រូបថតសិស្ស (3.5×4.5 cm)' : language === 'zh-TW' ? '學生證件照 (3.5×4.5 cm)' : 'Student Photo (3.5×4.5 cm)',
       doc: docs.photo,
       required: false,
     },
@@ -167,7 +167,7 @@ export const StudentDetailModal: React.FC<StudentDetailModalProps> = ({
                     };
                     setPreviewDoc({
                       doc: docItem,
-                      title: language === 'km' ? 'រូបថតសិស្ស (4×6)' : 'Student Photo',
+                      title: language === 'km' ? 'រូបថតសិស្ស (3.5×4.5 cm)' : 'Student Photo (3.5×4.5 cm)',
                       pageIndex: 0,
                       allPages: [docItem],
                     });

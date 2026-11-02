@@ -15,13 +15,21 @@ import {
   Printer,
   Download,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  Share2
 } from 'lucide-react';
 import { Language } from '../types';
 import { UserAccount } from '../services/authService';
 import { translations } from '../translations';
 import { formatNumberByLanguage } from '../utils/numberUtils';
-import { saveBlankFormAsPDF, printBlankRegistrationForm } from '../utils/studentFormPdfUtils';
+import {
+  GeneratedPdfResult,
+  saveBlankFormAsPDF,
+  printBlankRegistrationForm,
+} from '../utils/studentFormPdfUtils';
+import { canSharePdfFile, sharePdfBlobNative } from '../utils/studentOrderUtils';
+import { PrintReportModal } from './PrintReportModal';
 
 interface StudentPortalViewProps {
   onAddStudent: () => void;
@@ -41,23 +49,30 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
   const t = translations[language];
   const [isSavingBlankPdf, setIsSavingBlankPdf] = React.useState(false);
   const [isPrintingBlankPdf, setIsPrintingBlankPdf] = React.useState(false);
+  const [pdfProgress, setPdfProgress] = React.useState('');
+  const [readyPdf, setReadyPdf] = React.useState<GeneratedPdfResult | null>(null);
+  const [isBlankFormModalOpen, setIsBlankFormModalOpen] = React.useState(false);
   const [portalNotice, setPortalNotice] = React.useState<{ type: 'success' | 'warning'; text: string } | null>(null);
+  const canNativeShare = React.useMemo(() => canSharePdfFile(), []);
 
   const handleSaveBlankForm = async () => {
     setIsSavingBlankPdf(true);
     setPortalNotice(null);
+    setPdfProgress('');
     try {
-      await saveBlankFormAsPDF(language);
+      const pdfRes = await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+      setReadyPdf(pdfRes);
       setPortalNotice({
         type: 'success',
         text:
           language === 'km'
-            ? 'បានទាញយកទម្រង់ពាក្យចុះឈ្មោះ (PDF) សម្រាប់បំពេញដោយដៃរួចរាល់!'
+            ? 'បានទាញយកទម្រង់ពាក្យចុះឈ្មោះ (A4 PDF) រួចរាល់! (ប្រសិនបើទូរស័ព្ទមិនទាន់លោត សូមចុចប៊ូតុង "ទាញយក PDF" ខាងស្ដាំ)'
             : language === 'zh-TW'
-            ? '已下載手寫空白報名表 (PDF)！'
-            : 'Blank registration form PDF downloaded!',
+            ? '已產出手寫空白報名表 (A4 PDF)！（若手機未自動下載，請點選右側下載按鈕）'
+            : 'Blank registration form (A4 PDF) is ready!',
       });
-    } catch {
+    } catch (err) {
+      console.error('Portal blank form PDF error:', err);
       setPortalNotice({
         type: 'warning',
         text:
@@ -67,29 +82,35 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
       });
     } finally {
       setIsSavingBlankPdf(false);
+      setPdfProgress('');
     }
   };
 
   const handlePrintBlankForm = async () => {
     setPortalNotice(null);
     setIsPrintingBlankPdf(true);
+    setPdfProgress('');
     try {
       const res = await printBlankRegistrationForm(language);
       if (!res.success) {
-        await saveBlankFormAsPDF(language);
+        setIsBlankFormModalOpen(true);
+        const pdfRes = await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+        setReadyPdf(pdfRes);
         setPortalNotice({
           type: 'success',
           text:
             language === 'km'
-              ? 'បានរៀបចំ និងទាញយកឯកសារ Print Form (A4 PDF) រួចរាល់សម្រាប់បើក Print ភ្លាមៗ!'
+              ? 'បានបើកទម្រង់ A4 និងទាញយកឯកសារ Print Form (PDF) រួចរាល់សម្រាប់បើក Print ភ្លាមៗ!'
               : language === 'zh-TW'
-              ? '已自動下載可列印之空白報名表 (A4 PDF)，開啟即可列印！'
-              : 'Print-ready Blank Form (A4 PDF) downloaded — open to print immediately!',
+              ? '已開啟預覽並下載可列印之空白報名表 (A4 PDF)，開啟即可列印！'
+              : 'Opened A4 preview and downloaded print-ready Blank Form PDF!',
         });
       }
     } catch {
       try {
-        await saveBlankFormAsPDF(language);
+        setIsBlankFormModalOpen(true);
+        const pdfRes = await saveBlankFormAsPDF(language, (msg) => setPdfProgress(msg));
+        setReadyPdf(pdfRes);
         setPortalNotice({
           type: 'success',
           text:
@@ -108,6 +129,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
       }
     } finally {
       setIsPrintingBlankPdf(false);
+      setPdfProgress('');
     }
   };
 
@@ -215,7 +237,9 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
                   <Download className="w-3.5 h-3.5 text-amber-300" />
                 )}
                 <span>
-                  {language === 'km'
+                  {isSavingBlankPdf
+                    ? pdfProgress || (language === 'km' ? 'កំពុងបង្កើត PDF...' : 'Saving PDF...')
+                    : language === 'km'
                     ? 'Save Form ជា PDF'
                     : language === 'zh-TW'
                     ? '空白表 PDF'
@@ -237,9 +261,7 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
                 )}
                 <span>
                   {isPrintingBlankPdf
-                    ? language === 'km'
-                      ? 'កំពុង Print...'
-                      : 'Printing...'
+                    ? pdfProgress || (language === 'km' ? 'កំពុង Print...' : 'Printing...')
                     : language === 'km'
                     ? 'Print Form'
                     : language === 'zh-TW'
@@ -261,8 +283,8 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
         </div>
 
         {portalNotice && (
-          <div className="relative z-10 mt-4 px-4 py-2.5 rounded-xl bg-black/25 border border-white/20 text-xs text-amber-100 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="relative z-10 mt-4 px-4 py-3 rounded-xl bg-black/30 border border-white/25 text-xs text-amber-100 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               {portalNotice.type === 'success' ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
               ) : (
@@ -270,13 +292,63 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
               )}
               <span>{portalNotice.text}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setPortalNotice(null)}
-              className="text-white/70 hover:text-white text-xs font-bold px-1.5"
-            >
-              ✕
-            </button>
+
+            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+              {readyPdf && readyPdf.url && portalNotice.type === 'success' && (
+                <>
+                  <a
+                    href={readyPdf.url}
+                    download={readyPdf.filename}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors whitespace-nowrap shadow-xs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>
+                      {language === 'km'
+                        ? 'ទាញយក PDF'
+                        : language === 'zh-TW'
+                        ? '下載 PDF'
+                        : 'Download PDF'}
+                    </span>
+                  </a>
+
+                  {canNativeShare && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void sharePdfBlobNative(readyPdf.blob, readyPdf.filename, readyPdf.filename);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold text-xs transition-colors whitespace-nowrap cursor-pointer shadow-xs"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Share / Print</span>
+                    </button>
+                  )}
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsBlankFormModalOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white font-semibold text-xs border border-white/20 transition-colors whitespace-nowrap cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>
+                  {language === 'km'
+                    ? 'មើលទម្រង់ A4'
+                    : language === 'zh-TW'
+                    ? '預覽 A4 表格'
+                    : 'Preview A4'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPortalNotice(null)}
+                className="text-white/70 hover:text-white text-xs font-bold px-1.5 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -334,6 +406,18 @@ export const StudentPortalView: React.FC<StudentPortalViewProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Registrant-Only Blank Form A4 Preview & Export Modal (strictly hides Admin reports/counts) */}
+      {isBlankFormModalOpen && (
+        <PrintReportModal
+          isOpen={isBlankFormModalOpen}
+          onClose={() => setIsBlankFormModalOpen(false)}
+          students={[]}
+          language={language}
+          initialMode="blank_form"
+          onlyBlankForm={true}
+        />
+      )}
     </div>
   );
 };

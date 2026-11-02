@@ -9,7 +9,7 @@
  * - Full Desktop & Mobile reliability (no window.open, inline Base64 logo, fixed 794px viewport capture)
  */
 
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Student, Language } from '../types';
 import { institutionService } from '../services/institutionService';
@@ -20,6 +20,12 @@ import {
   formatGenderCode,
   triggerSafeBlobDownload,
 } from './studentOrderUtils';
+
+export interface GeneratedPdfResult {
+  blob: Blob;
+  url: string;
+  filename: string;
+}
 
 function escapeHtml(raw?: string | number | null): string {
   if (raw === null || raw === undefined) return '';
@@ -70,14 +76,13 @@ export const TRILINGUAL_REPORT_COLUMNS: Array<{
   { key: 'referrer', widthPx: 92, km: 'អ្នកណែនាំ', zh: '推薦人', en: 'Referrer' },
 ];
 
-let cachedDefaultLogoDataUrl: string | null = null;
+const cachedLogoDataUrls = new Map<string, string>();
 
-async function resolveImageAsDataUrl(src: string): Promise<string> {
+export async function resolveImageAsDataUrl(src: string): Promise<string> {
   if (!src) return '';
   if (src.startsWith('data:')) return src;
-  if (src === '/logo.jpg' && cachedDefaultLogoDataUrl) {
-    return cachedDefaultLogoDataUrl;
-  }
+  const cached = cachedLogoDataUrls.get(src);
+  if (cached) return cached;
 
   try {
     const res = await fetch(src, { cache: 'force-cache' });
@@ -89,8 +94,8 @@ async function resolveImageAsDataUrl(src: string): Promise<string> {
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(blob);
     });
-    if (src === '/logo.jpg' && dataUrl.startsWith('data:')) {
-      cachedDefaultLogoDataUrl = dataUrl;
+    if (dataUrl.startsWith('data:')) {
+      cachedLogoDataUrls.set(src, dataUrl);
     }
     return dataUrl;
   } catch {
@@ -101,8 +106,353 @@ async function resolveImageAsDataUrl(src: string): Promise<string> {
   }
 }
 
+export function getResolvedLogoSync(src?: string): string {
+  const target = src || '/logo.jpg';
+  if (target.startsWith('data:')) return target;
+  return cachedLogoDataUrls.get(target) || cachedLogoDataUrls.get('/logo.jpg') || target;
+}
+
 if (typeof window !== 'undefined') {
   void resolveImageAsDataUrl('/logo.jpg');
+  const currentLogo = institutionService.getLogoUrl();
+  if (currentLogo && currentLogo !== '/logo.jpg') {
+    void resolveImageAsDataUrl(currentLogo);
+  }
+  institutionService.subscribe((settings) => {
+    if (settings.logoUrl && !settings.logoUrl.startsWith('data:')) {
+      void resolveImageAsDataUrl(settings.logoUrl);
+    }
+  });
+}
+
+/**
+ * Isolates a cloned A4 page inside html2canvas's clone document from Tailwind CSS v4
+ * stylesheets (`oklab`, `oklch`, `color-mix`) while preserving Google Fonts `<link>` tags.
+ * Prevents html2canvas@1.4.1 color-parser crashes on both dev `<style>` and prod `<link>` bundles.
+ */
+export function isolateClonedPageForHtml2Canvas(
+  clonedDoc: Document,
+  clonedEl: HTMLElement,
+  pageWidthPx: number
+): void {
+  const sheets = Array.from(clonedDoc.querySelectorAll('style, link[rel="stylesheet"]'));
+  for (const node of sheets) {
+    if (node.tagName.toLowerCase() === 'link') {
+      const href = (node.getAttribute('href') || '').toLowerCase();
+      if (href.includes('fonts.googleapis.com') || href.includes('fonts.gstatic.com')) {
+        continue;
+      }
+    }
+    node.parentNode?.removeChild(node);
+  }
+
+  if (clonedDoc.head) {
+    const cleanReset = clonedDoc.createElement('style');
+    cleanReset.textContent = `
+      *, *::before, *::after {
+        box-sizing: border-box;
+        border-color: #000000;
+        outline-color: transparent;
+      }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-family: 'Battambang', 'Kantumruy Pro', 'Noto Sans Khmer', 'Noto Serif TC', 'Times New Roman', sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      h1, h2, h3, h4, h5, h6, p {
+        margin: 0;
+        padding: 0;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      img {
+        display: block;
+        max-width: 100%;
+      }
+      img[width="1"][height="1"],
+      img[src^="data:image/gif;base64,R0lGODlhAQAB"] {
+        display: inline !important;
+        vertical-align: baseline !important;
+        position: relative !important;
+        top: -1px !important;
+      }
+    `;
+    clonedDoc.head.appendChild(cleanReset);
+  }
+
+  if (clonedDoc.documentElement) {
+    clonedDoc.documentElement.className = '';
+    clonedDoc.documentElement.style.cssText =
+      'margin:0 !important;padding:0 !important;background:#ffffff !important;color:#000000 !important;';
+  }
+
+  if (clonedDoc.body) {
+    clonedDoc.body.className = '';
+    clonedDoc.body.style.cssText =
+      'margin:0 !important;padding:0 !important;background:#ffffff !important;color:#000000 !important;';
+  }
+
+  const parent = clonedEl.parentElement;
+  if (parent && parent !== clonedDoc.body) {
+    parent.className = '';
+    parent.style.cssText = `position:static !important;left:0 !important;top:0 !important;margin:0 !important;padding:0 !important;width:${pageWidthPx}px !important;background:#ffffff !important;z-index:auto !important;transform:none !important;`;
+  }
+
+  const sanitizeInline = (el: HTMLElement) => {
+    const rawCss = el.style?.cssText;
+    if (
+      rawCss &&
+      (rawCss.includes('oklch') || rawCss.includes('oklab') || rawCss.includes('color-mix'))
+    ) {
+      el.style.cssText = rawCss.replace(/(?:color-mix|oklab|oklch)\([^;"]+\)/gi, '#0f172a');
+    }
+  };
+
+  sanitizeInline(clonedEl);
+  clonedEl.querySelectorAll('*').forEach((node) => sanitizeInline(node as HTMLElement));
+}
+
+/**
+ * Renders a 794px A4 page element to an HTMLCanvasElement while skipping `#root`
+ * and automatically falling back to scale 1.5 on memory-constrained mobile phones.
+ */
+export async function captureHtml2CanvasPage(
+  pageEl: HTMLElement,
+  pageWidthPx: number
+): Promise<HTMLCanvasElement> {
+  const runWithScale = (scale: number) =>
+    html2canvas(pageEl, {
+      scale,
+      width: pageWidthPx,
+      windowWidth: pageWidthPx,
+      scrollX: 0,
+      scrollY: 0,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      ignoreElements: (el) => el.id === 'root' || el.id === 'lising-direct-print-root',
+      onclone: (clonedDoc, clonedEl) =>
+        isolateClonedPageForHtml2Canvas(clonedDoc, clonedEl, pageWidthPx),
+    });
+
+  try {
+    return await runWithScale(2);
+  } catch (firstErr) {
+    console.warn('Retrying html2canvas at mobile-safe scale 1.5:', firstErr);
+    return await runWithScale(1.5);
+  }
+}
+
+/**
+ * Synchronous top-level `@media print` engine (zero window.open, zero sub-iframes).
+ * Works across Desktop (Chrome, Edge, Safari, Firefox) and Mobile (Android Chrome Print Spooler,
+ * iPhone/iPad Safari AirPrint) because `window.print()` is invoked synchronously inside the
+ * user's tap/click gesture while keeping `#lising-direct-print-root` hidden on screen.
+ */
+export function triggerDirectPagePrint(
+  printBodyHtml: string,
+  pageMarginCss: string = '5mm 6mm'
+): Promise<{ success: boolean; fallbackNeeded?: boolean; error?: string }> {
+  if (
+    typeof window === 'undefined' ||
+    typeof document === 'undefined' ||
+    typeof window.print !== 'function'
+  ) {
+    return Promise.resolve({
+      success: false,
+      fallbackNeeded: true,
+      error: 'Print API unavailable',
+    });
+  }
+
+  const styleId = 'lising-direct-print-style';
+  const rootId = 'lising-direct-print-root';
+
+  let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+  }
+
+  styleEl.textContent = `
+    @media screen {
+      #${rootId} {
+        display: none !important;
+      }
+    }
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: ${pageMarginCss};
+      }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        line-height: normal !important;
+        letter-spacing: normal !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      body > *:not(#${rootId}) {
+        display: none !important;
+      }
+      #${rootId} {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        max-width: 794px !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-family: 'Battambang', 'Kantumruy Pro', 'Noto Sans Khmer', 'Noto Serif TC', 'Times New Roman', sans-serif !important;
+        line-height: normal !important;
+        letter-spacing: normal !important;
+        overflow: visible !important;
+      }
+      #${rootId} .a4-sheet-page {
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid-page !important;
+      }
+      #${rootId} .a4-sheet-page:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
+    }
+  `;
+
+  let printRoot = document.getElementById(rootId) as HTMLDivElement | null;
+  if (!printRoot) {
+    printRoot = document.createElement('div');
+    printRoot.id = rootId;
+    document.body.appendChild(printRoot);
+  }
+  printRoot.innerHTML = printBodyHtml;
+
+  let beforePrintFired = false;
+  let afterPrintFired = false;
+  let printMediaMatched = false;
+  let windowBlurredOrHidden = false;
+  const startTs = Date.now();
+  let afterPrintElapsedMs = 0;
+
+  const cleanupDom = () => {
+    const existingRoot = document.getElementById(rootId);
+    if (existingRoot && existingRoot.parentNode) {
+      existingRoot.parentNode.removeChild(existingRoot);
+    }
+    const existingStyle = document.getElementById(styleId);
+    if (existingStyle && existingStyle.parentNode) {
+      existingStyle.parentNode.removeChild(existingStyle);
+    }
+  };
+
+  const onBeforePrint = () => {
+    beforePrintFired = true;
+  };
+  const onAfterPrint = () => {
+    afterPrintFired = true;
+    afterPrintElapsedMs = Date.now() - startTs;
+    setTimeout(cleanupDom, 1800);
+  };
+  const onWindowBlur = () => {
+    windowBlurredOrHidden = true;
+  };
+  const onVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      windowBlurredOrHidden = true;
+    }
+  };
+
+  const mql = typeof window.matchMedia === 'function' ? window.matchMedia('print') : null;
+  const onMqlChange = (e: MediaQueryListEvent | MediaQueryList) => {
+    if (e.matches) {
+      printMediaMatched = true;
+    }
+  };
+
+  window.addEventListener('beforeprint', onBeforePrint);
+  window.addEventListener('afterprint', onAfterPrint, { once: true });
+  window.addEventListener('blur', onWindowBlur);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  if (mql) {
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', onMqlChange);
+    } else if (typeof (mql as any).addListener === 'function') {
+      (mql as any).addListener(onMqlChange);
+    }
+  }
+
+  const detachTrackingListeners = () => {
+    window.removeEventListener('beforeprint', onBeforePrint);
+    window.removeEventListener('blur', onWindowBlur);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    if (mql) {
+      if (typeof mql.removeEventListener === 'function') {
+        mql.removeEventListener('change', onMqlChange);
+      } else if (typeof (mql as any).removeListener === 'function') {
+        (mql as any).removeListener(onMqlChange);
+      }
+    }
+  };
+
+  let syncElapsedMs = 0;
+  try {
+    const t0 = Date.now();
+    window.print();
+    syncElapsedMs = Date.now() - t0;
+  } catch (err: any) {
+    detachTrackingListeners();
+    window.removeEventListener('afterprint', onAfterPrint);
+    cleanupDom();
+    return Promise.resolve({
+      success: false,
+      fallbackNeeded: true,
+      error: err?.message || 'window.print threw an error',
+    });
+  }
+
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      detachTrackingListeners();
+
+      const anySignal =
+        beforePrintFired || printMediaMatched || windowBlurredOrHidden || syncElapsedMs >= 140;
+      const abortedInstantly =
+        afterPrintFired &&
+        afterPrintElapsedMs < 80 &&
+        !windowBlurredOrHidden &&
+        syncElapsedMs < 80;
+
+      if (!anySignal || abortedInstantly) {
+        window.removeEventListener('afterprint', onAfterPrint);
+        cleanupDom();
+        resolve({
+          success: false,
+          fallbackNeeded: true,
+          error: 'Print dialog suppressed by browser or embedded frame',
+        });
+        return;
+      }
+
+      // Keep hidden #lising-direct-print-root mounted for async mobile print spoolers (Android / AirPrint)
+      setTimeout(cleanupDom, 60000);
+      resolve({ success: true });
+    }, 260);
+  });
 }
 
 function buildOfficialHeaderHtml(options: {
@@ -443,7 +793,7 @@ export async function generateHighQualityPDF(
   filenamePrefix: string = 'Student_Report',
   language: Language = 'km',
   onProgress?: (status: string) => void
-): Promise<void> {
+): Promise<GeneratedPdfResult> {
   onProgress?.(
     language === 'zh-TW'
       ? '正在準備 A4 直向三語報表 (14號字)...'
@@ -580,61 +930,25 @@ export async function generateHighQualityPDF(
       `;
 
       container.appendChild(pageEl);
-      await new Promise(r => setTimeout(r, 80));
+      await new Promise(r => setTimeout(r, 60));
 
-      const canvas = await html2canvas(pageEl, {
-        scale: 2,
-        width: PAGE_WIDTH_PX,
-        windowWidth: PAGE_WIDTH_PX,
-        scrollX: 0,
-        scrollY: 0,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        onclone: (clonedDoc) => {
-          if (clonedDoc.head) {
-            const h2cBaselineFix = clonedDoc.createElement('style');
-            h2cBaselineFix.textContent = `
-              img[width="1"][height="1"],
-              img[src^="data:image/gif;base64,R0lGODlhAQAB"] {
-                display: inline !important;
-                vertical-align: baseline !important;
-                position: relative !important;
-                top: -1px !important;
-              }
-            `;
-            clonedDoc.head.appendChild(h2cBaselineFix);
-          }
-          const stylesheets = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
-          stylesheets.forEach(sheet => {
-            if (sheet.textContent && sheet.textContent.includes('oklch')) {
-              sheet.textContent = sheet.textContent.replace(/oklch\([^)]+\)/g, '#0f172a');
-            }
-          });
-          const allEls = clonedDoc.querySelectorAll('*');
-          allEls.forEach(el => {
-            const htmlEl = el as HTMLElement;
-            if (htmlEl.style) {
-              if (htmlEl.style.color?.includes('oklch')) htmlEl.style.color = '#000000';
-              if (htmlEl.style.backgroundColor?.includes('oklch')) htmlEl.style.backgroundColor = '#ffffff';
-              if (htmlEl.style.borderColor?.includes('oklch')) htmlEl.style.borderColor = '#000000';
-            }
-          });
-        },
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.96);
+      const canvas = await captureHtml2CanvasPage(pageEl, PAGE_WIDTH_PX);
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const canvasW = canvas.width;
+      const canvasH = canvas.height;
+      canvas.width = 1;
+      canvas.height = 1;
 
       if (pageIdx > 0) {
         pdf.addPage('a4', 'portrait');
       }
 
       // Fit 794px -> 210mm 1:1, or scale down slightly only if content exceeded 297mm height
-      const naturalHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
+      const naturalHeightMm = (canvasH * pdfWidthMm) / canvasW;
       if (naturalHeightMm <= pdfHeightMm) {
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, naturalHeightMm);
       } else {
-        const fitWidthMm = (canvas.width * pdfHeightMm) / canvas.height;
+        const fitWidthMm = (canvasW * pdfHeightMm) / canvasH;
         const offsetX = Math.max(0, (pdfWidthMm - fitWidthMm) / 2);
         pdf.addImage(imgData, 'JPEG', offsetX, 0, fitWidthMm, pdfHeightMm);
       }
@@ -650,8 +964,10 @@ export async function generateHighQualityPDF(
         : 'កំពុងទាញយកឯកសារ PDF...'
     );
     const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `${filenamePrefix}_${dateStr}.pdf`;
     const pdfBlob = pdf.output('blob');
-    triggerSafeBlobDownload(pdfBlob, `${filenamePrefix}_${dateStr}.pdf`);
+    const url = triggerSafeBlobDownload(pdfBlob, filename);
+    return { blob: pdfBlob, url, filename };
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);
@@ -660,97 +976,44 @@ export async function generateHighQualityPDF(
 }
 
 /**
- * Cross-Browser & Iframe-Safe Print Handler (Zero window.open calls)
+ * Cross-Browser & Mobile Direct Print Handler (Zero window.open, synchronous user gesture)
  */
 export async function executePrintDocument(
   students: Student[],
   title: string,
-  language: Language = 'km'
+  _language: Language = 'km'
 ): Promise<{ success: boolean; fallbackNeeded?: boolean; error?: string }> {
   try {
     const inst = institutionService.getSettings();
-    const logoDataUrl = await resolveImageAsDataUrl(inst.logoUrl || '/logo.jpg');
+    const schoolLogo = getResolvedLogoSync(inst.logoUrl || '/logo.jpg');
+    const schoolNameKm = inst.nameKm || 'សាលារៀនចិនលិស៊ីងអន្តរជាតិ';
+    const schoolNameZh = inst.nameZh || '日興國際學校';
+    const schoolNameEn = inst.nameEn || 'LISING INTERNATIONAL CHINESE SCHOOL';
     const currentDateDot = formatCurrentReportDateDot();
-    const htmlContent = generateReportHtml(
-      students,
-      title,
-      language,
+    const titles = getTrilingualReportTitles(title);
+    const numberedItems = computeStudentNumbersList(students);
+
+    const headerHtml = buildOfficialHeaderHtml({
+      schoolLogoSrc: schoolLogo,
+      schoolNameKm,
+      schoolNameZh,
+      schoolNameEn,
+      titles,
       currentDateDot,
-      logoDataUrl
-    );
-
-    return await new Promise((resolve) => {
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.left = '-10000px';
-      iframe.style.top = '0';
-      iframe.style.width = '794px';
-      iframe.style.height = '1123px';
-      iframe.style.border = '0';
-      iframe.style.opacity = '0';
-      iframe.style.pointerEvents = 'none';
-
-      document.body.appendChild(iframe);
-
-      const doc = iframe.contentWindow?.document;
-      if (!doc || !iframe.contentWindow) {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-        resolve({ success: false, fallbackNeeded: true, error: 'Cannot access print frame' });
-        return;
-      }
-
-      doc.open();
-      doc.write(htmlContent);
-      doc.close();
-
-      let beforePrintFired = false;
-      const onBeforePrint = () => {
-        beforePrintFired = true;
-      };
-      iframe.contentWindow.addEventListener('beforeprint', onBeforePrint);
-
-      const runPrint = async () => {
-        try {
-          const win = iframe.contentWindow;
-          if (!win) {
-            resolve({ success: false, fallbackNeeded: true });
-            return;
-          }
-          if ((win.document as any).fonts?.ready) {
-            await Promise.race([
-              (win.document as any).fonts.ready,
-              new Promise(r => setTimeout(r, 160)),
-            ]);
-          }
-          win.focus();
-          win.print();
-
-          await new Promise(r => setTimeout(r, 90));
-          if (!beforePrintFired) {
-            resolve({
-              success: false,
-              fallbackNeeded: true,
-              error: 'Print dialog suppressed by sandboxed frame',
-            });
-            return;
-          }
-          resolve({ success: true });
-        } catch (e: any) {
-          console.warn('Iframe print notice:', e);
-          resolve({ success: false, fallbackNeeded: true, error: e?.message });
-        } finally {
-          setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-          }, 4000);
-        }
-      };
-
-      setTimeout(runPrint, 120);
+      totalStudents: students.length,
     });
+    const tableHtml = buildOfficialTableHtml(numberedItems);
+    const signaturesHtml = buildOfficialSignaturesHtml();
+
+    const printBodyHtml = `
+      <div style="color: #000000; background: #ffffff;">
+        ${headerHtml}
+        ${tableHtml}
+        ${signaturesHtml}
+      </div>
+    `;
+
+    return await triggerDirectPagePrint(printBodyHtml, '7mm 6mm');
   } catch (err: any) {
     console.error('Print preparation error:', err);
     return { success: false, fallbackNeeded: true, error: err?.message };

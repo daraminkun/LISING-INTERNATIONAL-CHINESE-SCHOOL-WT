@@ -430,6 +430,9 @@ export const StudentReport: React.FC<StudentReportProps> = ({
       await saveBlankFormAsPDF(language);
     } catch (err) {
       console.error('Blank form PDF error:', err);
+      setPrintModalMode('blank_form');
+      setPrintModalStudentId(undefined);
+      setIsPrintModalOpen(true);
     } finally {
       setIsSavingBlankForm(false);
     }
